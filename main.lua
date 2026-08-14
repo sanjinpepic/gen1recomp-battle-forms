@@ -33,25 +33,47 @@ local function loadSibling(mod, name)
 end
 
 return function(mod)
-  local names = { "src/eligibility.lua", "src/forms.lua", "src/stone.lua",
-                  "src/shop.lua", "src/arm.lua", "src/resolve.lua", "src/anim.lua",
-                  "src/overlay.lua", "src/menu.lua",
-                  "data/megas.lua", "data/stones.lua" }
+  -- OFFICIAL is the 48 mega evolutions the mainline games shipped; ALL adds
+  -- the 48 more the National Dex data carries that never did.  It gates what
+  -- the shelf sells and what a stone is allowed to do -- never which stones
+  -- exist, see src/megaset.lua.
+  mod.options:define({
+    { key = "megas", label = "MEGA EVOLUTIONS", type = "choice",
+      default = "official", choices = { { "OFFICIAL", "official" },
+                                        { "ALL", "all" } } },
+  })
+
+  local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
+                  "src/stone.lua", "src/shop.lua", "src/arm.lua",
+                  "src/resolve.lua", "src/anim.lua", "src/overlay.lua",
+                  "src/menu.lua", "data/megas.lua", "data/stones.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
     if not m[name] then return end
   end
 
-  local megas = m["data/megas.lua"]
+  local megaset = m["src/megaset.lua"]
+  local rawMegas = m["data/megas.lua"]
   local indices = m["data/stones.lua"]
   local eligibility = m["src/eligibility.lua"]
   local anim = m["src/anim.lua"]
   local state = m["src/arm.lua"].new()
 
+  for _, pair in ipairs(megaset.problems(rawMegas)) do
+    mod.log:error("data/megas.lua: %s carries no officialness marker -- wrap "
+      .. "its form id in official() or extended(); until then it is in "
+      .. "neither set and its stone does nothing", pair)
+  end
+
+  -- Two tables from one source: every pair for registration, the chosen set
+  -- for everything that decides whether a mega may happen.
+  local allMegas = megaset.select(rawMegas, megaset.ALL)
+  local megas = megaset.select(rawMegas, mod.options:get("megas"))
+
   m["src/stone.lua"].bind(eligibility)
-  m["src/stone.lua"].install(mod, megas, indices)
-  m["src/shop.lua"].install(mod, indices)
+  m["src/stone.lua"].install(mod, allMegas, megas, indices)
+  m["src/shop.lua"].install(mod, indices, megaset.stoneIds(megas))
   anim.install(mod)
 
   local resolve = m["src/resolve.lua"]

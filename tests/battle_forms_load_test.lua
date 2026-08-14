@@ -45,4 +45,22 @@ T.check(mod ~= nil, "battle_forms was discovered")
 T.eq(mod and mod.manifest.id, "battle_forms", "manifest id matches")
 T.check(mod and not mod.failed, "battle_forms did not fail to load")
 
+-- The MEGA EVOLUTIONS option is declared before any sibling is read, so it
+-- reaches the launcher's settings screen even on the degraded load this
+-- synthesized filesystem produces.  OFFICIAL is the default a fresh install
+-- gets: the megas the real games have, with the rest opt-in.
+local schema = run.loader.optionSchemas.battle_forms
+local megasRow
+for _, row in ipairs(schema or {}) do
+  if row.key == "megas" then megasRow = row end
+end
+T.check(megasRow ~= nil, "the megas option is defined")
+T.eq(megasRow and megasRow.default, "official", "it defaults to OFFICIAL")
+T.eq(megasRow and megasRow.choices and #megasRow.choices, 2,
+  "it offers exactly two choices")
+T.eq(megasRow and megasRow.choices and megasRow.choices[1][2], "official",
+  "OFFICIAL is the first choice")
+T.eq(megasRow and megasRow.choices and megasRow.choices[2][2], "all",
+  "ALL is the second")
+
 T.finish("battle_forms_load")

@@ -9,7 +9,10 @@ local Menu = dofile(MOD .. "/src/menu.lua")
 local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
-local megas = dofile(MOD .. "/data/megas.lua")
+local Megaset = dofile(MOD .. "/src/megaset.lua")
+-- The whole roster: every check below holds for any wired mega, and the
+-- OFFICIAL/ALL split is pinned in the eligibility suite.
+local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 Overlay.bind({ eligibility = E, megas = megas })
 Menu.bind({ overlay = Overlay })

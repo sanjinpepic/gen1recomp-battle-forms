@@ -5,7 +5,10 @@ local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
-local megas = dofile(MOD .. "/data/megas.lua")
+local Megaset = dofile(MOD .. "/src/megaset.lua")
+-- The whole roster: every check below holds for any wired mega, and the
+-- OFFICIAL/ALL split is pinned in the eligibility suite.
+local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 Overlay.bind({ eligibility = E, megas = megas })
 
@@ -69,5 +72,24 @@ local s6 = Arm.new()
 s6:onBattleStarted({ battle = noData })
 T.eq(Overlay.shouldOffer(s6), false,
   "a battle with no species table at all is never offered")
+
+-- Nothing may be offered for a pairing the MEGA EVOLUTIONS option turned off.
+-- The stone is still a real item and can still be sitting on the mon -- what
+-- the option takes away is the eligibility the cell is drawn from, so the
+-- player is never shown a MEGA the resolve step would have to refuse.
+local raw = dofile(MOD .. "/data/megas.lua")
+local starmieBattle = { phase = "menu", queue = {},
+  data = { pokemon = { STARMIE_MEGA = {} } },
+  player = { mon = { species = "STARMIE", [E.STAMP] = "STARMIITE" } } }
+local s7 = Arm.new()
+s7:onBattleStarted({ battle = starmieBattle })
+
+Overlay.bind({ eligibility = E, megas = Megaset.select(raw, Megaset.OFFICIAL) })
+T.eq(Overlay.shouldOffer(s7), false,
+  "an extended pairing is offered no cell under OFFICIAL")
+
+Overlay.bind({ eligibility = E, megas = megas })
+T.eq(Overlay.shouldOffer(s7), true,
+  "the same mon in the same battle is offered the cell under ALL")
 
 T.finish("battle_forms_overlay")

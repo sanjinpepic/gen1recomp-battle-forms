@@ -6,7 +6,10 @@ local Resolve = dofile(MOD .. "/src/resolve.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
-local megas = dofile(MOD .. "/data/megas.lua")
+local Megaset = dofile(MOD .. "/src/megaset.lua")
+-- The whole roster: every check below holds for any wired mega, and the
+-- OFFICIAL/ALL split is pinned in the eligibility suite.
+local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 local DATA = { pokemon = {
   CHARIZARD = { baseStats = { hp = 78, attack = 84, defense = 78,

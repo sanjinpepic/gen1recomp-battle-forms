@@ -4,7 +4,11 @@ local T = require("tests.modkit")
 local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local Stone = dofile(MOD .. "/src/stone.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
-local megas = dofile(MOD .. "/data/megas.lua")
+local Megaset = dofile(MOD .. "/src/megaset.lua")
+local raw = dofile(MOD .. "/data/megas.lua")
+-- The whole roster: what a stone IS never depends on the MEGA EVOLUTIONS
+-- option, so every check here reads the ALL selection.
+local megas = Megaset.select(raw, Megaset.ALL)
 local indices = dofile(MOD .. "/data/stones.lua")
 
 Stone.bind(E)
@@ -84,5 +88,55 @@ local swap = { species = "CHARIZARD" }
 use({ data = DATA, target = swap })
 Stone.effectFor(megas, "CHARIZARDITE_Y")({ data = DATA, target = swap })
 T.eq(E.stoneOf(swap), "CHARIZARDITE_Y", "a second stone replaces the first")
+
+-- ------- registration ignores the option -----------------------------
+
+-- The save-safety rule.  A player can be holding any stone at the moment the
+-- MEGA EVOLUTIONS option changes, and an item id with no record behind it is
+-- a bag byte the save can no longer resolve -- so every stone is registered
+-- under both settings, and only what the stone DOES narrows.
+local function recorder()
+  local seen = { items = {}, effects = {}, errors = {} }
+  local mod = {
+    log = { error = function(_, fmt, ...)
+      seen.errors[#seen.errors + 1] = string.format(fmt, ...)
+    end },
+    content = {
+      items = { register = function(_, id, record) seen.items[id] = record end },
+      item_effects = { register = function(_, id, record) seen.effects[id] = record end },
+    },
+  }
+  return seen, mod
+end
+
+local STARMIE_DATA = { pokemon = { STARMIE = { name = "STARMIE" } } }
+
+for _, setting in ipairs({ Megaset.OFFICIAL, Megaset.ALL }) do
+  local seen, fakeMod = recorder()
+  Stone.install(fakeMod, megas, Megaset.select(raw, setting), indices)
+
+  local registered = 0
+  for _, byStone in pairs(megas) do
+    for stoneId in pairs(byStone) do
+      registered = registered + 1
+      T.check(seen.items[stoneId] ~= nil,
+        stoneId .. " is registered as an item under " .. setting)
+      T.check(seen.effects[stoneId] ~= nil,
+        stoneId .. " keeps its item effect under " .. setting)
+    end
+  end
+  T.eq(registered, 96, "every wired stone was checked under " .. setting)
+  T.eq(#seen.errors, 0, "no stone reports a missing bag index under " .. setting)
+
+  -- Starmie's mega is one the real games never had, so its stone is inert
+  -- under OFFICIAL -- inert, not absent, and it fails the way a stone used on
+  -- the wrong species fails rather than raising.
+  local target = { species = "STARMIE" }
+  T.eq(seen.effects["STARMIITE"].use({ data = STARMIE_DATA, target = target }),
+    setting == Megaset.ALL and "kept" or "failed",
+    "the registered STARMIITE effect follows the " .. setting .. " setting")
+  T.eq(E.stoneOf(target), setting == Megaset.ALL and "STARMIITE" or nil,
+    "a refused use under " .. setting .. " stamps nothing")
+end
 
 T.finish("battle_forms_stone")

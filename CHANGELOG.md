@@ -3,6 +3,25 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.5.0
+
+### Added
+
+- **A MEGA EVOLUTIONS option, defaulting to the 48 mega evolutions the real
+  games have.** The other 48 the species data carries -- second megas for
+  Absol, Garchomp and Lucario, two for Raichu, three for Tatsugiri, and megas
+  for species that never had one -- are no longer on by default; switching
+  the option to ALL brings them back exactly as they were in 0.4.0. Under
+  OFFICIAL the Celadon shelf sells only the 48 official stones and a
+  switched-off pairing is not eligible, so no MEGA cell appears and nothing
+  can be armed. Every stone stays a registered item under both settings,
+  including the ones the option turns off: a stone already in a bag when the
+  setting changes must still be an item the save can name, so what the option
+  gates is what a stone does, never whether it exists. One official entry
+  deviates: Mega Rayquaza has no stone in the real games -- it megas by
+  knowing Dragon Ascent -- so the Rayquazite sold here is this mod's
+  invention, because a stone is the only trigger implemented.
+
 ## 0.4.0
 
 ### Added

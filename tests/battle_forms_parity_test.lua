@@ -8,7 +8,10 @@ local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local Forms = dofile(MOD .. "/src/forms.lua")
 local Resolve = dofile(MOD .. "/src/resolve.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
-local megas = dofile(MOD .. "/data/megas.lua")
+local Megaset = dofile(MOD .. "/src/megaset.lua")
+-- The whole roster: every check below holds for any wired mega, and the
+-- OFFICIAL/ALL split is pinned in the eligibility suite.
+local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 local DATA = { pokemon = {
   ALAKAZAM = { baseStats = { hp = 55, attack = 50, defense = 45,

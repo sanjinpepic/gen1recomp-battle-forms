@@ -15,10 +15,14 @@
 -- map_scripts entry describes in the first place.
 local M = {}
 
-function M.install(mod, indices)
+-- `offered` is the set of stone ids the MEGA EVOLUTIONS option turned on.
+-- The shelf is the one place that option may take a stone away: a stone that
+-- is never sold is one the player simply never had, where a stone that is
+-- never registered is a bag entry an existing save can no longer resolve.
+function M.install(mod, indices, offered)
   local stones = {}
   for stoneId in pairs(indices) do
-    stones[#stones + 1] = stoneId
+    if offered[stoneId] then stones[#stones + 1] = stoneId end
   end
   -- Stable shelf order (by assigned bag index) rather than whatever pairs()
   -- happens to yield, so the mart menu does not reshuffle between runs.

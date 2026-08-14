@@ -56,9 +56,16 @@ function M.items(megas, indices)
   return out
 end
 
-function M.install(mod, megas, indices)
-  local items = M.items(megas, indices)
-  for _, byStone in pairs(megas) do
+-- `all` is every pair data/megas.lua names; `active` is the subset the MEGA
+-- EVOLUTIONS option turned on.  Registration reads `all` and only `all`: a
+-- stone the player is already carrying has to keep existing when the option
+-- changes, or switching to OFFICIAL would leave a save holding a bag byte no
+-- record can name.  The option decides what a stone DOES -- the effect reads
+-- `active`, so a switched-off stone refuses exactly the way a stone used on
+-- the wrong species already does.
+function M.install(mod, all, active, indices)
+  local items = M.items(all, indices)
+  for _, byStone in pairs(all) do
     for stoneId in pairs(byStone) do
       if not items[stoneId] then
         mod.log:error("%s has no bag index -- add it to data/stones.lua", stoneId)
@@ -71,7 +78,7 @@ function M.install(mod, megas, indices)
       needsTarget = true,
       -- Assignment is a field decision, not a battle action.
       battle = false,
-      use = M.effectFor(megas, stoneId),
+      use = M.effectFor(active, stoneId),
     })
   end
 end
