@@ -7,6 +7,8 @@ local Forms = dofile(MOD .. "/src/forms.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Transforms = dofile(MOD .. "/src/transforms.lua")
+local Mega = dofile(MOD .. "/src/mega.lua")
 -- The whole roster: every check below holds for any wired mega, and the
 -- OFFICIAL/ALL split is pinned in the eligibility suite.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
@@ -44,7 +46,19 @@ local function makeBattle(stamped)
   }
 end
 
-Resolve.bind({ forms = Forms, eligibility = E, megas = megas, animId = "TESTANIM" })
+-- Turn resolution dispatches through the registry now, so what used to be a
+-- mega-shaped dependency list is the mega entry plus the unwind paths' own
+-- dependencies.  The animation id and the logger belong to the entry: they are
+-- the activation's, and the sweep and the switch-in reapply neither.
+local function bindResolve(log)
+  local registry = Transforms.new()
+  registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
+                                 animId = "TESTANIM", log = log }))
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                 megas = megas })
+end
+
+bindResolve(nil)
 
 -- Unarmed: nothing happens at all.
 local b1 = makeBattle(true)
@@ -57,7 +71,7 @@ T.eq(#b1.queued, 0, "an unarmed turn queues no animation")
 -- Armed: the form changes and the move is untouched.
 local b2 = makeBattle(true)
 local s2 = Arm.new(); s2:onBattleStarted({ battle = b2 })
-s2:toggle()
+s2:toggle(Mega.ID)
 Resolve.onTurnStarted(s2, { battle = b2 })
 T.eq(b2.player.mon.species, "CHARIZARD", "the species is still untouched after an armed turn")
 T.eq(b2.player.mon.form, "MEGA_X", "an armed turn marks the form")
@@ -68,21 +82,21 @@ T.eq(b2.player.mon.moves[1].id, "EMBER", "the chosen move is untouched")
 T.eq(#b2.queued, 1, "the change queues its animation")
 T.eq(b2.queued[1], "TESTANIM", "and queues the configured animation id")
 T.eq(s2:isArmed(), false, "the flag is consumed")
-T.eq(s2:used(), true, "the battle records its one change")
+T.eq(s2:used(Mega.ID), true, "the battle records its one change")
 
 -- Armed but ineligible: refuses without spending the battle's one change.
 local b3 = makeBattle(false)
 local s3 = Arm.new(); s3:onBattleStarted({ battle = b3 })
-s3:toggle()
+s3:toggle(Mega.ID)
 Resolve.onTurnStarted(s3, { battle = b3 })
 T.eq(b3.player.mon.form, nil, "an ineligible mon does not change")
-T.eq(s3:used(), false, "a refused change does not spend the battle's one change")
+T.eq(s3:used(Mega.ID), false, "a refused change does not spend the battle's one change")
 
 -- Animations off: the form change must still happen.
 local b4 = makeBattle(true)
 b4.animationsOn = function() return false end
 local s4 = Arm.new(); s4:onBattleStarted({ battle = b4 })
-s4:toggle()
+s4:toggle(Mega.ID)
 Resolve.onTurnStarted(s4, { battle = b4 })
 T.eq(b4.player.mon.form, "MEGA_X",
   "the form changes with battle animations turned off")
@@ -152,16 +166,15 @@ local logged = {}
 local fakeLog = {
   warn = function(_, fmt, ...) logged[#logged + 1] = fmt:format(...) end,
 }
-Resolve.bind({ forms = Forms, eligibility = E, megas = megas,
-               animId = "TESTANIM", log = fakeLog })
+bindResolve(fakeLog)
 
 local b10 = makeBattle(true)
 b10.data = NO_RECORD_DATA
 local s10 = Arm.new(); s10:onBattleStarted({ battle = b10 })
-s10:toggle()
+s10:toggle(Mega.ID)
 Resolve.onTurnStarted(s10, { battle = b10 })
 T.eq(b10.player.mon.form, nil, "a missing record refuses the change")
-T.eq(s10:used(), false, "a refused change does not spend the battle's one change")
+T.eq(s10:used(Mega.ID), false, "a refused change does not spend the battle's one change")
 T.eq(#logged, 1, "the refusal is logged")
 T.check(logged[1]:find("CHARIZARD", 1, true) ~= nil,
   "the log names the species")
@@ -170,11 +183,11 @@ T.check(logged[1]:find("CHARIZARD_MEGA_X", 1, true) ~= nil,
 
 -- No logger bound (the shape every other test in this file uses): the
 -- refusal still happens, it just has nowhere to report to.
-Resolve.bind({ forms = Forms, eligibility = E, megas = megas, animId = "TESTANIM" })
+bindResolve(nil)
 local b11 = makeBattle(true)
 b11.data = NO_RECORD_DATA
 local s11 = Arm.new(); s11:onBattleStarted({ battle = b11 })
-s11:toggle()
+s11:toggle(Mega.ID)
 Resolve.onTurnStarted(s11, { battle = b11 })
 T.eq(b11.player.mon.form, nil, "no logger bound still refuses safely")
 

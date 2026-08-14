@@ -3,6 +3,24 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.8.0
+
+### Changed
+
+- **The battle menu's fifth cell became a registry, with mega evolution as its
+  first entry rather than its only one.** Nothing a player does changes: with
+  one transformation registered the cell reads MEGA, arms the same way, spends
+  the same one change per battle and moves the cursor exactly as it did in
+  0.7.0. What changed is underneath. A manually activated transformation now
+  supplies an id, a label, an availability predicate and an activation, and
+  the once-per-battle flag is keyed by that id instead of being a single
+  boolean, so arming one can never spend another's. Neither battle layout has
+  a spare row -- the cell already lives in the blank spacer row vanilla never
+  draws in -- so when more than one is on offer the cell cycles through them
+  on LEFT and RIGHT, and UP or DOWN returns the cursor to the four real cells.
+  This is groundwork for the mechanics that come next and there is nothing new
+  to press today.
+
 ## 0.7.0
 
 ### Added

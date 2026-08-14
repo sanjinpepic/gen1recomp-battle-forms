@@ -6,11 +6,22 @@ local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Transforms = dofile(MOD .. "/src/transforms.lua")
+local Mega = dofile(MOD .. "/src/mega.lua")
 -- The whole roster: every check below holds for any wired mega, and the
 -- OFFICIAL/ALL split is pinned in the eligibility suite.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
-Overlay.bind({ eligibility = E, megas = megas })
+-- Overlay reads the registry and nothing else now, so a mega set reaches it
+-- through the entry that owns it rather than directly.
+local function bindMegas(set)
+  local registry = Transforms.new()
+  T.eq(registry:register(Mega.entry({ eligibility = E, megas = set })), true,
+    "the mega entry registers")
+  Overlay.bind({ registry = registry })
+end
+
+bindMegas(megas)
 
 local hasRecord = { pokemon = { CHARIZARD_MEGA_X = {} } }
 
@@ -29,10 +40,10 @@ s:onBattleStarted({ battle = eligible })
 T.eq(Overlay.shouldOffer(s), true, "an eligible mon is offered the toggle")
 
 T.eq(Overlay.label(s), "MEGA", "the indicator reads MEGA when disarmed")
-s:toggle()
+s:toggle(Mega.ID)
 T.eq(Overlay.label(s), "MEGA*", "the indicator marks the armed state")
 
-s:consume()
+s:consume(Mega.ID)
 T.eq(Overlay.shouldOffer(s), false, "a battle that already changed offers nothing")
 
 -- The indicator must be on screen exactly when the key is live.  The engine
@@ -84,11 +95,11 @@ local starmieBattle = { phase = "menu", queue = {},
 local s7 = Arm.new()
 s7:onBattleStarted({ battle = starmieBattle })
 
-Overlay.bind({ eligibility = E, megas = Megaset.select(raw, Megaset.OFFICIAL) })
+bindMegas(Megaset.select(raw, Megaset.OFFICIAL))
 T.eq(Overlay.shouldOffer(s7), false,
   "an extended pairing is offered no cell under OFFICIAL")
 
-Overlay.bind({ eligibility = E, megas = megas })
+bindMegas(megas)
 T.eq(Overlay.shouldOffer(s7), true,
   "the same mon in the same battle is offered the cell under ALL")
 

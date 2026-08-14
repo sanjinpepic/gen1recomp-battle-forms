@@ -19,6 +19,8 @@ local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Transforms = dofile(MOD .. "/src/transforms.lua")
+local Mega = dofile(MOD .. "/src/mega.lua")
 local rows = dofile(MOD .. "/data/conditional.lua")
 -- The whole mega roster: what these forms must stay clear of is every mega,
 -- not the option's current selection.
@@ -75,8 +77,14 @@ local DATA = { pokemon = {
 } }
 
 Conditional.bind({ forms = Forms, rows = rows })
-Resolve.bind({ forms = Forms, eligibility = E, megas = megas, animId = "TESTANIM" })
-Overlay.bind({ eligibility = E, megas = megas })
+-- Mega evolution reaches the menu and turn resolution through the registry,
+-- with nothing else registered -- exactly the shape the shipping mod wires.
+local registry = Transforms.new()
+registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
+                               animId = "TESTANIM" }))
+Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+               megas = megas })
+Overlay.bind({ registry = registry })
 
 local function newMon(species, level, held)
   local base = DATA.pokemon[species].baseStats
@@ -405,7 +413,7 @@ T.eq(Overlay.shouldOffer(armState), false,
   "no MEGA cell is offered for a species with only a conditional form")
 hurtTo(cellBattle, cellBattle.player, 0.3)
 T.eq(cellMon.form, "ZEN", "the conditional form still happens")
-T.eq(armState:used(), false, "and the trainer's one mega is not spent")
+T.eq(armState:used(Mega.ID), false, "and the trainer's one mega is not spent")
 T.eq(armState:isArmed(), false, "and nothing was armed")
 T.eq(Overlay.shouldOffer(armState), false,
   "and still no MEGA cell after the change")

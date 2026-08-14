@@ -1,8 +1,9 @@
--- Where an armed flag becomes a form change, and where any form change is
--- unwound again.  Only the first half is mega evolution's: the faint handler
--- and the battle-end party sweep revert whatever form a mon is carrying and
--- never asked which transformation type put it there, so primal reversion
--- unwinds through them without either half knowing about the other.
+-- Where an armed flag becomes whatever the armed transformation does, and
+-- where any form change is unwound again.  Only the first half belongs to the
+-- manual transformations: the faint handler and the battle-end party sweep
+-- revert whatever form a mon is carrying and never asked which transformation
+-- type put it there, so primal reversion unwinds through them without either
+-- half knowing about the other.
 --
 -- battle.turn_started fires after both actions are chosen and before turn
 -- order is decided, which is exactly the real games' placement: the change
@@ -22,38 +23,17 @@ function M.bind(modules)
   deps = modules
 end
 
+-- The once-per-battle limit is spent here rather than inside the entry, so
+-- every mechanic that ever registers gets the same rule from the same place:
+-- an activation that answers false was refused, and a refusal must not spend
+-- the flag -- the player armed in good faith and nothing happened, so they
+-- keep the option.
 function M.onTurnStarted(state, ev)
   local battle = ev and ev.battle
-  if not battle or not state:isArmed() then return end
-
-  local battler = battle.player
-  local mon = battler and battler.mon
-  local formId = deps.eligibility.formForMon(deps.megas, mon)
-  -- A refusal must not spend the battle's one change: the player armed in
-  -- good faith and nothing happened, so they keep the option.
-  if not formId then return end
-
-  local ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
-  if not ok then
-    -- A guard that refuses must say so out loud: this exact silent path
-    -- (a mega table pointing at a name field instead of a record key) once
-    -- shipped a whole release where arming did nothing and nothing logged.
-    if deps.log then
-      deps.log:warn(
-        "battle_forms: refused mega for %s -> %s (%s) -- the national_dex "
-          .. "record is missing, has no `form` field, or data/megas.lua "
-          .. "names the wrong id",
-        tostring(mon and mon.species), tostring(formId), tostring(reason))
-    end
-    return
-  end
-  state:consume()
-
-  -- The form change must not depend on the animation: a player who turned
-  -- battle animations off asked for exactly that and still gets the mega.
-  if battle.animationsOn and battle:animationsOn() then
-    battle:animNext(deps.animId, battler.isPlayer)
-  end
+  if not battle then return end
+  local entry = deps.registry:get(state:armed())
+  if not entry then return end
+  if entry.activate(battle) then state:consume(entry.id) end
 end
 
 -- A mega switched to the bench and back in gets a brand-new battler from

@@ -10,11 +10,18 @@ local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Transforms = dofile(MOD .. "/src/transforms.lua")
+local Mega = dofile(MOD .. "/src/mega.lua")
 -- The whole roster: every check below holds for any wired mega, and the
 -- OFFICIAL/ALL split is pinned in the eligibility suite.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
-Overlay.bind({ eligibility = E, megas = megas })
+-- Exactly one transformation registered, which is what ships: everything
+-- below is the 0.7.0 menu, unchanged.  The multi-entry cell is pinned in the
+-- transforms suite, on a second entry that exists only there.
+local registry = Transforms.new()
+registry:register(Mega.entry({ eligibility = E, megas = megas }))
+Overlay.bind({ registry = registry })
 Menu.bind({ overlay = Overlay })
 
 -- src/core/Input.lua's wasPressed reads a per-frame set with no memory of
@@ -55,7 +62,7 @@ do
   T.eq(Overlay.shouldOffer(state), false, "precondition: an ineligible mon offers nothing")
   T.eq(Menu.handleInput(battle, state), false, "an ineligible mon's menu is never claimed")
   T.eq(battle.menuIndex, 1, "menuIndex is untouched")
-  T.eq(Menu.isOnMegaCell(battle), false, "the cursor never leaves the real grid")
+  T.eq(Menu.isOnCell(battle), false, "the cursor never leaves the real grid")
 
   for _, idx in ipairs({ 1, 2, 3, 4 }) do
     for _, dir in ipairs({ "left", "right", "up", "down", "a" }) do
@@ -80,28 +87,28 @@ do
 
   battle.game.input = makeInput({ left = true })
   T.eq(Menu.handleInput(battle, state), true, "left at FIGHT (column 0) is claimed")
-  T.eq(Menu.isOnMegaCell(battle), true, "the cursor is now on MEGA")
+  T.eq(Menu.isOnCell(battle), true, "the cursor is now on MEGA")
   T.eq(battle.menuIndex, 1, "the real index is left exactly where it was")
 
   battle.game.input = makeInput({ right = true })
   T.eq(Menu.handleInput(battle, state), true, "right off MEGA is claimed")
-  T.eq(Menu.isOnMegaCell(battle), false, "the cursor is back on the real grid")
+  T.eq(Menu.isOnCell(battle), false, "the cursor is back on the real grid")
   T.eq(battle.menuIndex, 1, "back on FIGHT, unchanged")
 
   battle.menuIndex = 3 -- ITEM, also column 0
   battle.game.input = makeInput({ left = true })
   Menu.handleInput(battle, state)
-  T.eq(Menu.isOnMegaCell(battle), true, "left from ITEM also reaches MEGA")
+  T.eq(Menu.isOnCell(battle), true, "left from ITEM also reaches MEGA")
   battle.game.input = makeInput({ up = true })
   Menu.handleInput(battle, state)
-  T.eq(Menu.isOnMegaCell(battle), false, "up off MEGA leaves it too, not just right")
+  T.eq(Menu.isOnCell(battle), false, "up off MEGA leaves it too, not just right")
   T.eq(battle.menuIndex, 3, "back on ITEM, unchanged")
 
   battle.menuIndex = 2 -- PKMN, column 1
   battle.game.input = makeInput({ left = true })
   T.eq(Menu.handleInput(battle, state), false,
     "left from PKMN moves within the real grid, not onto MEGA")
-  T.eq(Menu.isOnMegaCell(battle), false, "PKMN cannot reach MEGA directly")
+  T.eq(Menu.isOnCell(battle), false, "PKMN cannot reach MEGA directly")
 end
 
 -- ---------------------------------------------------------------------
@@ -114,7 +121,7 @@ do
   state:onBattleStarted({ battle = battle })
   battle.game.input = makeInput({ left = true })
   Menu.handleInput(battle, state)
-  T.eq(Menu.isOnMegaCell(battle), true, "precondition: cursor parked on MEGA")
+  T.eq(Menu.isOnCell(battle), true, "precondition: cursor parked on MEGA")
   T.eq(state:isArmed(), false, "starts disarmed")
 
   battle.game.input = makeInput({ a = true })

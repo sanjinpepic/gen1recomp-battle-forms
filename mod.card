@@ -7,7 +7,7 @@ return {
   tags = { "gameplay", "battle" },
   differences = {
     changed = {
-      "a MEGA entry on the battle menu, shown only when the active mon carries a matching stone, arms a mega evolution",
+      "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA and arms a mega evolution, shown only when the active mon carries a matching stone",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",
@@ -18,6 +18,7 @@ return {
       "the form survives switching out and unwinds when the battle ends or the mon faints",
       "condition-driven forms for eight species, with no item and no menu: Darmanitan and Minior flip at half HP, Wishiwashi schools above a quarter HP from level 20, Aegislash draws its blade on an attacking move and shields on a status one, Morpeko alternates every round, Mimikyu and Eiscue break on a damaging hit, and Greninja bonds on a knockout it dealt",
       "the reversible ones flip back and forth as many times as the battle calls for, because the form is re-derived from the mon rather than remembered",
+      "the menu cell cycles on LEFT and RIGHT when more than one transformation is available, each with its own once-per-battle limit -- mega evolution is the only one registered today, so the cell holds one label and neither key cycles",
     },
     known = {
       "abilities are unaffected -- nothing here makes an ability do anything, and no ability animations ship yet",

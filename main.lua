@@ -45,7 +45,8 @@ return function(mod)
 
   local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
                   "src/stone.lua", "src/shop.lua", "src/arm.lua",
-                  "src/resolve.lua", "src/primal.lua", "src/conditional.lua",
+                  "src/transforms.lua", "src/mega.lua", "src/resolve.lua",
+                  "src/primal.lua", "src/conditional.lua",
                   "src/anim.lua", "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/conditional.lua" }
@@ -87,9 +88,24 @@ return function(mod)
   m["src/shop.lua"].installOrbs(mod, orbIndices)
   anim.install(mod)
 
+  -- One cell on the command menu hosts every manually activated
+  -- transformation there is, because the blank spacer row it draws into is the
+  -- only space either battle layout has spare.  Mega evolution is the first
+  -- entry rather than a special case: what makes it the only one today is that
+  -- it is the only one registered.
+  local registry = m["src/transforms.lua"].new()
+  local registered, why = registry:register(m["src/mega.lua"].entry({
+    forms = m["src/forms.lua"], eligibility = eligibility, megas = megas,
+    animId = anim.ID, log = mod.log }))
+  if not registered then
+    mod.log:error("battle_forms: mega evolution was refused a place on the "
+      .. "battle menu (%s) -- no stone can be armed until that is fixed",
+      tostring(why))
+  end
+
   local resolve = m["src/resolve.lua"]
-  resolve.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
-                 megas = megas, animId = anim.ID, log = mod.log })
+  resolve.bind({ registry = registry, forms = m["src/forms.lua"],
+                 eligibility = eligibility, megas = megas, log = mod.log })
 
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,
@@ -106,12 +122,13 @@ return function(mod)
   conditional.bind({ forms = m["src/forms.lua"],
                      rows = m["data/conditional.lua"], log = mod.log })
 
-  -- Decision only: overlay says whether a mega is on offer and what to call
-  -- it, and the menu cell is the one thing that draws it.  It owned a START
-  -- handler and a corner indicator until 0.2.1; both are gone because the
-  -- menu cell says the same thing in the place the player is already looking.
+  -- Decision only: overlay says which registered transformations are on offer
+  -- and what the cell should call the one it is showing, and the menu cell is
+  -- the one thing that draws it.  It owned a START handler and a corner
+  -- indicator until 0.2.1; both are gone because the menu cell says the same
+  -- thing in the place the player is already looking.
   local overlay = m["src/overlay.lua"]
-  overlay.bind({ eligibility = eligibility, megas = megas })
+  overlay.bind({ registry = registry })
 
   -- The menu cell owns input/draw seams overlay.lua has no hook for
   -- (BattleState.update, BattleState.drawTextArea, WideBattle.draw), which

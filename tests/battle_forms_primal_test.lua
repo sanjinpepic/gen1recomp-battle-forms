@@ -17,6 +17,8 @@ local Stone = dofile(MOD .. "/src/stone.lua")
 local Shop = dofile(MOD .. "/src/shop.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Transforms = dofile(MOD .. "/src/transforms.lua")
+local Mega = dofile(MOD .. "/src/mega.lua")
 local primals = dofile(MOD .. "/data/primals.lua")
 local orbIndices = dofile(MOD .. "/data/orbs.lua")
 local stoneIndices = dofile(MOD .. "/data/stones.lua")
@@ -80,8 +82,18 @@ local function makeBattle(playerMon, enemyMon)
 end
 
 Primal.bind({ forms = Forms, eligibility = E, primals = primals })
-Resolve.bind({ forms = Forms, eligibility = E, megas = megas, animId = "TESTANIM" })
-Overlay.bind({ eligibility = E, megas = megas })
+-- Mega evolution reaches the menu and turn resolution through the registry,
+-- with nothing else registered -- exactly the shape the shipping mod wires.
+-- Primal reversion is not in it, which is half of what this suite is about.
+local registry = Transforms.new()
+registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
+                               animId = "TESTANIM" }))
+local function bindResolve(log)
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                 megas = megas, log = log })
+end
+bindResolve(nil)
+Overlay.bind({ registry = registry })
 
 -- ------- the pairings themselves -------------------------------------
 
@@ -189,7 +201,7 @@ s8:onBattleStarted({ battle = b8 })
 Primal.onBattleStarted({ battle = b8 })
 T.eq(Overlay.shouldOffer(s8), false,
   "a primal Pokemon is offered no MEGA cell")
-T.eq(s8:used(), false, "and the battle's one mega is not spent")
+T.eq(s8:used(Mega.ID), false, "and the battle's one mega is not spent")
 T.eq(s8:isArmed(), false, "and nothing armed itself")
 
 -- The budget is not merely unspent, it is still SPENDABLE: a Charizard
@@ -197,11 +209,11 @@ T.eq(s8:isArmed(), false, "and nothing armed itself")
 b8.player = battlerFor(newMon("CHARIZARD", "CHARIZARDITE_X"), true)
 T.eq(Overlay.shouldOffer(s8), true,
   "a mega-capable mon is offered the cell in the same battle")
-s8:toggle()
+s8:toggle(Mega.ID)
 Resolve.onTurnStarted(s8, { battle = b8 })
 T.eq(b8.player.mon.form, "MEGA_X",
   "and megas normally after a primal reversion happened in the same battle")
-T.eq(s8:used(), true, "the mega spends the battle's one change, as it always did")
+T.eq(s8:used(Mega.ID), true, "the mega spends the battle's one change, as it always did")
 
 -- Arming a mega while a primal Pokemon is out changes nothing and costs
 -- nothing: the mon is not in the mega table, so the turn handler refuses and
@@ -210,27 +222,26 @@ local b9 = makeBattle(newMon("GROUDON", "RED_ORB"))
 local s9 = Arm.new()
 s9:onBattleStarted({ battle = b9 })
 Primal.onBattleStarted({ battle = b9 })
-s9:toggle()
+s9:toggle(Mega.ID)
 Resolve.onTurnStarted(s9, { battle = b9 })
 T.eq(b9.player.mon.form, "PRIMAL", "the primal form is left exactly as it was")
-T.eq(s9:used(), false, "and the mega the player armed is still theirs to spend")
+T.eq(s9:used(Mega.ID), false, "and the mega the player armed is still theirs to spend")
 
 -- The mega path's switch-in reapplication must stay silent about a mon it
 -- does not own.  Before primal reversion existed, a marked mon with no mega
 -- pairing could only mean a stone had gone missing, and it warned; now it can
 -- also mean another transformation type marked it.
 local warned = {}
-Resolve.bind({ forms = Forms, eligibility = E, megas = megas, animId = "TESTANIM",
-               log = { warn = function(_, fmt, ...)
-                 warned[#warned + 1] = fmt:format(...)
-               end } })
+bindResolve({ warn = function(_, fmt, ...)
+  warned[#warned + 1] = fmt:format(...)
+end })
 local b10 = makeBattle(newMon("GROUDON", "RED_ORB"))
 Primal.onBattleStarted({ battle = b10 })
 Resolve.onBattlerSwitched({ battle = b10, battler = b10.player })
 T.eq(#warned, 0,
   "the mega path neither reapplies nor complains about a primal mon's form")
 T.eq(b10.player.mon.form, "PRIMAL", "and leaves the form itself alone")
-Resolve.bind({ forms = Forms, eligibility = E, megas = megas, animId = "TESTANIM" })
+bindResolve(nil)
 
 -- ------- unwinding ---------------------------------------------------
 

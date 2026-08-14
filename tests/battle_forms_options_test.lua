@@ -28,12 +28,21 @@ end
 -- Every sibling main.lua reads, because it reads them all before it installs
 -- anything: one missing name and the load bails early, which shows up here as
 -- the whole shop being empty rather than as anything about options.
-local SHIPPED = { "manifest.json", "main.lua",
-  "src/eligibility.lua", "src/forms.lua", "src/megaset.lua", "src/stone.lua",
-  "src/shop.lua", "src/arm.lua", "src/resolve.lua", "src/primal.lua",
-  "src/conditional.lua", "src/anim.lua", "src/overlay.lua", "src/menu.lua",
-  "data/megas.lua", "data/stones.lua", "data/primals.lua", "data/orbs.lua",
-  "data/conditional.lua" }
+--
+-- Read out of main.lua's own source rather than mirrored by hand.  A hand
+-- mirror is a list that can silently disagree with the list that matters, and
+-- this one did: adding a module used to starve the fixture of it and fail
+-- about 200 checks with a symptom nowhere near the cause.
+local MAIN = readFile(MOD .. "/main.lua")
+local SHIPPED = { "manifest.json", "main.lua" }
+for _, tree in ipairs({ "src", "data" }) do
+  for name in MAIN:gmatch('"(' .. tree .. '/[%w_]+%.lua)"') do
+    SHIPPED[#SHIPPED + 1] = name
+  end
+end
+-- A pattern that stops matching would leave the fixture with nothing but the
+-- root files and every check below passing or failing for the wrong reason.
+T.check(#SHIPPED > 10, "main.lua's sibling list was read back out of its source")
 
 -- The fixture data set carries no Celadon floor, so the clerk entry this mod
 -- extends is seeded onto it -- trimmed to the fields shop.lua reads and

@@ -1,4 +1,6 @@
--- The fifth command-menu entry: MEGA, alongside FIGHT / PKMN / ITEM / RUN.
+-- The fifth command-menu entry, alongside FIGHT / PKMN / ITEM / RUN: one cell
+-- hosting whichever manually activated transformations are on offer, reading
+-- MEGA today and cycling between them when there is more than one.
 --
 -- Why not the battle.overlay hook overlay.lua already uses: that seam draws
 -- a label, but there is no matching seam for INPUT.  Cursor movement and the
@@ -14,17 +16,19 @@
 -- too, both with FIGHT/PKMN on one text row and ITEM/RUN on the next.  But
 -- both boxes carry a BLANK spacer row between those two text rows (row 15,
 -- pixel y=120) -- vanilla leaves it empty in both layouts, on purpose, as
--- breathing room between the lines.  That row is where MEGA lives: no new
+-- breathing room between the lines.  That row is where the cell lives: no new
 -- box, no widened box, just two extra draw calls on a row vanilla already
 -- reserved and never draws in.  It sits at the same x column FIGHT/ITEM's
 -- cursor and text already use, so it reads as another row of the same menu
--- rather than a bolted-on extra.
+-- rather than a bolted-on extra.  It is also the reason several
+-- transformations share ONE cell and cycle: there was never a second row to
+-- give the next mechanic, so the cell had to hold them instead.
 --
--- Owning the WHOLE frame while the cursor sits on MEGA (rather than trying
+-- Owning the WHOLE frame while the cursor sits on the cell (rather than trying
 -- to intercept one button at a time) is deliberate.  Input:wasPressed does
 -- not consume a press -- every reader in the same frame sees it -- so if
 -- vanilla's own navigation ran afterward with the real self.menuIndex still
--- pointing at FIGHT or ITEM, an A press meant to toggle MEGA would ALSO
+-- pointing at FIGHT or ITEM, an A press meant to arm a transformation would ALSO
 -- dispatch FIGHT or ITEM the same frame.  The only clean way to stop that
 -- without a consume() this engine has never had is to not call vanilla's
 -- update at all on a frame this module claims, and that requires owning the
@@ -36,8 +40,8 @@ local deps = nil
 function M.bind(modules) deps = modules end
 
 -- The column each of the four real cells sits in; only column 0 (FIGHT,
--- ITEM) borders the empty space on the left where a departing MEGA cursor
--- has anywhere to land.
+-- ITEM) borders the empty space on the left where a departing cursor has
+-- anywhere to land.
 local function column(battle)
   return (battle.menuIndex - 1) % 2
 end
@@ -51,7 +55,7 @@ end
 -- frames where the command menu is on screen but about to auto-resolve
 -- (forced replacement, a trapped mon's locked move) without ANY player
 -- input, and claiming this frame's input instead would freeze that
--- auto-resolve for as long as the cursor stayed on MEGA.
+-- auto-resolve for as long as the cursor stayed on the cell.
 local function safeToOffer(battle)
   local player = battle.player
   if not player or not player.mon or player.mon.hp <= 0 then return false end
@@ -62,11 +66,11 @@ local function safeToOffer(battle)
   return true
 end
 
--- True while the cursor is parked on the MEGA cell rather than on one of the
--- four real ones.  A plain field on the battle instance: a fresh BattleState
--- backs every battle, so this needs no lifecycle hook of its own to reset
--- between battles the way the armed flag does.
-function M.isOnMegaCell(battle)
+-- True while the cursor is parked on the transformation cell rather than on
+-- one of the four real ones.  A plain field on the battle instance: a fresh
+-- BattleState backs every battle, so this needs no lifecycle hook of its own
+-- to reset between battles the way the armed flag does.
+function M.isOnCell(battle)
   return battle ~= nil and battle._battleFormsMenuCell == true
 end
 
@@ -86,10 +90,26 @@ function M.handleInput(battle, state)
   local input = battle.game and battle.game.input
   if not input then return false end
 
-  if M.isOnMegaCell(battle) then
+  if M.isOnCell(battle) then
     if input:wasPressed("a") then
-      state:toggle()
+      state:toggle(deps.overlay.selected(state).id)
       return true, "toggle"
+    end
+    -- With a second transformation on offer the cell becomes a selector and
+    -- LEFT/RIGHT cycle it, which costs RIGHT its old job of leaving the cell
+    -- -- UP and DOWN still do that, and both lead back to the same column-0
+    -- cell the cursor arrived from.  Below two there is nothing to cycle
+    -- through, so this branch never runs and the cursor behaves exactly as it
+    -- did when MEGA was the only thing here.
+    if #deps.overlay.offered(state) > 1 then
+      if input:wasPressed("left") then
+        deps.overlay.cycle(state, -1)
+        return true
+      end
+      if input:wasPressed("right") then
+        deps.overlay.cycle(state, 1)
+        return true
+      end
     end
     if input:wasPressed("right") or input:wasPressed("up")
         or input:wasPressed("down") then
@@ -112,8 +132,8 @@ end
 -- (row 2, where 1-4 never reach) makes vanilla draw its OWN cursor off the
 -- bottom of the canvas for one call -- invisible, without touching what it
 -- draws for FIGHT/PKMN/ITEM/RUN.  That is what stands in for a "no cursor"
--- mode neither draw function has: MEGA's own cursor replaces it instead of
--- sitting beside it.
+-- mode neither draw function has: the cell's own cursor replaces it instead
+-- of sitting beside it.
 local HIDE_INDEX = 5
 
 local function withHiddenCursor(battle, onCell, fn)
@@ -127,15 +147,15 @@ end
 -- x=80/176 and cursor x=72/168 are not new numbers: they are the same
 -- column FIGHT and ITEM already print at (classic 80, wide 176) and the
 -- same column their own cursor already sits in (classic 72, wide 168).
--- MEGA is drawn one row below/above them, at y=120 -- the blank spacer row
--- between the FIGHT/PKMN line and the ITEM/RUN line in both box templates.
+-- The cell is drawn one row below/above them, at y=120 -- the blank spacer
+-- row between the FIGHT/PKMN line and the ITEM/RUN line in both templates.
 local ROW_Y = 120
 
 function M.drawClassic(battle, state, vanillaDraw, Font)
   if not deps or not deps.overlay.shouldOffer(state) then
     return vanillaDraw(battle)
   end
-  local onCell = M.isOnMegaCell(battle)
+  local onCell = M.isOnCell(battle)
   withHiddenCursor(battle, onCell, function() vanillaDraw(battle) end)
   if not Font then return end
   love.graphics.setColor(0, 0, 0, 1)
@@ -147,7 +167,7 @@ function M.drawWide(battle, state, vanillaDraw, Font)
   if not deps or not deps.overlay.shouldOffer(state) then
     return vanillaDraw(battle)
   end
-  local onCell = M.isOnMegaCell(battle)
+  local onCell = M.isOnCell(battle)
   withHiddenCursor(battle, onCell, function() vanillaDraw(battle) end)
   if not Font then return end
   love.graphics.setColor(0, 0, 0, 1)
@@ -164,7 +184,7 @@ function M.install(mod, state)
   if not okState or type(BattleState) ~= "table" then
     if mod.log then
       mod.log:error("battle_forms: src.battle.BattleState unavailable -- "
-        .. "the MEGA menu entry is disabled")
+        .. "the transformation menu cell is disabled")
     end
     return false
   end
