@@ -1,4 +1,8 @@
--- Where an armed flag becomes a form change.
+-- Where an armed flag becomes a form change, and where any form change is
+-- unwound again.  Only the first half is mega evolution's: the faint handler
+-- and the battle-end party sweep revert whatever form a mon is carrying and
+-- never asked which transformation type put it there, so primal reversion
+-- unwinds through them without either half knowing about the other.
 --
 -- battle.turn_started fires after both actions are chosen and before turn
 -- order is decided, which is exactly the real games' placement: the change
@@ -65,6 +69,11 @@ function M.onBattlerSwitched(ev)
   local battler = ev and ev.battler
   local mon = battler and battler.mon
   if not battle or not mon or not mon.form then return end
+  -- A species this table names no mega for cannot be marked with a mega's
+  -- form, so the mark belongs to another transformation type with a switch-in
+  -- handler of its own (primal reversion has one).  Reapplying is not this
+  -- path's job then, and neither is complaining that it cannot.
+  if not deps.megas[mon.species] then return end
 
   local formId = deps.eligibility.formForMon(deps.megas, mon)
   if not formId then

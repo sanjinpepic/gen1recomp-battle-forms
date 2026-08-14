@@ -1,4 +1,4 @@
--- Puts the stones up for sale.
+-- Puts the stones and the orbs up for sale.
 --
 -- The Celadon department store's 4F clerk already sells the four vanilla
 -- evolution stones (data/generated/text_pointers.lua's CeladonMart4F ->
@@ -6,7 +6,8 @@
 -- (Schemas.lua's R.text_pointers): under deep semantics a list value inside
 -- a patch concatenates onto the base list instead of replacing it, so
 -- patching in the mega stones here extends that shelf rather than
--- overwriting it -- the evolution stones stay buyable.
+-- overwriting it -- the evolution stones stay buyable.  The Indigo Plateau
+-- lobby clerk works the same way and keeps its own stock too.
 --
 -- map_scripts, the other registry that touches a map, cannot do this: its
 -- "compose" semantics chains whole registrations one after another for
@@ -15,22 +16,36 @@
 -- map_scripts entry describes in the first place.
 local M = {}
 
+-- `offered` is the subset of `indices` that may actually be sold; nil sells
+-- everything indexed.  Stable shelf order (by assigned bag index) rather than
+-- whatever pairs() happens to yield, so the mart menu does not reshuffle
+-- between runs.
+local function shelf(mod, map, clerk, indices, offered)
+  local ids = {}
+  for itemId in pairs(indices) do
+    if not offered or offered[itemId] then ids[#ids + 1] = itemId end
+  end
+  table.sort(ids, function(a, b) return indices[a] < indices[b] end)
+
+  mod.content.text_pointers:patch(map, { [clerk] = { mart = ids } })
+end
+
 -- `offered` is the set of stone ids the MEGA EVOLUTIONS option turned on.
 -- The shelf is the one place that option may take a stone away: a stone that
 -- is never sold is one the player simply never had, where a stone that is
 -- never registered is a bag entry an existing save can no longer resolve.
 function M.install(mod, indices, offered)
-  local stones = {}
-  for stoneId in pairs(indices) do
-    if offered[stoneId] then stones[#stones + 1] = stoneId end
-  end
-  -- Stable shelf order (by assigned bag index) rather than whatever pairs()
-  -- happens to yield, so the mart menu does not reshuffle between runs.
-  table.sort(stones, function(a, b) return indices[a] < indices[b] end)
+  shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, offered)
+end
 
-  mod.content.text_pointers:patch("CeladonMart4F", {
-    TEXT_CELADONMART4F_CLERK = { mart = stones },
-  })
+-- The orbs sell at the Indigo Plateau lobby, the last counter before the
+-- Elite Four, rather than on the mega stones' shelf.  They are a different
+-- transformation type and Groudon and Kyogre are endgame Pokemon, so the two
+-- families stay apart in the shop the way they do everywhere else.  Every orb
+-- registered is an orb sold: no option gates a primal pairing, so there is no
+-- subset to offer.
+function M.installOrbs(mod, indices)
+  shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
 end
 
 return M

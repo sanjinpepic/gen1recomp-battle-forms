@@ -1,8 +1,15 @@
--- The stones, and what using one does.
+-- The items that assign a form -- the mega stones and the orbs -- and what
+-- using one does.
+--
+-- One module for both families because the item behaviour is the same
+-- behaviour: a bag item, used on a Pokemon, that stamps the Pokemon it fits
+-- and refuses one it does not.  What differs between a stone and an orb is
+-- the transformation it unlocks, and that lives entirely in which pairing
+-- table the caller hands in.
 --
 -- item_effects short-circuits the vanilla evolution-stone branch entirely, so
--- a mega stone owns its own behaviour and cannot be mistaken for a Fire Stone.
--- The stone is KEPT rather than consumed: it is the mon's, the way a held item
+-- these items own their own behaviour and cannot be mistaken for a Fire Stone.
+-- The item is KEPT rather than consumed: it is the mon's, the way a held item
 -- would be on Gold, and taking it away on first use would make the assignment
 -- unrepeatable.
 local M = {}
@@ -15,39 +22,39 @@ function M.bind(eligibilityModule)
   eligibility = eligibilityModule
 end
 
--- Curried on the stone so each registered effect knows which stone it is
+-- Curried on the item so each registered effect knows which item it is
 -- without reading it back out of the context.
-function M.effectFor(megas, stoneId)
+function M.effectFor(pairings, itemId)
   return function(ctx)
     local mon = ctx and ctx.target
     if not mon then return "failed", { "It won't have\nany effect." } end
-    if not eligibility.formFor(megas, mon.species, stoneId) then
+    if not eligibility.formFor(pairings, mon.species, itemId) then
       return "failed", { "It won't have\nany effect." }
     end
-    mon[eligibility.STAMP] = stoneId
+    mon[eligibility.STAMP] = itemId
     return "kept", { "It seems to\nresonate!" }
   end
 end
 
--- Every stone named anywhere in the mega table, with its item record.
--- A stone missing from `indices` is left out entirely: an item with no bag
+-- Every item named anywhere in a pairing table, with its item record.
+-- An item missing from `indices` is left out entirely: an item with no bag
 -- index cannot be represented in a Gen 1 save (GenSave.lua builds its
 -- id-to-byte maps only from records that have one), so registering it would
 -- ship something a player could pick up and then silently lose.
-function M.items(megas, indices)
+function M.items(pairings, indices)
   local out = {}
-  for _, byStone in pairs(megas) do
-    for stoneId in pairs(byStone) do
-      local index = indices and indices[stoneId]
+  for _, byItem in pairs(pairings) do
+    for itemId in pairs(byItem) do
+      local index = indices and indices[itemId]
       if index then
-        out[stoneId] = {
-          id = stoneId,
-          name = stoneId:gsub("_", " "),
-          -- The Celadon evolution-stone shelf sells its stones at 2100; a
-          -- mega stone sits above that.
+        out[itemId] = {
+          id = itemId,
+          name = itemId:gsub("_", " "),
+          -- The Celadon evolution-stone shelf sells its stones at 2100; what
+          -- unlocks a form sits above that, stone and orb alike.
           price = 4000,
           index = index,
-          effect = stoneId,
+          effect = itemId,
           needsTarget = true,
         }
       end
@@ -56,29 +63,31 @@ function M.items(megas, indices)
   return out
 end
 
--- `all` is every pair data/megas.lua names; `active` is the subset the MEGA
--- EVOLUTIONS option turned on.  Registration reads `all` and only `all`: a
--- stone the player is already carrying has to keep existing when the option
--- changes, or switching to OFFICIAL would leave a save holding a bag byte no
--- record can name.  The option decides what a stone DOES -- the effect reads
--- `active`, so a switched-off stone refuses exactly the way a stone used on
--- the wrong species already does.
+-- `all` is every pair the table names; `active` is the subset that is allowed
+-- to do anything.  Registration reads `all` and only `all`: an item a player
+-- is already carrying has to keep existing when an option changes, or
+-- switching the mega set to OFFICIAL would leave a save holding a bag byte no
+-- record can name.  The option decides what an item DOES -- the effect reads
+-- `active`, so a switched-off item refuses exactly the way one used on the
+-- wrong species already does.  Primal reversion has no option of its own, so
+-- its two tables are one and the same.
 function M.install(mod, all, active, indices)
   local items = M.items(all, indices)
-  for _, byStone in pairs(all) do
-    for stoneId in pairs(byStone) do
-      if not items[stoneId] then
-        mod.log:error("%s has no bag index -- add it to data/stones.lua", stoneId)
+  for _, byItem in pairs(all) do
+    for itemId in pairs(byItem) do
+      if not items[itemId] then
+        mod.log:error("%s has no bag index -- add it to data/stones.lua or "
+          .. "data/orbs.lua", itemId)
       end
     end
   end
-  for stoneId, record in pairs(items) do
-    mod.content.items:register(stoneId, record)
-    mod.content.item_effects:register(stoneId, {
+  for itemId, record in pairs(items) do
+    mod.content.items:register(itemId, record)
+    mod.content.item_effects:register(itemId, {
       needsTarget = true,
       -- Assignment is a field decision, not a battle action.
       battle = false,
-      use = M.effectFor(active, stoneId),
+      use = M.effectFor(active, itemId),
     })
   end
 end

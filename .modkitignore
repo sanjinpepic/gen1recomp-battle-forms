@@ -12,4 +12,5 @@ tests/battle_forms_menu_test.lua
 tests/battle_forms_formids_test.lua
 tests/battle_forms_art_test.lua
 tests/battle_forms_options_test.lua
+tests/battle_forms_primal_test.lua
 pokemon_alternative_forms_implementation.md

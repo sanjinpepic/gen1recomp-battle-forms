@@ -1,11 +1,12 @@
--- Validates that every mega wired in data/megas.lua has art in
--- dev/data/sprites/generated/formart.lua, keyed [BASE].forms[FORM].
+-- Validates that every form this mod wires -- data/megas.lua and
+-- data/primals.lua alike -- has art in dev/data/sprites/generated/formart.lua,
+-- keyed [BASE].forms[FORM].
 --
--- The scope rule for this table is "wire it if it has art" -- a mega added
+-- The scope rule for both tables is "wire it if it has art" -- a form added
 -- later without checking that first falls back to its base species' picture,
 -- which is playable but wrong, and wrong quietly.  This is the guard that
--- makes it loud: a form named in megas.lua with no matching formart.lua entry
--- fails here instead of shipping as a reskinned base species.
+-- makes it loud: a form named in either table with no matching formart.lua
+-- entry fails here instead of shipping as a reskinned base species.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
 local T = require("tests.modkit")
@@ -13,8 +14,10 @@ local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 -- The whole roster: every check below holds for any wired mega, and the
--- OFFICIAL/ALL split is pinned in the eligibility suite.
+-- OFFICIAL/ALL split is pinned in the eligibility suite.  A form with no art
+-- is as wrong for a primal as for a mega, so both tables are swept.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
+local primals = dofile(MOD .. "/data/primals.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 local FORM_ART = MOD .. "/../data/sprites/generated/formart.lua"
@@ -51,23 +54,27 @@ local function formSuffixFor(id)
   return suffix
 end
 
-local checked = 0
-for base, byStone in pairs(megas) do
-  for _, formId in pairs(byStone) do
-    checked = checked + 1
-    local suffix = formSuffixFor(formId)
-    T.check(suffix ~= nil, formId .. " has a form suffix in national.lua")
-    if suffix then
-      local species = formArt[base]
-      local forms = species and species.forms
-      T.check(forms and forms[suffix] ~= nil,
-        base .. ".forms." .. suffix .. " (" .. formId
-        .. ") has an entry in formart.lua -- a wired mega with no art "
-        .. "renders as its base species")
+local checked, primalsChecked = 0, 0
+for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true } }) do
+  for base, byItem in pairs(wired.table_) do
+    for _, formId in pairs(byItem) do
+      checked = checked + 1
+      if wired.primal then primalsChecked = primalsChecked + 1 end
+      local suffix = formSuffixFor(formId)
+      T.check(suffix ~= nil, formId .. " has a form suffix in national.lua")
+      if suffix then
+        local species = formArt[base]
+        local forms = species and species.forms
+        T.check(forms and forms[suffix] ~= nil,
+          base .. ".forms." .. suffix .. " (" .. formId
+          .. ") has an entry in formart.lua -- a wired form with no art "
+          .. "renders as its base species")
+      end
     end
   end
 end
 
-T.check(checked > 0, "at least one wired mega was checked against formart.lua")
+T.check(checked > 0, "at least one wired form was checked against formart.lua")
+T.eq(primalsChecked, 2, "both primal forms were checked against formart.lua")
 
 T.finish("battle_forms_art")

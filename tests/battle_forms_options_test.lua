@@ -16,6 +16,7 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local raw = dofile(MOD .. "/data/megas.lua")
 local indices = dofile(MOD .. "/data/stones.lua")
+local orbIndices = dofile(MOD .. "/data/orbs.lua")
 
 local function readFile(path)
   local handle = assert(io.open(path, "rb"), "cannot open " .. path)
@@ -26,8 +27,9 @@ end
 
 local SHIPPED = { "manifest.json", "main.lua",
   "src/eligibility.lua", "src/forms.lua", "src/megaset.lua", "src/stone.lua",
-  "src/shop.lua", "src/arm.lua", "src/resolve.lua", "src/anim.lua",
-  "src/overlay.lua", "src/menu.lua", "data/megas.lua", "data/stones.lua" }
+  "src/shop.lua", "src/arm.lua", "src/resolve.lua", "src/primal.lua",
+  "src/anim.lua", "src/overlay.lua", "src/menu.lua", "data/megas.lua",
+  "data/stones.lua", "data/primals.lua", "data/orbs.lua" }
 
 -- The fixture data set carries no Celadon floor, so the clerk entry this mod
 -- extends is seeded onto it -- trimmed to the fields shop.lua reads and
@@ -146,6 +148,35 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local charizard = { species = "CHARIZARD" }
   T.eq(data.item_effects.CHARIZARDITE_X.use({ target = charizard }), "kept",
     "an official stone still works with the option " .. case.label)
+
+  -- The MEGA EVOLUTIONS option has no say over primal reversion, and the way
+  -- to be sure of that is to read the orbs back off the same loaded data set
+  -- under all three settings: registered, working, and never on the mega
+  -- stones' shelf whatever that shelf is currently holding.
+  for orbId in pairs(orbIndices) do
+    T.check(data.items and data.items[orbId] ~= nil,
+      orbId .. " is a registered item with the option " .. case.label)
+    T.check(data.item_effects and data.item_effects[orbId] ~= nil,
+      orbId .. " has its item effect with the option " .. case.label)
+    T.check(not sold[orbId],
+      orbId .. " is not on the Celadon shelf with the option " .. case.label)
+  end
+
+  local groudon = { species = "GROUDON" }
+  T.eq(data.item_effects.RED_ORB.use({ target = groudon }), "kept",
+    "the Red Orb assigns itself to a Groudon with the option " .. case.label)
+  T.eq(E.stoneOf(groudon), "RED_ORB",
+    "and stamps it, which is all a primal reversion ever needs "
+      .. "(option " .. case.label .. ")")
+
+  local lobby = data.text_pointers and data.text_pointers.IndigoPlateauLobby
+  local lobbyMart = lobby and lobby.TEXT_INDIGOPLATEAULOBBY_CLERK
+    and lobby.TEXT_INDIGOPLATEAULOBBY_CLERK.mart or {}
+  local atLobby = {}
+  for _, id in ipairs(lobbyMart) do atLobby[id] = true end
+  T.check(atLobby.RED_ORB and atLobby.BLUE_ORB,
+    "both orbs are sold at the Indigo Plateau lobby with the option "
+      .. case.label)
 end
 
 T.finish("battle_forms_options")

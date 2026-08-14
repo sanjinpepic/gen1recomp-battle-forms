@@ -1,5 +1,6 @@
--- Validates every form id in data/megas.lua against the real National Dex
--- species data on disk.  This is the test whose absence let a display name
+-- Validates every form id this mod wires -- data/megas.lua and
+-- data/primals.lua alike -- against the real National Dex species data on
+-- disk.  This is the test whose absence let a display name
 -- ("charizard-mega-x") ship where a record key ("CHARIZARD_MEGA_X") belonged:
 -- every other suite fabricates its own DATA.pokemon fixture, so none of them
 -- could ever notice the mega table pointing at a field that does not exist.
@@ -18,8 +19,11 @@ local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 -- The whole roster: every check below holds for any wired mega, and the
--- OFFICIAL/ALL split is pinned in the eligibility suite.
+-- OFFICIAL/ALL split is pinned in the eligibility suite.  The primal table
+-- needs no selecting -- it is already the plain shape select() produces --
+-- and both are read here because a wrong id is exactly as silent in either.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
+local primals = dofile(MOD .. "/data/primals.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 
@@ -42,14 +46,24 @@ local function isRecordKey(id)
 end
 
 local formIds = {}
-for _, byStone in pairs(megas) do
-  for _, formId in pairs(byStone) do
-    formIds[#formIds + 1] = formId
+for _, table_ in ipairs({ megas, primals }) do
+  for _, byItem in pairs(table_) do
+    for _, formId in pairs(byItem) do
+      formIds[#formIds + 1] = formId
+    end
   end
 end
 table.sort(formIds)
 
-T.check(#formIds > 0, "data/megas.lua names at least one form")
+T.check(#formIds > 0, "the wired tables name at least one form")
+
+-- The two primal ids are also named outright: a pairing quietly dropped from
+-- data/primals.lua would only make the sweep above one shorter, and nothing
+-- would fail.
+T.eq(primals.GROUDON and primals.GROUDON.RED_ORB, "GROUDON_PRIMAL",
+  "data/primals.lua still pairs Groudon with the Red Orb")
+T.eq(primals.KYOGRE and primals.KYOGRE.BLUE_ORB, "KYOGRE_PRIMAL",
+  "data/primals.lua still pairs Kyogre with the Blue Orb")
 
 for _, formId in ipairs(formIds) do
   T.check(isRecordKey(formId), formId

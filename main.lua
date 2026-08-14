@@ -45,8 +45,9 @@ return function(mod)
 
   local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
                   "src/stone.lua", "src/shop.lua", "src/arm.lua",
-                  "src/resolve.lua", "src/anim.lua", "src/overlay.lua",
-                  "src/menu.lua", "data/megas.lua", "data/stones.lua" }
+                  "src/resolve.lua", "src/primal.lua", "src/anim.lua",
+                  "src/overlay.lua", "src/menu.lua", "data/megas.lua",
+                  "data/stones.lua", "data/primals.lua", "data/orbs.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -71,14 +72,30 @@ return function(mod)
   local allMegas = megaset.select(rawMegas, megaset.ALL)
   local megas = megaset.select(rawMegas, mod.options:get("megas"))
 
+  -- Primal reversion's pairings are never selected between, so the table the
+  -- orbs are registered from and the table their effects read are the same
+  -- one -- where the mega stones need the full set for the first and the
+  -- chosen set for the second.
+  local primals = m["data/primals.lua"]
+  local orbIndices = m["data/orbs.lua"]
+
   m["src/stone.lua"].bind(eligibility)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
+  m["src/stone.lua"].install(mod, primals, primals, orbIndices)
   m["src/shop.lua"].install(mod, indices, megaset.stoneIds(megas))
+  m["src/shop.lua"].installOrbs(mod, orbIndices)
   anim.install(mod)
 
   local resolve = m["src/resolve.lua"]
   resolve.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                  megas = megas, animId = anim.ID, log = mod.log })
+
+  -- Primal reversion is wired beside the mega path, never into it: it is
+  -- handed the forms primitive and its own pairing table and nothing else,
+  -- so it has no way to reach the armed flag or the once-per-battle limit.
+  local primal = m["src/primal.lua"]
+  primal.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
+                primals = primals, log = mod.log })
 
   -- Decision only: overlay says whether a mega is on offer and what to call
   -- it, and the menu cell is the one thing that draws it.  It owned a START
@@ -95,9 +112,15 @@ return function(mod)
   menu.bind({ overlay = overlay })
   menu.install(mod, state)
 
-  mod.events:on("battle.started", function(ev) state:onBattleStarted(ev) end)
+  mod.events:on("battle.started", function(ev)
+    state:onBattleStarted(ev)
+    primal.onBattleStarted(ev)
+  end)
   mod.events:on("battle.turn_started", function(ev) resolve.onTurnStarted(state, ev) end)
-  mod.events:on("battle.battler_switched", function(ev) resolve.onBattlerSwitched(ev) end)
+  mod.events:on("battle.battler_switched", function(ev)
+    resolve.onBattlerSwitched(ev)
+    primal.onBattlerSwitched(ev)
+  end)
   mod.events:on("battle.fainted", function(ev) resolve.onFainted(ev) end)
   mod.events:on("battle.ended", function(ev)
     resolve.onBattleEnded(ev)

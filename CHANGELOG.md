@@ -3,6 +3,24 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.6.0
+
+### Added
+
+- **Primal Reversion, as its own transformation and not a second kind of
+  mega.** A Groudon carrying the Red Orb or a Kyogre carrying the Blue Orb
+  reverts the moment it is on the field -- on the first send-out and on every
+  switch-in after it -- with no menu entry, nothing to arm and nothing to
+  press, because there is no decision for the player to make. It has no
+  once-per-battle limit either: Groudon and Kyogre both revert in the same
+  fight, and neither spends the one mega evolution the trainer gets, which is
+  still theirs afterwards for whatever they bring in next. The two orbs are
+  bag items assigned the way a mega stone is -- used on the Pokemon they fit,
+  kept rather than consumed -- and are sold at the Indigo Plateau lobby
+  counter rather than on the mega stones' Celadon shelf. The form unwinds on
+  faint and at the end of the battle exactly as a mega's does, through the
+  same party sweep, so nothing is ever written into a save.
+
 ## 0.5.0
 
 ### Added

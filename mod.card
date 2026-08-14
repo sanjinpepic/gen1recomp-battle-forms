@@ -1,7 +1,7 @@
 -- Sharing metadata.  Read by tooling and the manager's detail pane; never by
 -- the loader's merge, so nothing here can break a load.
 return {
-  summary = "Mid-battle form changes, with mega evolution as the first trigger.",
+  summary = "Mid-battle form changes: mega evolution, and primal reversion for Groudon and Kyogre.",
   author = "sanjinpepic",
   contact = "https://github.com/sanjinpepic",
   tags = { "gameplay", "battle" },
@@ -13,10 +13,14 @@ return {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",
       "mega stones as bag items; using one on a mon it fits assigns it to that mon and is not used up",
       "96 mega forms across 87 species, each sold under its own stone; MEGA EVOLUTIONS picks between the 48 the real games have, which is the default, and all of them",
+      "primal reversion for Groudon and Kyogre, which happens by itself on entering battle and on switching in -- no menu entry, nothing to arm, and no once-per-battle limit, so both can revert in one fight and neither spends the trainer's mega",
+      "the Red Orb and the Blue Orb as bag items, assigned to a Pokemon the way a stone is and sold at the Indigo Plateau lobby counter",
       "the form survives switching out and unwinds when the battle ends or the mon faints",
     },
     known = {
       "abilities are unaffected -- nothing here makes an ability do anything, and no ability animations ship yet",
+      "a primal Groudon or Kyogre gets the form's stats, types and picture but not its weather, since abilities are untouched: Desolate Land and Primordial Sea do nothing here",
+      "a Pokemon holds one of these items at a time, a stone or an orb, the way a held item slot would work -- which costs nothing today, as no species has both a mega and a primal form",
       "Gold is not supported; this is Red/Blue/Yellow only for now",
       "a mon exported to a Game Boy .sav loses its stone, because a cart save has nowhere to record one",
       "there is no Key Stone: carrying the matching stone is the only requirement, where the real games also gate on the trainer",
