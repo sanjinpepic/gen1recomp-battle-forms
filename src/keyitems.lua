@@ -15,18 +15,24 @@
 --
 -- The rows below are the shape the later mechanics need and nothing more: the
 -- Tera Orb arrived as an id, a bag byte and one `available` line, and the
--- Z-Ring will arrive the same way rather than as another module.
+-- Z-Ring arrived the same way rather than as another module.
+--
+-- The Z-Ring is the one of the four that is the OUTER of two tiers again, the
+-- way the Key Stone is: a Z-Move needs the ring on the trainer and a Z-Crystal
+-- on the Pokemon, where a Dynamax and a Terastallization rest on the trainer's
+-- item alone.
 local M = {}
 
 M.KEY_STONE = "KEY_STONE"
 M.DYNAMAX_BAND = "DYNAMAX_BAND"
 M.TERA_ORB = "TERA_ORB"
+M.Z_RING = "Z_RING"
 
 -- Registration order, and the order they are checked in when a suite walks
 -- them.  An array rather than a keyed table for the same reason
 -- src/transforms.lua keeps one: iterating a keyed table reorders the shelf
 -- between runs.
-M.ITEMS = { M.KEY_STONE, M.DYNAMAX_BAND, M.TERA_ORB }
+M.ITEMS = { M.KEY_STONE, M.DYNAMAX_BAND, M.TERA_ORB, M.Z_RING }
 
 -- Nominal on purpose.  A mega stone is 4000 because it buys one Pokemon one
 -- form; a key item buys the mechanic itself, and pricing a whole mechanic like

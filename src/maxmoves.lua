@@ -47,13 +47,10 @@ M.GUARD_EFFECT = M.PREFIX .. "MAX_GUARD_EFFECT"
 --
 -- A Max Move has no PP of its own -- it spends the slot's, which is what
 -- src/substitute.lua's alias arranges -- but the FIGHT menu still draws a
--- MAXIMUM, and it takes that from the record: `def.pp + ppUps * floor(def.pp /
--- 5)` (BattleState.lua:5850, WideBattle.lua:222).  With the record at 5 that
--- expression is exactly `5 + ppUps`, so a substitute carrying `ppUps = <the
--- base move's own maximum> - 5` makes the menu read the base move's maximum
--- back, which is the number the player is actually spending against.  Any other
--- record PP would leave the menu showing a remaining count from one move
--- against a maximum from another.
+-- MAXIMUM, and it takes that from the record.  With the record at 5 the menu's
+-- formula reduces to `5 + ppUps`, so the correction the substitute has to carry
+-- is a whole number rather than a rounded one; src/substitute.lua's menuPPUps
+-- works it out and says why.
 M.RECORD_PP = 5
 
 local deps = nil
@@ -200,15 +197,12 @@ function M.fieldsFor(catalog, data, slot)
   end
   if not id then return nil end
 
-  -- See M.RECORD_PP: this is the base move's own maximum expressed in the
-  -- units the FIGHT menu's formula wants, so the menu draws the slot's real
-  -- remaining PP against the slot's real maximum.
-  local basePP = tonumber(def.pp)
-  local ppUps = nil
-  if basePP then
-    ppUps = basePP + (tonumber(slot.ppUps) or 0) * math.floor(basePP / 5)
-              - M.RECORD_PP
-  end
+  -- The base move's own maximum expressed in the units the FIGHT menu's formula
+  -- wants, so the menu draws the slot's real remaining PP against the slot's
+  -- real maximum.  Shared with the other consumer rather than worked out twice:
+  -- two copies of this arithmetic would be two chances to get the menu wrong.
+  local ppUps = deps and deps.substitute
+    and deps.substitute.menuPPUps(M.RECORD_PP, def.pp, slot.ppUps) or nil
   return { id = id, ppUps = ppUps }
 end
 

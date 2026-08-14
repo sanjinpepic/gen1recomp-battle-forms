@@ -55,6 +55,17 @@ function M.installKeyItems(mod, indices)
   shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
 end
 
+-- The Z-Crystals sell on the same floor and immediately behind the key items,
+-- which main.lua arranges by calling this between the two: a deep registry
+-- concatenates patches in the order they arrive, so the shelf reads key items,
+-- crystals, then the ninety-odd stones.  Ahead of the stones because a crystal
+-- costs the same as one and does far less on its own -- a player who cannot
+-- find the crystal for the Z-Ring they just bought has a mechanic that appears
+-- not to exist.  Every crystal indexed is a crystal sold: no option gates one.
+function M.installCrystals(mod, indices)
+  shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
+end
+
 -- The orbs sell at the Indigo Plateau lobby, the last counter before the
 -- Elite Four, rather than on the mega stones' shelf.  They are a different
 -- transformation type and Groudon and Kyogre are endgame Pokemon, so the two

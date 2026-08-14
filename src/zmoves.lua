@@ -1,0 +1,358 @@
+-- Z-Moves: the second consumer of src/substitute.lua, and the first
+-- transformation here that changes neither the Pokemon nor the battler.
+--
+-- Section 9 of the implementation guide is unusually clear about what this is
+-- NOT.  "Z-Moves are not Pokemon forms.  Do NOT do: Pokemon.form = Z.  Instead,
+-- transform the selected move for that attack."  So there is no form, no stat
+-- override and no type override -- the whole mechanic is that one of a
+-- Pokemon's moves becomes something else for one use.  The guide's matrix says
+-- the rest of it in four cells: changes form, no; persists a switch, N/A;
+-- persists a faint, N/A; once per battle, yes.
+--
+-- What the guide does NOT say is everything a build needs.  It names no
+-- crystals, no roster, no powers, no trainer item, and no answer to when the
+-- substitution goes on or comes off.  Those decisions are below and each one is
+-- marked.
+--
+-- WHY A CRYSTAL IS A TYPE AND NOT A MOVE.  The guide's one example is
+-- Thunderbolt becoming Gigavolt Havoc "depending on the relevant Z-Crystal",
+-- which is the real games' rule: a type crystal converts any damaging move of
+-- its own type.  That is also the only rule this game can express.  A crystal
+-- that named a MOVE would need a Pokemon to be told which of its four slots to
+-- point at, and a Gen 1 party screen has nowhere to say so -- the same wall
+-- src/tera.lua hit over the Tera type.  A crystal names a type, every damaging
+-- move of that type in the moveset becomes that type's Z-Move, and the player
+-- picks which one to actually use from the FIGHT menu, where they were going to
+-- be picking anyway.
+--
+-- WHY THE STAMP IS THE ONE THERE ALREADY.  A crystal goes into
+-- src/eligibility.lua's single stamp beside the mega stones and the orbs, so a
+-- Pokemon holding a crystal is a Pokemon not holding a mega stone.  That is not
+-- a compromise -- it is the held-item slot the real games have, and their rule
+-- exactly: a Charizard wearing Firium Z cannot mega evolve, and the player
+-- chooses which of the two it is going to be.  A second field would have meant
+-- a second key in the save to express something the save already expresses.
+--
+-- WHEN IT GOES ON AND WHEN IT COMES OFF, which is the decision worth reading.
+--
+-- The activation lands at battle.turn_started, which the engine raises AFTER
+-- both actions are chosen (BattleState.lua:2463-2469) -- the placement that
+-- keeps a mega from costing a turn.  Substituting the array cannot reach a
+-- choice already made, so the move picked on the turn the player armed runs as
+-- itself and the Z-Move is there to pick from the turn after.  That is the
+-- departure Dynamax already documents, and here it is load-bearing: a
+-- substitution that also came off at the end of that turn would be a Z-Move
+-- that could never be selected at all.
+--
+-- So it comes off when it is USED and not before.  battle.move_used names the
+-- move record the battler actually ran (BattleState.lua:3631, after the PP write
+-- and before the effect), which is the only seam that can tell a Z-Move being
+-- spent from any other move in the same list being spent; the unwind itself
+-- waits for battle.turn_ended, so the substituted array is still standing for
+-- everything the turn does with it.  Unused, it simply stands: there is no
+-- clock to run out, and a player who armed a Z-Move and then spent four turns
+-- on something else still has it.
+--
+-- It also unwinds on switching out, on fainting and at both ends of the battle
+-- -- the same four paths Dynamax unwinds on and for the same reason, which is
+-- that the battler holding the substituted array must not outlive them.
+-- Switching out ENDS it rather than following the Pokemon: the crystal belongs
+-- to the mon that left, the mon arriving may be carrying a different one or
+-- none, and re-deriving that on a send-out would be a second activation the
+-- trainer never asked for.  The trainer's one manual transformation is spent
+-- either way, which is the guide's "once per battle: yes".
+local M = {}
+
+M.ID = "zmove"
+
+-- Every id this file registers wears the mod's name, for the reason
+-- src/maxmoves.lua's does: "GIGAVOLTHAVOC" is precisely the id a future move
+-- pack would reach for, and a collision is a load failure for whichever of the
+-- two registers second.  The stems differ from the Max Moves' by construction --
+-- theirs all begin MAX -- so the two rosters cannot collide with each other.
+M.PREFIX = "BATTLE_FORMS_"
+
+-- The PP every Z-Move record carries.  Five for the reason src/maxmoves.lua's
+-- is five: the FIGHT menu draws its maximum off the record, and at 5 the
+-- correction a substitute carries to make that maximum read the base move's is
+-- a whole number.  The Z-Move itself has no PP of its own -- it spends the
+-- slot's, which is what src/substitute.lua's alias arranges, and which is also
+-- the honest answer, since the player used a turn of that move.
+M.RECORD_PP = 5
+
+local deps = nil
+
+function M.bind(modules) deps = modules end
+
+-- The registered id for a rung.  The power is in the id because the power is
+-- what distinguishes one record of a type from another.
+function M.idFor(stem, power)
+  return M.PREFIX .. stem .. "_" .. tostring(power)
+end
+
+-- The Z-Move power a base power of `basePower` earns.  One ladder for every
+-- type, unlike the Max Moves', which drops Fighting and Poison a rung.
+function M.powerFor(rows, basePower)
+  for _, rung in ipairs(rows.ladder) do
+    if rung.upTo == nil or basePower <= rung.upTo then return rung.power end
+  end
+  return nil
+end
+
+-- The crystals, in the data's own order, for the two callers that register
+-- items and stock a shelf.  Both need an array: pairs() over the index table
+-- would reorder the shop between runs.
+function M.crystalIds(rows)
+  local out = {}
+  for _, row in ipairs(rows.types) do out[#out + 1] = row.crystal end
+  return out
+end
+
+-- Whether the merged type chart carries this type.  Guarded rather than
+-- trusted, exactly as src/maxmoves.lua guards it: `get` is a registry courtesy
+-- and a build that does not offer it must leave the Z-Moves out rather than
+-- take the mod down with a nil call.
+local function typeExists(mod, typeId)
+  local registry = mod.content and mod.content.type_chart
+  if not registry or type(registry.get) ~= "function" then return false end
+  local ok, record = pcall(registry.get, registry, typeId)
+  return ok and record ~= nil
+end
+
+-- Registers the roster and answers with the catalog the substitution reads:
+-- which crystal turns on which type, and how to reach the right rung.
+--
+-- A type the running game's chart has no record for is skipped and SAID, the
+-- way a missing Max Move is: `type` is a checked reference the merge resolves,
+-- so registering BLACK HOLE ECLIPSE in a game whose chart stops at Red's
+-- fifteen types would not cost one Z-Move, it would cost the whole mod.  The
+-- crystal is still registered by the caller either way -- an item a save
+-- carries has to stay nameable -- so what a player gets is a crystal that
+-- refuses rather than a bag byte nothing can name.
+function M.install(mod, rows)
+  local catalog = { byCrystal = {}, rows = rows }
+
+  for _, row in ipairs(rows.types) do
+    if typeExists(mod, row.type) then
+      local rungs = {}
+      for _, rung in ipairs(rows.ladder) do
+        if not rungs[rung.power] then
+          local id = M.idFor(row.stem, rung.power)
+          rungs[rung.power] = id
+          mod.content.moves:register(id, {
+            id = id,
+            name = row.name,
+            type = row.type,
+            power = rung.power,
+            -- A Z-Move never misses in the real games and there is no
+            -- never-miss field on a move record to say so -- that lives on the
+            -- effect, and borrowing one would take its effect with it.  100 is
+            -- as close as a record gets, which under the faithful ruleset still
+            -- leaves the cart's 1-in-256 miss.
+            accuracy = 100,
+            pp = M.RECORD_PP,
+            effect = "NO_ADDITIONAL_EFFECT",
+            -- `category` is deliberately absent, as it is on every Max Move:
+            -- Gen 1 splits physical from special by TYPE and Damage.categoryOf
+            -- falls through to the type record when a move does not say
+            -- (Damage.lua:113-124).  It is also why the move data's split of
+            -- each Z-Move into a physical and a special record collapses to one
+            -- here -- this game has no way to tell them apart.
+          })
+          -- One animation per move id, because the id IS the animation key
+          -- (BattleState.lua:3627).  A move with no sequence is not only
+          -- silent to look at but silent to listen to: the rows carry the
+          -- sound, and the engine skips its single-sound fallback once an
+          -- animation has started.
+          if deps and deps.anim then
+            mod.content.battle_anims:register(id, { seq = deps.anim.zMoveSeq() })
+          end
+        end
+      end
+      catalog.byCrystal[row.crystal] = { type = row.type, rungs = rungs }
+    elseif deps and deps.log then
+      deps.log:warn(
+        "battle_forms: no Z-Move for %s -- this game's merged type chart has "
+          .. "no record for that type, which is what a Red-era chart looks "
+          .. "like; %s is still sold and still stamps a Pokemon, but nothing "
+          .. "it holds will convert",
+        tostring(row.type), tostring(row.crystal))
+    end
+  end
+
+  return catalog
+end
+
+-- The fields a substitute for `slot` should carry under `crystal`, or nil to
+-- leave the slot alone.  nil covers four cases and all four are the same
+-- answer: a move the registry cannot resolve, a move of another type, a status
+-- move, and a crystal whose type this game never registered.
+--
+-- The status case is a deliberate omission rather than a gap.  A status move
+-- under a crystal does not become a Z-Move in the real games -- it keeps itself
+-- and gains an extra effect -- and there is no field on a move record here that
+-- could say which effect, so the slot keeps itself and nothing is invented.
+function M.fieldsFor(catalog, data, slot, crystal)
+  local entry = catalog.byCrystal[crystal]
+  if not entry then return nil end
+  local def = data and data.moves and data.moves[slot and slot.id]
+  if type(def) ~= "table" or def.type ~= entry.type then return nil end
+
+  local power = tonumber(def.power) or 0
+  if power <= 0 then return nil end
+  local id = entry.rungs[M.powerFor(catalog.rows, power)]
+  if not id then return nil end
+
+  local ppUps = deps and deps.substitute
+    and deps.substitute.menuPPUps(M.RECORD_PP, def.pp, slot.ppUps) or nil
+  return { id = id, ppUps = ppUps }
+end
+
+-- The per-slot function src/substitute.lua takes.  Built per battle because it
+-- closes over that battle's merged data, and per activation because it closes
+-- over the crystal the Pokemon in front is carrying.
+function M.picker(catalog, data, crystal)
+  return function(slot)
+    return M.fieldsFor(catalog, data, slot, crystal)
+  end
+end
+
+-- Whether this battler has anything for that crystal to convert.  Asked by
+-- `available` for the reason mega evolution asks whether its form record
+-- exists: the menu must not promise a change the activation can only refuse.
+function M.wouldConvert(catalog, data, battler, crystal)
+  for _, slot in ipairs(battler and battler.curMoves or {}) do
+    if type(slot) == "table" and M.fieldsFor(catalog, data, slot, crystal) then
+      return true
+    end
+  end
+  return false
+end
+
+-- One record, like Dynamax's and Terastallization's and for the same reasons:
+-- only the player's side can reach the menu cell and the trainer gets one
+-- activation a battle, so there is never a second Z-Move to track, and one
+-- record is one thing to drop when the battle ends.
+--
+-- `moves` is the substitution's own record and is created here rather than on
+-- activation so that every teardown path can hand it to restore() blind,
+-- including the ones that run when nothing was ever substituted.  `ids` is the
+-- set of registered ids this activation put on, which is what tells a Z-Move
+-- being used from any other move in the same list being used.
+function M.new()
+  return { mon = nil, ids = nil, spent = false,
+           moves = deps and deps.substitute and deps.substitute.new() or nil }
+end
+
+local function forget(state)
+  state.mon, state.ids, state.spent = nil, nil, false
+  if deps.substitute then deps.substitute.restore(state.moves) end
+end
+
+M.onBattleStarted = forget
+M.onBattleEnded = forget
+
+function M.entry(state, catalog)
+  return {
+    id = M.ID,
+    -- Seven characters is the whole budget the classic layout leaves a label
+    -- once the armed '*' and the cycle marker have taken theirs
+    -- (tests/battle_forms_menu_test.lua measures it).  Z-MOVE is six and is
+    -- what the games call the mechanic, so there is nothing to shorten.
+    label = "Z-MOVE",
+
+    -- Two tiers, the trainer's before the Pokemon's, the way mega evolution
+    -- asks them and unlike Dynamax and Tera, which rest on the trainer's item
+    -- alone: no Z-Ring means no Z-Move whatever crystal the mon in front is
+    -- carrying.  Failing here is how the gate stays silent -- the cell is
+    -- simply absent rather than present and refusing.
+    available = function(battle)
+      if not deps.keyitems.held(battle, deps.keyitems.Z_RING) then
+        return false
+      end
+      local battler = battle.player
+      local mon = battler and battler.mon
+      if not mon or not mon.species then return false end
+      local crystal = deps.eligibility.stoneOf(mon)
+      if not crystal then return false end
+      return M.wouldConvert(catalog, battle.data, battler, crystal)
+    end,
+
+    -- Answers whether the battle's one transformation was actually spent.  It
+    -- is spent only if something was substituted: a refusal must not cost the
+    -- player the option they armed in good faith.
+    activate = function(battle)
+      local battler = battle.player
+      local mon = battler and battler.mon
+      if not mon then return false end
+      local crystal = deps.eligibility.stoneOf(mon)
+      if not crystal then return false end
+
+      -- The ids are collected from the picker's own answers rather than read
+      -- back off the finished array, so a slot the picker passed over cannot
+      -- later be mistaken for a Z-Move being spent -- which would end the
+      -- substitution on a move that was never part of it.
+      local picker = M.picker(catalog, battle.data, crystal)
+      local ids = {}
+      local applied = deps.substitute.apply(state.moves, battler, function(slot)
+        local fields = picker(slot)
+        if fields then ids[fields.id] = true end
+        return fields
+      end)
+      if not applied then return false end
+
+      state.mon, state.spent, state.ids = mon, false, ids
+      if deps.announce then deps.announce.zPower(battle, battler) end
+      return true
+    end,
+  }
+end
+
+-- The Z-Move being spent.  `ev.move` is the record the engine ran, so the id
+-- test is against what was actually used and not against what the menu was
+-- showing; `ev.user` is the battler, compared on its MON because that is the
+-- identity a switch does not replace.
+--
+-- Marks rather than unwinds.  The effect, the damage and everything else the
+-- turn does with this move all run after this event, and pulling the array out
+-- from under them would be this mod reaching into the middle of a move.
+function M.onMoveUsed(state, ev)
+  if not state.mon or state.spent or not state.ids then return end
+  local user = ev and ev.user
+  if not user or user.mon ~= state.mon then return end
+  local id = ev.move and ev.move.id
+  if not id or not state.ids[id] then return end
+  state.spent = true
+end
+
+-- One move, once: the turn a Z-Move was used on is the last turn it exists for.
+-- battle.turn_ended is the seam src/dynamax.lua counts on and for the same
+-- reason -- it fires even on the turn a battle is decided.
+function M.onTurnEnded(state)
+  if not state.spent then return end
+  forget(state)
+end
+
+-- Switching out ends it.  `previous` is the OUTGOING battler, captured whole
+-- before makeBattler replaces it, so the mon that just left is previous.mon --
+-- ev.battler is the one arriving and is the wrong end of this event to read.
+--
+-- Silent, like Dynamax's switch-out and for the same reason: the mon is off the
+-- screen by the time this runs and the engine is part-way through its own
+-- send-out text.
+function M.onBattlerSwitched(state, ev)
+  local mon = ev and ev.previous and ev.previous.mon
+  if not mon or state.mon ~= mon then return end
+  forget(state)
+end
+
+-- Fainting ends it.  Nothing here marks the mon, so there is no form for
+-- src/resolve.lua's faint handler to collide with -- the array is all there is
+-- to put back, and the battler it belongs to is the one in hand.
+function M.onFainted(state, ev)
+  local mon = ev and ev.battler and ev.battler.mon
+  if not mon or state.mon ~= mon then return end
+  forget(state)
+end
+
+return M

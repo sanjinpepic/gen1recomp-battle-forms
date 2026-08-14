@@ -6,16 +6,18 @@
 -- already in a player's bag into a different item.  These are permanent; new
 -- items append.
 --
--- Three tables, ONE range.  These are neither stones nor orbs -- nothing is
--- stamped with them and no Pokemon carries one -- but they share the bag with
--- both, so they continue where data/orbs.lua stopped (194-195) rather than
--- starting over.  tests/battle_forms_keyitems_test.lua pins that no two of
--- the three tables ever hand out the same byte.
+-- Four tables, ONE range.  These are neither stones, orbs nor crystals --
+-- nothing is stamped with them and no Pokemon carries one -- but they share the
+-- bag with all three, so they continue where data/orbs.lua stopped (194-195)
+-- rather than starting over, and data/crystals.lua continues from here.
+-- tests/battle_forms_keyitems_test.lua pins that no two of the four tables ever
+-- hand out the same byte.
 --
--- Order here is also shelf order (src/shop.lua sorts by index), so the three
+-- Order here is also shelf order (src/shop.lua sorts by index), so the four
 -- stand at the counter in the order their mechanics were added.
 return {
   KEY_STONE    = 196,
   DYNAMAX_BAND = 197,
   TERA_ORB     = 198,
+  Z_RING       = 199,
 }

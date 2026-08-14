@@ -27,12 +27,13 @@ for _, row in ipairs(record.seq) do
 end
 T.check(allEffects, "every row is a screen effect needing no custom art")
 
--- The Max Move sequences hold to the same rule, and one more of their own: a
--- registry keeps what it is handed, and these are handed out over a hundred
--- times, so each call has to return a table of its own rather than one shared
--- sequence every Max Move record could be mutated through.
+-- The move sequences hold to the same rule, and one more of their own: a
+-- registry keeps what it is handed, and these are handed out hundreds of times,
+-- so each call has to return a table of its own rather than one shared sequence
+-- every registered record could be mutated through.
 for label, build in pairs({ ["Max Move"] = Anim.maxMoveSeq,
-                            ["Max Guard"] = Anim.maxGuardSeq }) do
+                            ["Max Guard"] = Anim.maxGuardSeq,
+                            ["Z-Move"] = Anim.zMoveSeq }) do
   local first, second = build(), build()
   T.check(#first > 0, label .. "'s sequence has rows")
   T.check(first ~= second, label .. "'s sequence is a fresh table per call")
@@ -47,16 +48,19 @@ end
 
 -- The sound rows name MOVES whose sound to borrow, which is how the engine's
 -- own animations carry sound; a row inventing one would mean shipping audio.
-local sounds = 0
-for _, row in ipairs(Anim.maxMoveSeq()) do
-  if row.sound then
-    sounds = sounds + 1
-    T.eq(type(row.sound), "string", "a sound row names a move id")
+for label, build in pairs({ ["Max Move"] = Anim.maxMoveSeq,
+                            ["Z-Move"] = Anim.zMoveSeq }) do
+  local sounds = 0
+  for _, row in ipairs(build()) do
+    if row.sound then
+      sounds = sounds + 1
+      T.eq(type(row.sound), "string", "a sound row names a move id")
+    end
   end
+  T.check(sounds > 0,
+    "a " .. label .. " makes a noise -- the row sounds are the only ones it "
+      .. "gets, because the engine skips its single-sound fallback once an "
+      .. "animation has started")
 end
-T.check(sounds > 0,
-  "a Max Move makes a noise -- the row sounds are the only ones it gets, "
-    .. "because the engine skips its single-sound fallback once an animation "
-    .. "has started")
 
 T.finish("battle_forms_anim")

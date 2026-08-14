@@ -51,6 +51,22 @@ function M.maxMoveSeq()
   }
 end
 
+-- A Z-Move, which reads as the opposite of a Max Move on purpose: the screen
+-- LIGHTS where a Max Move darkens it, and the Pokemon itself flashes first,
+-- because the power in a Z-Move comes off the trainer and the crystal rather
+-- than out of the Pokemon growing.  Same rule as everything else here -- screen
+-- effects only, and a sound borrowed from a move the cart already has, because
+-- inventing one would mean shipping audio.
+function M.zMoveSeq()
+  return {
+    { effect = "SE_LIGHT_SCREEN_PALETTE" },
+    { effect = "SE_FLASH_MON_PIC", sound = "HYPER_BEAM" },
+    { effect = "SE_FLASH_SCREEN_LONG" },
+    { effect = "SE_SHAKE_SCREEN" },
+    { effect = "SE_RESET_SCREEN_PALETTE" },
+  }
+end
+
 -- Max Guard is a status move and reads as one: the screen lights rather than
 -- darkens, the Pokemon itself flashes, and nothing shakes.
 function M.maxGuardSeq()

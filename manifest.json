@@ -1,7 +1,7 @@
 {
   "id": "battle_forms",
   "name": "Battle Forms",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -21,5 +21,5 @@
   "permissions": [
     "engine_internals"
   ],
-  "description": "Mid-battle transformations: mega evolution, Dynamax and Gigantamax, Terastallization, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species."
+  "description": "Mid-battle transformations: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species."
 }

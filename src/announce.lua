@@ -10,7 +10,8 @@
 -- exists.
 --
 -- WHAT ANNOUNCES.  Primal reversion, mega evolution, Dynamax at both ends of
--- its three turns, Terastallization, and Max Guard.  Nothing else.
+-- its three turns, Terastallization, the Z-Power going up, and Max Guard.
+-- Nothing else.
 --
 -- Mega is here even though the player asked for it: the armed marker is gone
 -- from the cell by the time the change lands, the cell itself is gone with the
@@ -99,6 +100,14 @@ local DYNAMAX_END = "%s's\nDynamax ended!"
 local TERA = "%s\nTerastallized!"
 local TERA_TYPE = "It became the\n%s type!"
 
+-- Two pages again, and this one is the real games' sentence cut where the box
+-- cuts it: "surrounded itself" is seventeen characters and "with its Z-Power!"
+-- is seventeen, and the row above the first is already carrying "Enemy " plus a
+-- ten-character nickname.  The tail takes no name, so it is the one line here
+-- that cannot fail for want of one.
+local Z_POWER = "%s\nsurrounded itself"
+local Z_POWER_TAIL = "with its Z-Power!"
+
 -- say appends to the battle's queue; sayNext inserts at the battle's own
 -- insert cursor, the one the engine is using itself.  Which is correct depends
 -- entirely on where the caller sits in that queue, so each transformation
@@ -163,6 +172,21 @@ function M.tera(battle, battler, typeName)
   if not emit(battle, "sayNext", TERA, battler) then return false end
   if type(typeName) ~= "string" or typeName == "" then return true end
   return push(battle, "sayNext", text(TERA_TYPE, typeName))
+end
+
+-- The Z-Power going up, in the real games' own sentence and split across two
+-- pages for the reason Terastallization's is: the line does not fit one
+-- eighteen-character row and half of it says nothing on its own.  It resolves
+-- from battle.turn_started beside the others and takes the cursor for the same
+-- reason.
+--
+-- There is no matching line for the Z-Move being spent.  Everything Dynamax's
+-- expiry line exists to make visible is already visible here: the Z-Move fires,
+-- the engine narrates it by name, and the moveset the player looks at next turn
+-- is their own again.
+function M.zPower(battle, battler)
+  if not emit(battle, "sayNext", Z_POWER, battler) then return false end
+  return push(battle, "sayNext", text(Z_POWER_TAIL))
 end
 
 -- The expiry is the other case entirely.  It resolves from battle.turn_ended,

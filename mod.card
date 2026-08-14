@@ -1,7 +1,7 @@
 -- Sharing metadata.  Read by tooling and the manager's detail pane; never by
 -- the loader's merge, so nothing here can break a load.
 return {
-  summary = "Mid-battle transformations: mega evolution, Dynamax and Gigantamax, Terastallization, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species.",
+  summary = "Mid-battle transformations: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species.",
   author = "sanjinpepic",
   contact = "https://github.com/sanjinpepic",
   tags = { "gameplay", "battle" },
@@ -10,6 +10,8 @@ return {
       "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA when the trainer has a Key Stone and the active mon carries a matching stone, and DYNAMAX for any mon at all once the trainer has a Dynamax Band, and LEFT and RIGHT cycle between them when both are on offer, which the cell marks with a small hollow arrow at the right-hand end of its row so the second one is never hidden behind the first",
       "an existing save loses mega evolution until a Key Stone is bought, and loses Dynamax until a Dynamax Band is: both were previously ungated, and the real games require the trainer to carry one as well as the Pokemon to carry its own item",
       "the menu cell also reads TERA once the trainer has a Tera Orb, which every species may use whatever it is carrying",
+      "and Z-MOVE once the trainer has a Z-Ring and the Pokemon in front is carrying a Z-Crystal with something in its moveset to convert",
+      "a Pokemon can hold a mega stone, an orb or a Z-Crystal but never two of them, which was already true of a stone and an orb and now costs a real choice: giving a Charizard a crystal takes its mega stone away",
       "one transformation the player asks for per battle, across all of them: using a mega or a Dynamax now takes the menu cell away for the rest of that battle instead of leaving the other on it, which is how the mainline games have ruled the trainer's gimmick; the automatic forms are not part of it",
     },
     added = {
@@ -28,6 +30,9 @@ return {
       "Dynamax for every species, once per battle per trainer, lasting three turns and ending early on switching out or fainting",
       "Max Moves: while a Pokemon is Dynamaxed its damaging moves become the Max Move for their own type, at a power taken from the move being replaced, and each one spends the PP of the slot it stands in for -- the moveset comes back exactly as it was on every path the Dynamax ends on",
       "MAX GUARD in place of a status move, which shields the Pokemon for the turn and moves first so that it can",
+      "Z-Moves: every damaging move of a held Z-Crystal's type becomes that type's Z-Move for one use, at a power taken from the move being replaced and spending that move's PP, and the moveset comes back at the end of the turn one of them is used",
+      "the Z-Ring as a fourth trainer key item, and eighteen Z-Crystals -- one per type -- as bag items used on a Pokemon the way a mega stone is, sold behind the key items on the Celadon stone floor",
+      "a message in the real games' own words when the Z-Power goes up, across two pages because no eighteen-character battle row holds the whole sentence",
       "Gigantamax for 31 of those species, which is a Dynamax with a form change laid on top -- the stats, the types and the picture of the G-Max form for as long as the three turns last",
       "a battle message when a Pokemon reverts or mega evolves, in the real games' own words -- neither change renames the Pokemon and primal reversion has no animation, so without a line the whole mechanic rested on one sprite being present",
       "two message pages when a Pokemon terastallizes, the second naming the type it became -- the type change is the only thing that happens, and no eighteen-character battle row holds both halves of the sentence",
@@ -38,7 +43,7 @@ return {
     known = {
       "abilities are unaffected -- nothing here makes an ability do anything, and no ability animations ship yet",
       "a primal Groudon or Kyogre gets the form's stats, types and picture but not its weather, since abilities are untouched: Desolate Land and Primordial Sea do nothing here",
-      "a Pokemon holds one of these items at a time, a stone or an orb, the way a held item slot would work -- which costs nothing today, as no species has both a mega and a primal form",
+      "a Pokemon holds one of these items at a time -- a stone, an orb or a Z-Crystal -- the way a held item slot would work; that cost nothing while there were only stones and orbs, since no species has both a mega and a primal form, and it is a real choice now that any Pokemon can carry a crystal instead",
       "Gold is not supported; this is Red/Blue/Yellow only for now",
       "a mon exported to a Game Boy .sav loses its stone, because a cart save has nowhere to record one",
       "primal reversion has no trainer key item, matching the real games, where the Red and Blue Orbs are the whole requirement -- so a Groudon or Kyogre reverts with an empty bag behind it",
@@ -64,7 +69,13 @@ return {
       "a Max Move can miss, where the real games' cannot: a move record has no never-miss field to set, so they are registered at 100 accuracy and the faithful ruleset still keeps the cart's one-in-256 miss",
       "MAX GUARD borrows the engine's semi-invulnerability, which is the only thing in Gen 1 that makes an incoming move fail -- so a never-miss move goes through it, and it never fails for being used twice running the way the real games' does",
       "a move whose type this game's chart has no record for keeps itself while Dynamaxed, which in practice means the three modern types in a game where National Dex has registered no chart carrying them",
-      "Z-Moves are not implemented; they are the intended second consumer of the same move-substitution mechanism Max Moves are built on",
+      "the Z-Move is pickable from the turn after it is armed rather than the turn it is armed on, which is the same placement that keeps a mega from costing a turn -- the transformation resolves after both actions are chosen, so it cannot reach a move already selected",
+      "an armed Z-Move that is never used simply stays: there is no clock to run out, so the substituted moveset stands until one of its moves is spent, the Pokemon switches or faints, or the battle ends",
+      "the species-specific Z-Moves are not implemented -- every one of them keys off a base move Gen 1 does not have, so its crystal would be unusable in this game even once bought",
+      "a status move under a crystal keeps itself: in the real games it gains an extra effect rather than becoming a move, and a move record here has no field that could say which effect",
+      "the Z-Move names are the move data's own and thirteen of the eighteen are longer than a Gen 1 move name, so the widescreen battle layout truncates them with the engine's own ellipsis and the classic FIGHT menu draws them into its box border; a shortened name would be one this mod made up",
+      "a Z-Move can miss for the same reason a Max Move can: a move record has no never-miss field, so they are registered at 100 accuracy and the faithful ruleset keeps the cart's one-in-256 miss",
+      "the Z-Ring is never used up and there is nothing to recharge, and a crystal is kept rather than consumed -- the once-per-battle limit is the only thing rationing either",
       "there is no power spot: the Dynamax Band and the menu cell are the whole trigger, so a trainer carrying one can Dynamax anywhere, where the real games also gate it on where the battle is happening",
       "three species with a Gigantamax form are not wired -- Corviknight, and the Low Key and Rapid Strike variants of Toxtricity and Urshifu -- because there is no usable art for them; all three still Dynamax plainly",
       "a Dynamax laid over a form some other mechanic applied -- a primal reversion, or a condition-driven form -- leaves that form alone at both ends: no Gigantamax shape goes on over it, and the three turns running out does not strip what the Dynamax never applied",

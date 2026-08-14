@@ -27,14 +27,16 @@ local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local keyIndices = dofile(MOD .. "/data/keyitems.lua")
 local stoneIndices = dofile(MOD .. "/data/stones.lua")
 local orbIndices = dofile(MOD .. "/data/orbs.lua")
+local crystalIndices = dofile(MOD .. "/data/crystals.lua")
 
 -- ------- the two ids and their bag bytes -----------------------------
 
-T.eq(#KeyItems.ITEMS, 3,
-  "three key items ship: one for mega, one for Dynamax, one for Tera")
+T.eq(#KeyItems.ITEMS, 4,
+  "four key items ship: one each for mega, Dynamax, Tera and the Z-Move")
 T.eq(KeyItems.ITEMS[1], KeyItems.KEY_STONE, "the Key Stone is the first")
 T.eq(KeyItems.ITEMS[2], KeyItems.DYNAMAX_BAND, "the Dynamax Band the second")
 T.eq(KeyItems.ITEMS[3], KeyItems.TERA_ORB, "the Tera Orb the third")
+T.eq(KeyItems.ITEMS[4], KeyItems.Z_RING, "the Z-Ring the fourth")
 
 -- Primal reversion takes no trainer item in the real games either, so there
 -- must be nothing here that looks like one waiting to be wired up.
@@ -52,11 +54,12 @@ for itemId in pairs(keyIndices) do
   T.check(named[itemId], itemId .. " is indexed and is also a named key item")
 end
 
--- One bag, three tables.  A byte handed out twice would make one item
+-- One bag, four tables.  A byte handed out twice would make one item
 -- indistinguishable from another in a save, which is unrecoverable rather
 -- than merely wrong.
 local seen = {}
-for _, source in ipairs({ stoneIndices, orbIndices, keyIndices }) do
+for _, source in ipairs({ stoneIndices, orbIndices, keyIndices,
+                          crystalIndices }) do
   for itemId, index in pairs(source) do
     T.check(seen[index] == nil,
       itemId .. "'s bag byte " .. tostring(index) .. " is not already "
@@ -115,10 +118,12 @@ do
   T.eq(mod.items[KeyItems.KEY_STONE] ~= nil, true, "the indexed one registers")
   T.eq(mod.items[KeyItems.DYNAMAX_BAND], nil, "an unindexed one does not")
   T.eq(mod.items[KeyItems.TERA_ORB], nil, "nor does the other")
-  T.eq(#mod.errors, 2, "and each refusal is reported")
+  T.eq(mod.items[KeyItems.Z_RING], nil, "nor the fourth")
+  T.eq(#mod.errors, #KeyItems.ITEMS - 1, "and each refusal is reported")
   T.check(mod.errors[1]:find("DYNAMAX_BAND", 1, true) ~= nil,
     "naming the item it is about")
   T.check(mod.errors[2]:find("TERA_ORB", 1, true) ~= nil, "and so does the next")
+  T.check(mod.errors[3]:find("Z_RING", 1, true) ~= nil, "and the one after it")
   T.check(mod.errors[1]:find("data/keyitems.lua", 1, true) ~= nil,
     "and the file to fix it in")
 end

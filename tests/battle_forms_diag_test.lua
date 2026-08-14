@@ -230,7 +230,8 @@ do
     "and the form the stamp resolves to")
   T.check(line:find("record=true", 1, true) ~= nil,
     "and whether that form has a record in the battle's species table")
-  T.check(line:find("keys[KEY_STONE=true DYNAMAX_BAND=false TERA_ORB=false]",
+  T.check(line:find(
+      "keys[KEY_STONE=true DYNAMAX_BAND=false TERA_ORB=false Z_RING=false]",
       1, true) ~= nil,
     "and which of the trainer's key items are in the bag, which is the one "
       .. "reason for an absent cell that nothing else in this line explains")

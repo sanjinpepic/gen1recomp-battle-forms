@@ -150,16 +150,25 @@ do
   local WIDTH = 18
   local longest = "ABCDEFGHIJ" -- a full ten-character Gen 1 nickname
   for _, case in ipairs({ { Announce.primal, "primal" },
-                          { Announce.mega, "mega" } }) do
+                          { Announce.mega, "mega" },
+                          -- Two pages rather than one, which is why every page
+                          -- is measured below and not only the first: the tail
+                          -- carries half the sentence and would otherwise never
+                          -- be looked at.
+                          { Announce.zPower, "z-power" } }) do
     for _, side in ipairs({ "player", "enemy" }) do
       local battle = makeBattle(newMon("GROUDON", "RED_ORB"),
                                 newMon("GROUDON", "RED_ORB"),
                                 { player = longest, enemy = longest })
       case[1](battle, battle[side])
-      for _, line in ipairs(rowsOf(texts(battle)[1])) do
-        T.check(#line <= WIDTH,
-          ("%s's %s line fits the text box (%q is %d of %d)")
-            :format(case[2], side, line, #line, WIDTH))
+      local pages = texts(battle)
+      T.check(#pages > 0, case[2] .. "'s " .. side .. " line was queued at all")
+      for _, page in ipairs(pages) do
+        for _, line in ipairs(rowsOf(page)) do
+          T.check(#line <= WIDTH,
+            ("%s's %s line fits the text box (%q is %d of %d)")
+              :format(case[2], side, line, #line, WIDTH))
+        end
       end
     end
   end

@@ -66,7 +66,7 @@ end
 
 local function bindMaxMoves(mod, guard)
   MaxMoves.bind({ anim = Anim, announce = Announce, log = mod and mod.log,
-                  guard = guard })
+                  guard = guard, substitute = Substitute })
 end
 
 -- ---------------------------------------------------------------------
@@ -637,12 +637,21 @@ do
   end
   T.eq(chartTypes, 15, "precondition: the fixture chart is Red's fifteen types")
 
+  -- Counted against the ids this file's own data would produce rather than
+  -- against the shared prefix: the Z-Moves wear that prefix too, so a bare
+  -- prefix test would grow every time another consumer of the substitution
+  -- mechanism registers a roster, and stop measuring this one.
+  local ours = {}
+  for _, row in ipairs(ROWS.types) do ours[row.stem] = true end
+  ours[ROWS.guard.stem] = true
+
   local mine, guard = 0, nil
   for id, record in pairs(run.data.moves) do
-    if id:sub(1, #MaxMoves.PREFIX) == MaxMoves.PREFIX then
+    local stem = id:match("^" .. MaxMoves.PREFIX .. "(%u+)")
+    if stem and ours[stem] then
       mine = mine + 1
       T.eq(record.id, id, id .. "'s record id equals its registry key")
-      if id:find("MAXGUARD", 1, true) then guard = record end
+      if stem == ROWS.guard.stem then guard = record end
     end
   end
   T.eq(mine, 15 * 7 + 1, "and the merged registry carries one record per rung")

@@ -18,6 +18,12 @@ local raw = dofile(MOD .. "/data/megas.lua")
 local indices = dofile(MOD .. "/data/stones.lua")
 local orbIndices = dofile(MOD .. "/data/orbs.lua")
 local keyIndices = dofile(MOD .. "/data/keyitems.lua")
+local crystalIndices = dofile(MOD .. "/data/crystals.lua")
+-- The crystals share the key items' shelf, so the shelf count below has to know
+-- how many of them there are; counted rather than written down, because a
+-- number written down here would go stale the moment another one is added.
+local crystalCount = 0
+for _ in pairs(crystalIndices) do crystalCount = crystalCount + 1 end
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 
 local function readFile(path)
@@ -130,10 +136,11 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local mart = martOf(data)
   local sold = {}
   for _, id in ipairs(mart) do sold[id] = true end
-  T.eq(#mart, #FLOOR_STOCK + #KeyItems.ITEMS + (case.all and 96 or 48),
-    "the Celadon shelf holds the floor's own stock, every key item and "
-      .. (case.all and "every" or "only the official") .. " stone with the "
-      .. "option " .. case.label)
+  T.eq(#mart,
+    #FLOOR_STOCK + #KeyItems.ITEMS + crystalCount + (case.all and 96 or 48),
+    "the Celadon shelf holds the floor's own stock, every key item, every "
+      .. "crystal and " .. (case.all and "every" or "only the official")
+      .. " stone with the option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
     T.check(sold[id], "the floor's own stock survives with the option "
       .. case.label)

@@ -3,6 +3,30 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.17.0
+
+### Added
+
+- **Z-Moves, on the move-substitution mechanism Max Moves were built on.** A
+  trainer carrying a Z-Ring and a Pokemon carrying a Z-Crystal now turn every
+  damaging move of that crystal's type into its Z-Move for a single use, at a
+  power taken from the move being replaced and spending that move's PP. There
+  are eighteen crystals, one per type, sold beside the key items at the head of
+  the Celadon stone floor and stamped onto a Pokemon the way a mega stone is --
+  which is the real games' held-item rule and means a Pokemon carrying a crystal
+  is a Pokemon not carrying a stone. The substitution goes on after both actions
+  are chosen, so the Z-Move is there to pick from the turn after arming, and it
+  comes off at the end of the turn one of its moves is used rather than on a
+  clock; switching out, fainting and the battle ending end it as well, and it
+  counts as the trainer's one transformation for the fight. The
+  species-specific Z-Moves are not included and neither are the Z-status
+  effects: every one of the former keys off a base move Gen 1 does not have, and
+  a status move under a crystal gains an effect rather than becoming a move,
+  which no field on a move record here can say -- so a status move keeps itself.
+  The eighteen names are the ones the move data carries and thirteen of them are
+  longer than a Gen 1 move name, so the widescreen layout truncates them and the
+  classic FIGHT menu draws them into its box border.
+
 ## 0.16.0
 
 ### Added

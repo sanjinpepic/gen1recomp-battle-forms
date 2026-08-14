@@ -45,6 +45,32 @@
 -- substitute reads the new number, because there is only ever one number.
 local M = {}
 
+-- The other half of that, which every consumer needs and none of them should
+-- work out for itself: the substitute reads the slot's REMAINING PP, but the
+-- FIGHT menu draws a MAXIMUM and takes that from the substitute's own registered
+-- record -- `def.pp + ppUps * floor(def.pp / 5)` (BattleState.lua:5850,
+-- WideBattle.lua:222).  Left alone, the menu would show a remaining count from
+-- one move against a maximum from another.
+--
+-- So a substitute carries a `ppUps` that makes the formula come back out at the
+-- base move's own maximum: `recordPP + ppUps * floor(recordPP / 5)` is asked to
+-- equal `basePP + slotPPUps * floor(basePP / 5)`, which is the number the player
+-- is actually spending against.  Answers nil when the base move has no PP to
+-- read, so the caller leaves the field off rather than sending a nil through
+-- arithmetic.
+function M.menuPPUps(recordPP, basePP, slotPPUps)
+  recordPP, basePP = tonumber(recordPP), tonumber(basePP)
+  if not recordPP or not basePP then return nil end
+  local step = math.floor(recordPP / 5)
+  if step <= 0 then return nil end
+  local want = basePP + (tonumber(slotPPUps) or 0) * math.floor(basePP / 5)
+  -- Floored rather than exact, because a record PP whose step does not divide
+  -- the difference would otherwise hand the menu a fraction, and the menu
+  -- formats its maximum with %d.  Rounding down shows a maximum no higher than
+  -- the real one, which is the safe direction to be wrong in.
+  return math.floor((want - recordPP) / step)
+end
+
 -- One substituted slot.  `fields` is the caller's record for it -- `id` at
 -- minimum -- and is copied in rather than used directly, so the caller may
 -- reuse one table across four slots without four battlers sharing it.

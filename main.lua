@@ -82,13 +82,14 @@ return function(mod)
                   "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
                   "src/substitute.lua", "src/maxmoves.lua",
-                  "src/tera.lua", "src/resolve.lua",
+                  "src/tera.lua", "src/zmoves.lua", "src/resolve.lua",
                   "src/primal.lua", "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
-                  "data/gigantamax.lua", "data/maxmoves.lua" }
+                  "data/gigantamax.lua", "data/maxmoves.lua",
+                  "data/zmoves.lua", "data/crystals.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -129,12 +130,26 @@ return function(mod)
   local keyIndices = m["data/keyitems.lua"]
   keyitems.install(mod, keyIndices)
 
+  -- The third family that goes through the same stamp, and the one with no
+  -- pairing table: a Z-Crystal fits every species, so what it is checked
+  -- against is the moveset in front of it and not the Pokemon carrying it.
+  -- Registered unconditionally like the key items and for the same reason --
+  -- a crystal for a type this game's chart cannot resolve is still a bag byte
+  -- a save has to be able to name.
+  local zrows = m["data/zmoves.lua"]
+  local crystalIndices = m["data/crystals.lua"]
+  local zmoves = m["src/zmoves.lua"]
+
   m["src/stone.lua"].bind(eligibility)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
-  -- Before the stones, so the two items that make that shelf worth anything
-  -- are at the top of it rather than under ninety-odd stones.
+  m["src/stone.lua"].installUnpaired(mod, zmoves.crystalIds(zrows),
+                                     crystalIndices)
+  -- Before the stones, so the items that make that shelf worth anything are at
+  -- the top of it rather than under ninety-odd stones -- key items first, then
+  -- the crystals that the last of them needs to do anything.
   m["src/shop.lua"].installKeyItems(mod, keyIndices)
+  m["src/shop.lua"].installCrystals(mod, crystalIndices)
   m["src/shop.lua"].install(mod, indices, megaset.stoneIds(megas))
   m["src/shop.lua"].installOrbs(mod, orbIndices)
   anim.install(mod)
@@ -154,7 +169,7 @@ return function(mod)
   local maxmoves = m["src/maxmoves.lua"]
   local guardState = maxmoves.newGuard()
   maxmoves.bind({ anim = anim, announce = announce, log = mod.log,
-                  guard = guardState })
+                  guard = guardState, substitute = m["src/substitute.lua"] })
   local maxCatalog = maxmoves.install(mod, m["data/maxmoves.lua"])
 
   -- One cell on the command menu hosts every manually activated
@@ -217,6 +232,24 @@ return function(mod)
     mod.log:error("battle_forms: Terastallization was refused a place on the "
       .. "battle menu (%s) -- the cell keeps the transformations that did "
       .. "register", tostring(teraWhy))
+  end
+
+  -- The fourth entry, and the second consumer of the move-substitution
+  -- mechanism -- which is why main.lua did not have to change to accommodate
+  -- it beyond these lines: Dynamax was handed the mechanism rather than the Max
+  -- Moves, and this arrives as another picker rather than as a change there.
+  -- Registered after the roster it substitutes in, and bound to the same
+  -- eligibility stamp the mega stones use, because a Pokemon holds one item.
+  zmoves.bind({ substitute = m["src/substitute.lua"], keyitems = keyitems,
+                eligibility = eligibility, announce = announce, anim = anim,
+                log = mod.log })
+  local zCatalog = zmoves.install(mod, zrows)
+  local zState = zmoves.new()
+  local zOk, zWhy = registry:register(zmoves.entry(zState, zCatalog))
+  if not zOk then
+    mod.log:error("battle_forms: Z-Moves were refused a place on the battle "
+      .. "menu (%s) -- the cell keeps the transformations that did register",
+      tostring(zWhy))
   end
 
   diag.registry(registry, registered, why)
@@ -302,6 +335,7 @@ return function(mod)
     run("dynamax.onBattleStarted", function() dynamax.onBattleStarted(dynamaxState) end)
     run("tera.onBattleStarted", function() tera.onBattleStarted(teraState) end)
     run("maxmoves.onBattleStarted", function() maxmoves.onBattleStarted(guardState) end)
+    run("zmoves.onBattleStarted", function() zmoves.onBattleStarted(zState) end)
   end)
   mod.events:on("battle.turn_started", function(ev)
     diag.reached("battle.turn_started", ev)
@@ -323,6 +357,11 @@ return function(mod)
     -- ends on one or is reapplied by resolve above, and it is the outermost of
     -- them -- a mon that megaed and then terastallized is the type it chose,
     -- not the type its mega form is.
+    -- Beside Dynamax's and reading the same end of the event -- the mon that
+    -- LEFT -- because a Z-Move armed on one Pokemon does not follow another one
+    -- in.  Before the Terastallization below only because that one is the
+    -- outermost state there is and stays last.
+    run("zmoves.onBattlerSwitched", function() zmoves.onBattlerSwitched(zState, ev) end)
     run("tera.onBattlerSwitched", function() tera.onBattlerSwitched(teraState, ev) end)
   end)
   -- Subscribing is also what makes these three fire at all: the engine builds
@@ -331,6 +370,10 @@ return function(mod)
   mod.events:on("battle.move_used", function(ev)
     diag.reached("battle.move_used", ev)
     run("conditional.onMoveUsed", function() conditional.onMoveUsed(ev) end)
+    -- The only handler in this mod that reads which move was actually run.  It
+    -- marks rather than acts: the move's effect and damage are still ahead of
+    -- this event, and the substituted array has to stand until they are done.
+    run("zmoves.onMoveUsed", function() zmoves.onMoveUsed(zState, ev) end)
   end)
   mod.events:on("battle.damage_dealt", function(ev)
     diag.reached("battle.damage_dealt", ev)
@@ -344,12 +387,17 @@ return function(mod)
     -- everything beside it, which is what stops a throw above from leaving a
     -- Pokemon semi-invulnerable for the rest of the battle.
     run("maxmoves.onTurnEnded", function() maxmoves.onTurnEnded(guardState) end)
+    -- A Z-Move lasts the turn it was used on, which is the whole of "one move,
+    -- once" -- and does nothing at all on a turn it was not used, where a
+    -- Dynamax's clock would have ticked.
+    run("zmoves.onTurnEnded", function() zmoves.onTurnEnded(zState) end)
   end)
   mod.events:on("battle.fainted", function(ev)
     diag.reached("battle.fainted", ev)
     run("resolve.onFainted", function() resolve.onFainted(ev) end)
     run("dynamax.onFainted", function() dynamax.onFainted(dynamaxState, ev) end)
     run("tera.onFainted", function() tera.onFainted(teraState, ev) end)
+    run("zmoves.onFainted", function() zmoves.onFainted(zState, ev) end)
   end)
   mod.events:on("battle.ended", function(ev)
     diag.reached("battle.ended", ev)
@@ -365,6 +413,10 @@ return function(mod)
     -- the state.
     run("tera.onBattleEnded", function() tera.onBattleEnded(teraState, ev) end)
     run("maxmoves.onBattleEnded", function() maxmoves.onBattleEnded(guardState) end)
+    -- Beside them, and for the reason Dynamax's is here: nothing swept the
+    -- substituted array, and the battler it is holding must not outlive the
+    -- battle that built it.
+    run("zmoves.onBattleEnded", function() zmoves.onBattleEnded(zState) end)
     -- After the party sweep above, and it must stay after it: this marks the
     -- battle closed so no later frame can adopt it and re-apply a form to a
     -- mon resolve.onBattleEnded has just reverted.
