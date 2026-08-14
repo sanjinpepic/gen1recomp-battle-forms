@@ -9,14 +9,20 @@
 -- that cannot go missing with a file, which is the whole reason this module
 -- exists.
 --
--- WHAT ANNOUNCES.  Primal reversion, mega evolution, and Dynamax at both
--- ends of its three turns.  Nothing else.
+-- WHAT ANNOUNCES.  Primal reversion, mega evolution, Dynamax at both ends of
+-- its three turns, and Terastallization.  Nothing else.
 --
 -- Mega is here even though the player asked for it: the armed marker is gone
 -- from the cell by the time the change lands, the cell itself is gone with the
 -- battle's one mega spent, and a player who turned battle animations off asked
 -- for exactly that and got a mega with no signal at all -- the same four-way
 -- silence, reached from the other direction.
+--
+-- Terastallization is the strongest case of all: no form, no picture, no name
+-- change and no animation, so the message is not one of four channels but the
+-- only one there is -- and it takes two pages rather than one because naming
+-- the type is half of what it has to say and no eighteen-character row holds
+-- both halves.
 --
 -- Dynamax announces at both ends because it is the only transformation here
 -- that ENDS on its own.  A mega lasts the battle, so its one line is the whole
@@ -86,18 +92,29 @@ local DYNAMAX = "%s\nDynamaxed!"
 local GIGANTAMAX = "%s\nGigantamaxed!"
 local DYNAMAX_END = "%s's\nDynamax ended!"
 
+-- Two pages, because the longest type name is eight characters and no row that
+-- also carries "Terastallized" has eight to spare.  The second page is where
+-- the mechanic actually is: the type change is the whole effect and nothing on
+-- screen shows it.
+local TERA = "%s\nTerastallized!"
+local TERA_TYPE = "It became the\n%s type!"
+
 -- say appends to the battle's queue; sayNext inserts at the battle's own
 -- insert cursor, the one the engine is using itself.  Which is correct depends
 -- entirely on where the caller sits in that queue, so each transformation
 -- names its own and no caller has to know the rule.
-local function emit(battle, insert, fmt, battler)
+local function push(battle, insert, line)
   if type(battle) ~= "table" then return false end
-  local name = displayName(battler)
-  if not name then return false end
   local queue = battle[insert]
   if type(queue) ~= "function" then return false end
-  queue(battle, text(fmt, name))
+  queue(battle, line)
   return true
+end
+
+local function emit(battle, insert, fmt, battler)
+  local name = displayName(battler)
+  if not name then return false end
+  return push(battle, insert, text(fmt, name))
 end
 
 -- Mega evolution resolves from battle.turn_started, which the engine raises
@@ -132,6 +149,20 @@ end
 
 function M.gigantamax(battle, battler)
   return emit(battle, "sayNext", GIGANTAMAX, battler)
+end
+
+-- Terastallization resolves from battle.turn_started beside those, and takes
+-- the cursor for the same reason.  The two pages go in on consecutive sayNext
+-- calls, which is what keeps them in order: each call advances the insert
+-- cursor, so the second lands behind the first rather than in front of it.
+--
+-- The type name is allowed to be missing and the first page still goes out.  A
+-- chart record with no name is a broken chart, not a reason to swallow the one
+-- notice this mechanic has.
+function M.tera(battle, battler, typeName)
+  if not emit(battle, "sayNext", TERA, battler) then return false end
+  if type(typeName) ~= "string" or typeName == "" then return true end
+  return push(battle, "sayNext", text(TERA_TYPE, typeName))
 end
 
 -- The expiry is the other case entirely.  It resolves from battle.turn_ended,

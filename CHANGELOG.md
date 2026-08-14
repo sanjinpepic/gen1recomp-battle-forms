@@ -3,6 +3,28 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.15.0
+
+### Added
+
+- **Terastallization, which changes a Pokemon's type and nothing else.** TERA
+  joins the battle menu cell once the trainer buys a Tera Orb, and the Pokemon
+  that uses it becomes a single type for the rest of the fight: it takes damage
+  as that type, gets the same-type bonus on it, keeps it across switching out
+  and loses it only on fainting or when the battle ends. Which type is a mod
+  option, TERA TYPE, read at the moment it is used rather than carried on the
+  Pokemon -- a Gen 1 Pokemon has nowhere a player could set one, and defaulting
+  to the type it already is would make the whole mechanic do nothing to a
+  single-typed species. The three modern types are offered but resolve only in
+  a game where National Dex has registered a chart carrying them; picking one
+  the running game has no record for leaves the cell away and says why in the
+  log. It counts as the trainer's one transformation for the battle, so it and
+  a mega cannot both happen, and it writes nothing to the Pokemon at all -- the
+  override lives on the battler, which the battle takes with it. Two departures
+  are deliberate: the type is announced in two message pages because no
+  eighteen-character row holds both halves of the sentence, and the Tera Orb is
+  never used up, where the real games exhaust it until the next Pokemon Center.
+
 ## 0.14.0
 
 ### Changed

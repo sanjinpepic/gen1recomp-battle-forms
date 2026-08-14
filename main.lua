@@ -32,6 +32,27 @@ local function loadSibling(mod, name)
   return result
 end
 
+-- The type a Terastallization turns a Pokemon into, as the rows the manager
+-- draws for it.  The list lives here rather than in src/tera.lua because the
+-- options are declared before any sibling is read, so that they reach the
+-- settings screen even on a load where a sibling could not be: an option
+-- defined out of a file that failed to load is an option a player cannot see.
+--
+-- Red's fifteen come first and DARK, STEEL and FAIRY last, because those three
+-- exist only once National Dex has registered a chart over the top of the
+-- cart's own -- and the manager's choice row steps rather than wraps, so the
+-- three that may not resolve sit at the far end of it rather than in the middle
+-- of it.  Only PSYCHIC differs between what is stored and what is shown: the
+-- engine's id for it is PSYCHIC_TYPE.
+local TERA_CHOICES = {
+  { "NORMAL", "NORMAL" }, { "FIGHTING", "FIGHTING" }, { "FLYING", "FLYING" },
+  { "POISON", "POISON" }, { "GROUND", "GROUND" }, { "ROCK", "ROCK" },
+  { "BUG", "BUG" }, { "GHOST", "GHOST" }, { "FIRE", "FIRE" },
+  { "WATER", "WATER" }, { "GRASS", "GRASS" }, { "ELECTRIC", "ELECTRIC" },
+  { "PSYCHIC", "PSYCHIC_TYPE" }, { "ICE", "ICE" }, { "DRAGON", "DRAGON" },
+  { "DARK", "DARK" }, { "STEEL", "STEEL" }, { "FAIRY", "FAIRY" },
+}
+
 return function(mod)
   -- OFFICIAL is the 48 mega evolutions the mainline games shipped; ALL adds
   -- the 48 more the National Dex data carries that never did.  It gates what
@@ -41,6 +62,13 @@ return function(mod)
     { key = "megas", label = "MEGA EVOLUTIONS", type = "choice",
       default = "official", choices = { { "OFFICIAL", "official" },
                                         { "ALL", "all" } } },
+    -- Which type a Terastallization changes the Pokemon into.  It is an option
+    -- rather than something carried on the Pokemon because there is nowhere on
+    -- a Gen 1 Pokemon a player could set one -- see src/tera.lua -- and NORMAL
+    -- rather than the mon's own type because terastallizing into the type you
+    -- already are is a mechanic that does nothing at all.
+    { key = "tera_type", label = "TERA TYPE", type = "choice",
+      default = "NORMAL", choices = TERA_CHOICES },
     -- diagnostic: records why the menu cell and primal reversion did or did
     -- not happen, into mod storage (src/diag.lua).  Off unless a bug is being
     -- chased -- it answers questions a player never has.
@@ -53,7 +81,7 @@ return function(mod)
                   "src/stone.lua", "src/keyitems.lua", "src/shop.lua",
                   "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
-                  "src/resolve.lua",
+                  "src/tera.lua", "src/resolve.lua",
                   "src/primal.lua", "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua",
@@ -151,6 +179,23 @@ return function(mod)
       tostring(dynaWhy))
   end
 
+  -- The third entry, and the first that is not a form change at all: it
+  -- overrides the battler's types and marks nothing, so it is handed neither
+  -- the forms primitive nor a pairing table.  The chosen type is passed as a
+  -- reader rather than a value for the reason the diagnostic's switch is:
+  -- changing an option in the manager does not reload the mod, so a value
+  -- captured here would only take effect on the next boot.
+  local tera = m["src/tera.lua"]
+  tera.bind({ keyitems = keyitems, announce = announce, log = mod.log,
+              chosen = function() return mod.options:get("tera_type") end })
+  local teraState = tera.new()
+  local teraOk, teraWhy = registry:register(tera.entry(teraState))
+  if not teraOk then
+    mod.log:error("battle_forms: Terastallization was refused a place on the "
+      .. "battle menu (%s) -- the cell keeps the transformations that did "
+      .. "register", tostring(teraWhy))
+  end
+
   diag.registry(registry, registered, why)
 
   local resolve = m["src/resolve.lua"]
@@ -232,6 +277,7 @@ return function(mod)
     run("primal.onBattleStarted", function() primal.onBattleStarted(ev) end)
     run("conditional.onBattleStarted", function() conditional.onBattleStarted(ev) end)
     run("dynamax.onBattleStarted", function() dynamax.onBattleStarted(dynamaxState) end)
+    run("tera.onBattleStarted", function() tera.onBattleStarted(teraState) end)
   end)
   mod.events:on("battle.turn_started", function(ev)
     diag.reached("battle.turn_started", ev)
@@ -248,6 +294,12 @@ return function(mod)
     -- ending has to clear mon.form before any later handler asks what form the
     -- mon is wearing.
     run("dynamax.onBattlerSwitched", function() dynamax.onBattlerSwitched(dynamaxState, ev) end)
+    -- Last of the switch handlers, and it has to stay last: a Terastallization
+    -- outlives a switch where every other manual transformation here either
+    -- ends on one or is reapplied by resolve above, and it is the outermost of
+    -- them -- a mon that megaed and then terastallized is the type it chose,
+    -- not the type its mega form is.
+    run("tera.onBattlerSwitched", function() tera.onBattlerSwitched(teraState, ev) end)
   end)
   -- Subscribing is also what makes these three fire at all: the engine builds
   -- their payloads behind a Runtime.wants check on the exact event name, so an
@@ -269,6 +321,7 @@ return function(mod)
     diag.reached("battle.fainted", ev)
     run("resolve.onFainted", function() resolve.onFainted(ev) end)
     run("dynamax.onFainted", function() dynamax.onFainted(dynamaxState, ev) end)
+    run("tera.onFainted", function() tera.onFainted(teraState, ev) end)
   end)
   mod.events:on("battle.ended", function(ev)
     diag.reached("battle.ended", ev)
@@ -279,6 +332,10 @@ return function(mod)
     -- what is left to drop is the mon reference, which must not outlive the
     -- battle that owned it.
     run("dynamax.onBattleEnded", function() dynamax.onBattleEnded(dynamaxState) end)
+    -- Beside it, and for one reason of its own: this one has a battler to put
+    -- back rather than a mon to strip, so it is given the event and not just
+    -- the state.
+    run("tera.onBattleEnded", function() tera.onBattleEnded(teraState, ev) end)
     -- After the party sweep above, and it must stay after it: this marks the
     -- battle closed so no later frame can adopt it and re-apply a form to a
     -- mon resolve.onBattleEnded has just reverted.

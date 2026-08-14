@@ -30,9 +30,11 @@ local orbIndices = dofile(MOD .. "/data/orbs.lua")
 
 -- ------- the two ids and their bag bytes -----------------------------
 
-T.eq(#KeyItems.ITEMS, 2, "two key items ship: one for mega, one for Dynamax")
+T.eq(#KeyItems.ITEMS, 3,
+  "three key items ship: one for mega, one for Dynamax, one for Tera")
 T.eq(KeyItems.ITEMS[1], KeyItems.KEY_STONE, "the Key Stone is the first")
 T.eq(KeyItems.ITEMS[2], KeyItems.DYNAMAX_BAND, "the Dynamax Band the second")
+T.eq(KeyItems.ITEMS[3], KeyItems.TERA_ORB, "the Tera Orb the third")
 
 -- Primal reversion takes no trainer item in the real games either, so there
 -- must be nothing here that looks like one waiting to be wired up.
@@ -111,10 +113,12 @@ do
   local mod = fakeMod()
   KeyItems.install(mod, { [KeyItems.KEY_STONE] = 196 })
   T.eq(mod.items[KeyItems.KEY_STONE] ~= nil, true, "the indexed one registers")
-  T.eq(mod.items[KeyItems.DYNAMAX_BAND], nil, "the unindexed one does not")
-  T.eq(#mod.errors, 1, "and the refusal is reported")
+  T.eq(mod.items[KeyItems.DYNAMAX_BAND], nil, "an unindexed one does not")
+  T.eq(mod.items[KeyItems.TERA_ORB], nil, "nor does the other")
+  T.eq(#mod.errors, 2, "and each refusal is reported")
   T.check(mod.errors[1]:find("DYNAMAX_BAND", 1, true) ~= nil,
     "naming the item it is about")
+  T.check(mod.errors[2]:find("TERA_ORB", 1, true) ~= nil, "and so does the next")
   T.check(mod.errors[1]:find("data/keyitems.lua", 1, true) ~= nil,
     "and the file to fix it in")
 end
@@ -122,7 +126,8 @@ end
 do
   local mod = fakeMod()
   KeyItems.install(mod, nil)
-  T.eq(#mod.errors, 2, "no index table at all refuses both, still out loud")
+  T.eq(#mod.errors, #KeyItems.ITEMS,
+    "no index table at all refuses every one of them, still out loud")
 end
 
 -- ------- the shelf ---------------------------------------------------
@@ -154,6 +159,8 @@ do
     "the Key Stone lands directly after it")
   T.check(at[KeyItems.DYNAMAX_BAND] == at[KeyItems.KEY_STONE] + 1,
     "and the Band directly after the Key Stone, in bag-byte order")
+  T.check(at[KeyItems.TERA_ORB] == at[KeyItems.DYNAMAX_BAND] + 1,
+    "and the Tera Orb after the Band, by the byte it was given")
 end
 
 -- ------- reading the bag ---------------------------------------------

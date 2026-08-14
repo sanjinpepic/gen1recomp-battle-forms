@@ -63,6 +63,32 @@ T.eq(megasRow and megasRow.choices and megasRow.choices[1][2], "official",
 T.eq(megasRow and megasRow.choices and megasRow.choices[2][2], "all",
   "ALL is the second")
 
+-- TERA TYPE is on that screen for the same reason and matters more: it is the
+-- only place a player can decide what a Terastallization does, so an option
+-- that failed to reach the settings screen would be a mechanic with no way to
+-- aim it.  NORMAL is the default because terastallizing into the type the
+-- Pokemon already is changes nothing at all.
+local teraRow
+for _, row in ipairs(schema or {}) do
+  if row.key == "tera_type" then teraRow = row end
+end
+T.check(teraRow ~= nil, "the tera_type option is defined")
+T.eq(teraRow and teraRow.default, "NORMAL", "it defaults to NORMAL")
+T.eq(teraRow and teraRow.choices and #teraRow.choices, 18,
+  "it offers all eighteen types")
+T.eq(teraRow and teraRow.choices and teraRow.choices[1][2], "NORMAL",
+  "NORMAL is the first choice, so the default is where the row opens")
+do
+  local stored = {}
+  for _, choice in ipairs(teraRow and teraRow.choices or {}) do
+    stored[choice[2]] = choice[1]
+  end
+  T.eq(stored.PSYCHIC_TYPE, "PSYCHIC",
+    "PSYCHIC is stored under the engine's own id and shown under its name")
+  T.check(stored.FAIRY ~= nil and stored.STEEL ~= nil and stored.DARK ~= nil,
+    "the three modern types are offered, for the games that can resolve them")
+end
+
 -- DEBUG TRACE reaches the same screen and must default to off there, not
 -- merely be documented as off: it is the switch a player is told to flip when
 -- something has gone wrong, and it costs nothing only while nobody has.

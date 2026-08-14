@@ -13,19 +13,20 @@
 -- item for it would be this mod making something up rather than modelling
 -- something.
 --
--- The two rows below are the shape the later mechanics need and nothing more:
--- Terastallization's Tera Orb and the Z-Ring are another id, another bag byte
--- and another `available` line each, not another module.
+-- The rows below are the shape the later mechanics need and nothing more: the
+-- Tera Orb arrived as an id, a bag byte and one `available` line, and the
+-- Z-Ring will arrive the same way rather than as another module.
 local M = {}
 
 M.KEY_STONE = "KEY_STONE"
 M.DYNAMAX_BAND = "DYNAMAX_BAND"
+M.TERA_ORB = "TERA_ORB"
 
--- Registration order, and the order the two are checked in when a suite walks
+-- Registration order, and the order they are checked in when a suite walks
 -- them.  An array rather than a keyed table for the same reason
 -- src/transforms.lua keeps one: iterating a keyed table reorders the shelf
 -- between runs.
-M.ITEMS = { M.KEY_STONE, M.DYNAMAX_BAND }
+M.ITEMS = { M.KEY_STONE, M.DYNAMAX_BAND, M.TERA_ORB }
 
 -- Nominal on purpose.  A mega stone is 4000 because it buys one Pokemon one
 -- form; a key item buys the mechanic itself, and pricing a whole mechanic like

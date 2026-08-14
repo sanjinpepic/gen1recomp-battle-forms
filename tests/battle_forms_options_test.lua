@@ -130,8 +130,8 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local mart = martOf(data)
   local sold = {}
   for _, id in ipairs(mart) do sold[id] = true end
-  T.eq(#mart, #FLOOR_STOCK + 2 + (case.all and 96 or 48),
-    "the Celadon shelf holds the floor's own stock, both key items and "
+  T.eq(#mart, #FLOOR_STOCK + #KeyItems.ITEMS + (case.all and 96 or 48),
+    "the Celadon shelf holds the floor's own stock, every key item and "
       .. (case.all and "every" or "only the official") .. " stone with the "
       .. "option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
@@ -202,7 +202,7 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
     if keyIndices[id] then lastKey = i end
   end
   T.check(lastKey ~= nil and firstStone ~= nil and lastKey < firstStone,
-    "both key items come before the first mega stone on the shelf with the "
+    "every key item comes before the first mega stone on the shelf with the "
       .. "option " .. case.label)
 
   local groudon = { species = "GROUDON" }

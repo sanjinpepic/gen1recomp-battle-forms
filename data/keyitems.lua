@@ -12,9 +12,10 @@
 -- starting over.  tests/battle_forms_keyitems_test.lua pins that no two of
 -- the three tables ever hand out the same byte.
 --
--- Order here is also shelf order (src/shop.lua sorts by index), so the Key
--- Stone stands in front of the Dynamax Band at the counter.
+-- Order here is also shelf order (src/shop.lua sorts by index), so the three
+-- stand at the counter in the order their mechanics were added.
 return {
   KEY_STONE    = 196,
   DYNAMAX_BAND = 197,
+  TERA_ORB     = 198,
 }

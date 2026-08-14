@@ -1,7 +1,7 @@
 -- Sharing metadata.  Read by tooling and the manager's detail pane; never by
 -- the loader's merge, so nothing here can break a load.
 return {
-  summary = "Mid-battle form changes: mega evolution, Dynamax and Gigantamax, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species.",
+  summary = "Mid-battle transformations: mega evolution, Dynamax and Gigantamax, Terastallization, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species.",
   author = "sanjinpepic",
   contact = "https://github.com/sanjinpepic",
   tags = { "gameplay", "battle" },
@@ -9,6 +9,7 @@ return {
     changed = {
       "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA when the trainer has a Key Stone and the active mon carries a matching stone, and DYNAMAX for any mon at all once the trainer has a Dynamax Band, and LEFT and RIGHT cycle between them when both are on offer, which the cell marks with a small hollow arrow at the right-hand end of its row so the second one is never hidden behind the first",
       "an existing save loses mega evolution until a Key Stone is bought, and loses Dynamax until a Dynamax Band is: both were previously ungated, and the real games require the trainer to carry one as well as the Pokemon to carry its own item",
+      "the menu cell also reads TERA once the trainer has a Tera Orb, which every species may use whatever it is carrying",
       "one transformation the player asks for per battle, across all of them: using a mega or a Dynamax now takes the menu cell away for the rest of that battle instead of leaving the other on it, which is how the mainline games have ruled the trainer's gimmick; the automatic forms are not part of it",
     },
     added = {
@@ -17,7 +18,9 @@ return {
       "96 mega forms across 87 species, each sold under its own stone; MEGA EVOLUTIONS picks between the 48 the real games have, which is the default, and all of them",
       "primal reversion for Groudon and Kyogre, which happens by itself on entering battle and on switching in -- no menu entry, nothing to arm, and no once-per-battle limit, so both can revert in one fight and neither spends the trainer's one transformation",
       "the Red Orb and the Blue Orb as bag items, assigned to a Pokemon the way a stone is and sold at the Indigo Plateau lobby counter",
-      "the Key Stone and the Dynamax Band as trainer key items, sold for 200 each at the head of the Celadon department store's stone shelf; each gates only its own mechanic, neither is used on a Pokemon, and neither can be sold, tossed or left in the PC once bought",
+      "the Key Stone, the Dynamax Band and the Tera Orb as trainer key items, sold for 200 each at the head of the Celadon department store's stone shelf; each gates only its own mechanic, none is used on a Pokemon, and none can be sold, tossed or left in the PC once bought",
+      "Terastallization for every species: the Pokemon becomes a single type for the rest of the battle, taking damage as that type and getting the same-type bonus on it, and it survives switching out where a Dynamax does not",
+      "TERA TYPE, which picks the type a Terastallization uses; it is read at the moment the change happens, so it can be changed between battles from the mod manager",
       "the form survives switching out and unwinds when the battle ends or the mon faints",
       "condition-driven forms for eight species, with no item and no menu: Darmanitan and Minior flip at half HP, Wishiwashi schools above a quarter HP from level 20, Aegislash draws its blade on an attacking move and shields on a status one, Morpeko alternates every round, Mimikyu and Eiscue break on a damaging hit, and Greninja bonds on a knockout it dealt",
       "the reversible ones flip back and forth as many times as the battle calls for, because the form is re-derived from the mon rather than remembered",
@@ -25,6 +28,7 @@ return {
       "Dynamax for every species, once per battle per trainer, lasting three turns and ending early on switching out or fainting",
       "Gigantamax for 31 of those species, which is a Dynamax with a form change laid on top -- the stats, the types and the picture of the G-Max form for as long as the three turns last",
       "a battle message when a Pokemon reverts or mega evolves, in the real games' own words -- neither change renames the Pokemon and primal reversion has no animation, so without a line the whole mechanic rested on one sprite being present",
+      "two message pages when a Pokemon terastallizes, the second naming the type it became -- the type change is the only thing that happens, and no eighteen-character battle row holds both halves of the sentence",
       "a message at both ends of a Dynamax, because it is the only transformation here that ends on its own and a species with no Gigantamax shape has no picture change at either end to notice it by",
       "a battle already under way is picked up the moment the mod is enabled, so turning it on mid-fight from the mod manager brings the MEGA cell and primal reversion with it instead of doing nothing until the next battle",
       "DEBUG TRACE, off by default, which records into mod storage why the menu cell and primal reversion did or did not happen -- for reporting a bug, not for playing with",
@@ -39,6 +43,11 @@ return {
       "Mega Rayquaza counts as official here but its stone does not exist: the real games trigger that one off knowing Dragon Ascent, and the Rayquazite sold here is this mod's own invention, because a stone is the only trigger implemented",
       "turning MEGA EVOLUTIONS down to OFFICIAL leaves any other stone already in the bag exactly where it is, inert -- a stone is never unregistered, because an item a save carries has to stay nameable",
       "the form lasts the battle and is never written to the save",
+      "a Terastallization writes nothing to the Pokemon whatsoever: the type override lives on the battler, which the battle takes with it, so there is nothing for the party sweep to find",
+      "Terastallization keeps the same-type bonus only on the type it became, where the real games leave the Pokemon its original types' bonus as well",
+      "the Tera Orb is never used up and needs no recharge, where the real games exhaust it until the next Pokemon Center -- there is one type on offer at a time and nothing to ration it against",
+      "the three modern types are on the TERA TYPE list but resolve only where National Dex has registered a chart carrying them; picking one the running game has no record for leaves the cell absent and says so in the log",
+      "Tera Blast is not implemented -- Gen 1 has no move to give it to, and a move that reads the Tera type is a move-substitution system rather than a type change",
       "one National Dex mega, Meowstic (female), has no art in the installed sprite sets and is not wired -- it would show the ordinary Meowstic sprite with a mega's stats",
       "the condition-driven forms are gated on the species, not on the ability that drives them in the real games, because a Gen 1 Pokemon has no ability field to read -- so every Darmanitan enters Zen Mode and every Greninja bonds, where those are hidden abilities only some of them would have",
       "Mimikyu's disguise and Eiscue's face change the form but do not absorb the hit that breaks them, and neither comes back during the battle",
