@@ -143,8 +143,13 @@ fixtureData.pokemon.FIXMON_A_MEGA = {
   form = "MEGA",
 }
 
+-- hp and stats are not decoration: makeBattler computes the HP bar's own
+-- pixel length at construction (Timing.hpBarPixels off mon.stats.hp), so a
+-- mon without them crashes the constructor rather than building a battler.
+-- A real party mon always carries both; Stats.ensure sees to it.
 local function fixtureMon(species)
-  return { species = species, level = 10,
+  return { species = species, level = 10, hp = 20,
+           stats = { hp = 20, attack = 10, defense = 10, speed = 10, special = 10 },
            dvs = { hp = 15, attack = 15, defense = 15, speed = 15, special = 15 },
            statExp = {} }
 end
