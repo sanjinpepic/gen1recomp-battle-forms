@@ -1,0 +1,50 @@
+# Changelog
+
+Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
+Version headings match `manifest.json`'s `version`.
+
+## 0.1.0
+
+### Added
+
+- **Mega evolution, built so that it is not a move.** A Pokemon carrying a
+  stone that fits it can mega evolve once per battle: press START at the
+  battle menu to arm it, pick a move as normal, and the change lands before
+  turn order is decided, with the move following on the same turn. Nothing
+  about it runs inside the engine's move path, so it cannot spend PP, cannot
+  be Disabled, and cannot be copied by Metronome or Mirror Move -- not because
+  each of those is checked for, but because the mechanic was never in that
+  code path to begin with. Five forms are covered: Venusaur, Charizard X and
+  Y, Blastoise, Alakazam and Gengar.
+- A form change underneath it that is not specific to megas. Changing form is
+  a species re-key: the battler's species id becomes the alternate form's, its
+  stats are recomputed from that form's own record, and the base is remembered
+  for the unwind. Primal Reversion, stance changes and Zen Mode are the same
+  transaction with a different trigger, which is why the mod is not named
+  after mega evolution.
+- Mega stones as bag items. Using one on a Pokemon it fits assigns it to that
+  Pokemon and is **not** used up, so the assignment can be moved or repeated.
+  Gen 1 has no held-item slot at all, so the stone is recorded on the Pokemon
+  itself; the save format stores whatever fields it finds, so this needed no
+  change to how saves are written and no engine patch.
+- The form behaves the way the real games' does at the edges. It survives
+  switching out, so a mega that goes to the bench comes back still mega. It
+  unwinds when the Pokemon faints, so a revived one is back to normal. It
+  unwinds for the whole party when the battle ends, including for a mon that
+  transformed and then sat out the rest of the fight -- reverting only what
+  was on the field would have left it transformed permanently in the save.
+  The once-per-battle limit belongs to the trainer rather than to a Pokemon,
+  so using it on one team member spends it for the team.
+
+### Known limits
+
+- Abilities are untouched. Nothing here makes an ability do anything, and no
+  ability animations ship yet; both wait on a battle mechanics layer.
+- Red, Blue and Yellow only. Gold has a real held-item slot and will get the
+  stone as an actual held item, which is a different trigger over the same
+  form change.
+- There is no Key Stone. Carrying the matching stone is the whole requirement,
+  where the real games also gate on the trainer.
+- A Pokemon exported to a Game Boy save and brought back loses its stone,
+  because a cartridge save has nowhere to record one. It returns ineligible
+  rather than broken.
