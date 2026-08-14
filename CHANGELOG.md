@@ -3,6 +3,33 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.2.3
+
+### Fixed
+
+- **A Pokemon vanished from the battle screen the instant it mega evolved.**
+  `becomeForm` set `battler.sprite = nil` to invalidate the cached picture,
+  meaning "reload this next draw" -- but nothing ever reloaded it, and the
+  draw path just skips a nil sprite outright, so the mon stayed invisible for
+  the rest of the fight. It now rebuilds the picture from the new species the
+  same way Transform already does, and reverting rebuilds it back. Reusing
+  Transform's own reload forces the copied species' gray palette, which is
+  correct for a Transformed mon but wrong for a mega -- a mega form keeps its
+  own colors -- so that reload now takes an explicit switch and mega evolution
+  asks for the form's real color.
+- **The post-battle EXP text and the HUD name read the raw National Dex slug
+  instead of a real name**, e.g. "charizard-mega-x gained 260 EXP. Points!"
+  and CHARIZARD staying on the HUD after transforming (the opposite problem:
+  the HUD field was never updated at all). The mega form records carry
+  `name = "charizard-mega-x"`, the source data's own field, not a display
+  string -- the post-battle text reads that field live off the species table,
+  and the HUD name is cached at send-out and was never touched by a form
+  change either way. Mega form records now get their base species' own name
+  patched in at load, matching the real games (Mega Charizard X is still
+  "CHARIZARD" in battle), and the battler's cached name is re-keyed alongside
+  the species so the HUD updates immediately rather than waiting for the next
+  send-out.
+
 ## 0.2.2
 
 ### Fixed

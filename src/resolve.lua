@@ -29,7 +29,7 @@ function M.onTurnStarted(state, ev)
   -- good faith and nothing happened, so they keep the option.
   if not formId then return end
 
-  local ok, reason = deps.forms.becomeForm(battle.data, battler, formId)
+  local ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
   if not ok then
     -- A guard that refuses must say so out loud: this exact silent path
     -- (a mega table pointing at a name field instead of a record key) once
@@ -76,7 +76,7 @@ end
 function M.onFainted(ev)
   local battle = ev and ev.battle
   if not battle or not ev.battler then return end
-  deps.forms.revertForm(ev.battler, battle.data)
+  deps.forms.revertForm(ev.battler, battle.data, battle)
 end
 
 return M
