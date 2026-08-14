@@ -1,6 +1,6 @@
--- Mid-battle form changes.  A form change is a species re-key: the battler's
--- species id becomes an alternate-form id, its stats are recomputed from that
--- form's record, and the original is remembered for the unwind.  Mega
+-- Mid-battle form changes.  A form change marks the mon (mon.form) and
+-- overrides the active battler's curStats/curTypes, the same shape the
+-- engine's own Transform uses -- mon.species is never touched.  Mega
 -- evolution is one trigger on that primitive; Primal Reversion and stance
 -- changes are the same shape and are why the primitive is not called "mega".
 --
@@ -35,7 +35,7 @@ end
 return function(mod)
   local names = { "src/eligibility.lua", "src/forms.lua", "src/stone.lua",
                   "src/shop.lua", "src/arm.lua", "src/resolve.lua", "src/anim.lua",
-                  "src/overlay.lua", "src/menu.lua", "src/naming.lua",
+                  "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua" }
   local m = {}
   for _, name in ipairs(names) do
@@ -52,7 +52,6 @@ return function(mod)
   m["src/stone.lua"].bind(eligibility)
   m["src/stone.lua"].install(mod, megas, indices)
   m["src/shop.lua"].install(mod, indices)
-  m["src/naming.lua"].install(mod, megas)
   anim.install(mod)
 
   local resolve = m["src/resolve.lua"]
@@ -76,6 +75,7 @@ return function(mod)
 
   mod.events:on("battle.started", function(ev) state:onBattleStarted(ev) end)
   mod.events:on("battle.turn_started", function(ev) resolve.onTurnStarted(state, ev) end)
+  mod.events:on("battle.battler_switched", function(ev) resolve.onBattlerSwitched(ev) end)
   mod.events:on("battle.fainted", function(ev) resolve.onFainted(ev) end)
   mod.events:on("battle.ended", function(ev)
     resolve.onBattleEnded(ev)

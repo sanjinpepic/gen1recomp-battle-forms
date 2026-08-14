@@ -1,49 +1,43 @@
--- A form change is a species re-key.  Everything downstream in battle derives
--- from mon.species -- the species def, the battle picture, the palette -- so
--- changing that one field and dropping the cached picture is the entire
--- transaction.  Transform already works this way; this is the same move made
--- deliberately and held for the rest of the battle.
+-- A form change marks the Pokemon rather than rewriting it.
 --
--- The base species is remembered on the MON, not on the battler.  A mega
--- survives switching out, and the engine builds a fresh battler every
--- send-out -- a marker held on the battler would vanish on the way back in
--- while the re-keyed species stayed, leaving the mon permanently transformed
--- in the save.
+-- mon.species is never touched.  The sprite mod resolves form art from a
+-- `form` field on the mon (dev/src/registry.lua's formId(): ctx.form or
+-- ctx.mon.form), keyed under the BASE species' own art entry --
+-- CHARIZARD.forms.MEGA_X, never a re-keyed CHARIZARD_MEGA_X -- so a species
+-- re-key could never find any art at all. Leaving the species alone is also
+-- what makes a form change safe to leave mid-battle: there is no re-key to
+-- forget to undo, and the displayed name is right for free, because the
+-- engine reads it off data.pokemon[mon.species], which never changed either.
+--
+-- Stats and types follow the shape the engine's own Transform already uses:
+-- override the battler's curStats/curTypes rather than the mon's own, since
+-- those are exactly the fields Damage.lua, TurnOrder.lua and Status.lua read
+-- for battle math (BattleState.lua's own comment on makeBattler: "volatile
+-- state; Transform/Conversion/Mimic override the cur* fields"). mon.stats
+-- -- the HP bar's denominator -- is never touched: a mega form keeps the
+-- base form's HP in the real games, and changing it would disturb the bar
+-- for a stat that was never supposed to move.
 local Stats = require("src.pokemon.Stats")
 
 local M = {}
 
-M.BASE = "battleFormsBase"
-
-local function recompute(data, mon, speciesId)
-  local def = data and data.pokemon and data.pokemon[speciesId]
-  if def then
-    mon.stats = Stats.calc(def, mon.level, mon.dvs, mon.statExp)
-  end
-end
-
--- The battle picture is rebuilt from the new species rather than merely
--- invalidated: BattleState builds battler.sprite once at send-out and the
+-- The battle picture is rebuilt through the real send-out constructor rather
+-- than merely invalidated: BattleState builds battler.sprite once and the
 -- draw path just blits whatever is cached there, so clearing it with nothing
--- to reload left the mon undrawn for the rest of the fight.
---
--- BattleState:speciesSprite looked like the obvious way to rebuild it, but
--- its only real caller is Transform, and it forces PAL_GRAYMON to match a
--- Transformed mon's copied-and-grayed sprite (transform.asm's
--- DeterminePaletteID) -- exactly wrong for a mega, which keeps its own
--- color.  BattleState.makeBattler builds the same picture through the
--- species' own palette (the monPalette path every normal send-out uses) and
--- is a pure constructor -- it reads data/mon and returns a fresh battler,
--- mutating nothing -- so a throwaway one built for this mon, discarding
--- everything but its sprite, is the real send-out picture without forcing
--- gray and without touching the engine.
+-- to reload would leave the mon undrawn for the rest of the fight.
+-- BattleState.makeBattler reads data/mon (now including the mon's own
+-- `form`) and returns a fresh battler, mutating nothing, so a throwaway one
+-- built for this mon, keeping only its sprite, is the real send-out picture
+-- -- built through the species' own palette, not Transform's forced gray --
+-- without touching the engine.
 --
 -- `battle` is optional -- the unit suite exercises forms.lua with a bare
 -- battler and no battle at all -- and requiring BattleState is wrapped in
 -- pcall because engine_internals is a courtesy the host owes the mod, not a
 -- guarantee: whenever the module, or the build itself, is unavailable the
--- picture is simply left as it was rather than blanked.  "or battler.sprite"
--- covers a build that resolves but comes back with no sprite the same way.
+-- picture is simply left as it was rather than blanked. `fresh and
+-- fresh.sprite or battler.sprite` covers a build that resolves but comes
+-- back with no sprite the same way.
 local function reloadSprite(battle, battler)
   if not (battle and battler) then return end
   local okRequire, BattleState = pcall(require, "src.battle.BattleState")
@@ -55,60 +49,56 @@ local function reloadSprite(battle, battler)
   end
 end
 
--- The HUD name is cached on the battler at send-out (mon.nickname or
--- def.name; BattleState.makeBattler) while the post-battle text re-reads
--- data.pokemon[mon.species].name live, so a re-key with nothing updating the
--- cached copy leaves the HUD showing the old name until the next switch-in
--- even after the species (and everything else) has changed.
-local function reloadName(data, battler, mon, speciesId)
-  if not battler then return end
-  local def = data and data.pokemon and data.pokemon[speciesId]
-  if not def then return end
-  battler.name = mon.nickname or def.name
-end
-
--- Refuses rather than half-applying.  A mon left holding a form id its
--- species table has no record for would draw nothing and compute nothing, and
--- the failure would surface somewhere far from here.  The refusal reason is
--- returned rather than swallowed: a caller (src/resolve.lua) logs it, because
--- a silent refusal here is exactly the failure that let a wrong form id ship
--- for a whole release without a single error anywhere.
---
--- `battle` is optional and threaded through only to reach makeBattler --
--- forms.lua stays unit-testable with a bare battler and no battle at all.
+-- Refuses rather than half-applying. A mon left holding a form whose record
+-- is missing, or whose record has no `form` field of its own, would draw
+-- nothing the sprite registry can resolve and compute nothing meaningful,
+-- and the failure would surface somewhere far from here. The reason is
+-- returned rather than swallowed: resolve.lua logs it, because a silent
+-- refusal here is exactly the failure that let a wrong form id ship for a
+-- whole release without a single error anywhere (0.2.1's mega table naming
+-- a display-name field instead of a record key).
 function M.becomeForm(data, battler, formId, battle)
   local mon = battler and battler.mon
   if not mon or not formId then return nil, "no_target" end
-  if not (data and data.pokemon and data.pokemon[formId]) then return nil, "no_record" end
-
-  mon[M.BASE] = mon[M.BASE] or mon.species
-  mon.species = formId
-  recompute(data, mon, formId)
-  reloadSprite(battle, battler)
-  reloadName(data, battler, mon, formId)
-  return true
-end
-
--- Takes the mon rather than the battler: the battle-end sweep walks the whole
--- party, where a mon that transformed and then switched out has no battler at
--- all.  Reverting an untransformed mon is a no-op so the sweep can be blunt.
-function M.revertMon(data, mon)
-  local base = mon and mon[M.BASE]
-  if not base then return nil end
-  mon.species = base
-  mon[M.BASE] = nil
-  recompute(data, mon, base)
-  return true
-end
-
-function M.revertForm(battler, data, battle)
-  if not battler then return nil end
-  local done = M.revertMon(data, battler.mon)
-  if done then
-    reloadSprite(battle, battler)
-    reloadName(data, battler, battler.mon, battler.mon.species)
+  local formDef = data and data.pokemon and data.pokemon[formId]
+  if not formDef then return nil, "no_record" end
+  if type(formDef.form) ~= "string" or formDef.form == "" then
+    return nil, "no_form_field"
   end
-  return done
+
+  mon.form = formDef.form
+  battler.curStats = Stats.calc(formDef, mon.level, mon.dvs, mon.statExp)
+  battler.curTypes = formDef.types
+  reloadSprite(battle, battler)
+  return true
+end
+
+-- Clears the marker on a mon with no battler in hand: the battle-end sweep
+-- walks the whole party, where a mon that transformed and then switched out
+-- has no battler at all. Reverting an untransformed mon is a no-op so the
+-- sweep can be blunt. `form` is cleared to nil, not to false or "" -- the
+-- save writer re-emits whatever field it finds on the mon, and a
+-- falsy-but-present key would round-trip into the save file as a lingering,
+-- meaningless entry instead of vanishing the way an untransformed mon's
+-- save always looked.
+function M.revertMon(mon)
+  if not mon or not mon.form then return nil end
+  mon.form = nil
+  return true
+end
+
+-- Restores the battler's curStats/curTypes to what a fresh send-out would
+-- have given it. Nothing needs to have been cached for this: becomeForm
+-- never touched mon.species or mon.stats, so the base species' own record
+-- and the mon's own stat block are always the right values to fall back to.
+function M.revertForm(battler, data, battle)
+  local mon = battler and battler.mon
+  if not M.revertMon(mon) then return nil end
+  local baseDef = data and data.pokemon and data.pokemon[mon.species]
+  battler.curStats = mon.stats
+  battler.curTypes = baseDef and baseDef.types or battler.curTypes
+  reloadSprite(battle, battler)
+  return true
 end
 
 return M

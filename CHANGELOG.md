@@ -3,6 +3,33 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.3.0
+
+### Fixed
+
+- **A mega Charizard rendered with no picture at all, and every fix since
+  0.2.2 was patching around the real cause instead of it.** `becomeForm`
+  re-keyed `mon.species` to the alternate-form id (`CHARIZARD_MEGA_X`), but
+  the sprite registry resolves form art from a `form` field on the Pokemon
+  and indexes it under the BASE species (`CHARIZARD.forms.MEGA_X`), never
+  under a re-keyed id -- there is no `CHARIZARD_MEGA_X` entry anywhere in
+  the art index, so a re-keyed species could never match any art, mega or
+  not. A form change now marks the Pokemon (`mon.form = "MEGA_X"`) and
+  leaves `mon.species` alone, the way the engine's own Transform already
+  overrides a battler's `curStats`/`curTypes` rather than rewriting the
+  Pokemon underneath it. Leaving the species untouched also means the name
+  the real games show ("CHARIZARD", not the National Dex source data's raw
+  slug) was never wrong in the first place, so `src/naming.lua` -- the
+  patch 0.2.3 added to paper over the re-key exposing that slug in battle
+  text -- is gone along with the record it no longer needs to touch. And
+  because there is no species to leave re-keyed, a Pokemon can no longer be
+  left permanently transformed in the save if a battle is abandoned
+  mid-fight. Switching a mega to the bench and back in now also reapplies
+  its stat and type override explicitly (`battle.battler_switched`), since
+  a freshly built battler knows nothing about a mon's `form` on its own --
+  under the old model this fell out for free because the re-keyed species
+  carried the mega's stats with it everywhere.
+
 ## 0.2.4
 
 ### Fixed

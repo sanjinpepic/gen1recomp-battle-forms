@@ -10,5 +10,4 @@ tests/battle_forms_parity_test.lua
 tests/battle_forms_shop_test.lua
 tests/battle_forms_menu_test.lua
 tests/battle_forms_formids_test.lua
-tests/battle_forms_naming_test.lua
 pokemon_alternative_forms_implementation.md

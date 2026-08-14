@@ -24,7 +24,7 @@ return {
     },
   },
   credits = {
-    { who = "National Dex", for_ = "the alternate-form records every form change re-keys to" },
+    { who = "National Dex", for_ = "the alternate-form records every form change reads its stats and types from" },
   },
   compat = { engine = ">=0.0.0-0 <2.0.0", modApi = 2 },
 }

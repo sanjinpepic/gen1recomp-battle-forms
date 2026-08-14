@@ -37,7 +37,8 @@ function M.onTurnStarted(state, ev)
     if deps.log then
       deps.log:warn(
         "battle_forms: refused mega for %s -> %s (%s) -- the national_dex "
-          .. "record is missing or data/megas.lua names the wrong id",
+          .. "record is missing, has no `form` field, or data/megas.lua "
+          .. "names the wrong id",
         tostring(mon and mon.species), tostring(formId), tostring(reason))
     end
     return
@@ -49,6 +50,37 @@ function M.onTurnStarted(state, ev)
   if battle.animationsOn and battle:animationsOn() then
     battle:animNext(deps.animId, battler.isPlayer)
   end
+end
+
+-- A mega switched to the bench and back in gets a brand-new battler from
+-- makeBattler, which knows nothing about a mon's `form`: it seeds curStats
+-- and curTypes from the base species the same as any ordinary send-out.
+-- mon.form itself survived the switch untouched -- it lives on the mon, not
+-- the battler -- so the picture comes back right on its own (the sprite
+-- registry reads ctx.mon.form regardless of when makeBattler runs); only the
+-- stat/type override needs reapplying, through the exact same path that
+-- applied it the first time, so it cannot drift from what becomeForm does.
+function M.onBattlerSwitched(ev)
+  local battle = ev and ev.battle
+  local battler = ev and ev.battler
+  local mon = battler and battler.mon
+  if not battle or not mon or not mon.form then return end
+
+  local formId = deps.eligibility.formForMon(deps.megas, mon)
+  if not formId then
+    -- The stone was removed, or the mega table changed, between the mon
+    -- transforming and this switch-in -- vanishingly unlikely in a single
+    -- battle, but a mon left showing mega art with base stats is exactly
+    -- the kind of silent mismatch this mod exists to not have.
+    if deps.log then
+      deps.log:warn(
+        "battle_forms: %s switched in still marked form %s but is no "
+          .. "longer eligible for it -- stats and types were not reapplied",
+        tostring(mon.species), tostring(mon.form))
+    end
+    return
+  end
+  deps.forms.becomeForm(battle.data, battler, formId, battle)
 end
 
 -- The form is the battle's, not the save's, so the battle ending unwinds it.
@@ -63,10 +95,10 @@ function M.onBattleEnded(ev)
   if not battle then return end
   local save = battle.game and battle.game.save
   for _, mon in ipairs(save and save.party or {}) do
-    deps.forms.revertMon(battle.data, mon)
+    deps.forms.revertMon(mon)
   end
   for _, mon in ipairs(battle.enemyParty or {}) do
-    deps.forms.revertMon(battle.data, mon)
+    deps.forms.revertMon(mon)
   end
 end
 
