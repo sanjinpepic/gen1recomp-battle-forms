@@ -47,8 +47,13 @@ s:onBattleStarted({ battle = eligible })
 T.eq(Overlay.shouldOffer(s), true, "an eligible mon is offered the toggle")
 
 T.eq(Overlay.label(s), "MEGA", "the indicator reads MEGA when disarmed")
+-- One transformation is the shipping case and it must stay the 0.12.0 cell:
+-- the label carries nothing but the label, and nothing tells the player about
+-- a LEFT/RIGHT that would do nothing if pressed.
+T.eq(Overlay.cyclable(s), false, "with one on offer the cell is a label, not a selector")
 s:toggle(Mega.ID)
 T.eq(Overlay.label(s), "MEGA*", "the indicator marks the armed state")
+T.eq(Overlay.cyclable(s), false, "and arming it does not make it one either")
 
 s:consume(Mega.ID)
 T.eq(Overlay.shouldOffer(s), false, "a battle that already changed offers nothing")

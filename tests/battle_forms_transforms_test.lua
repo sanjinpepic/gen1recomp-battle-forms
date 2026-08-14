@@ -145,6 +145,10 @@ do
   T.eq(offered[1].id, "mega", "in registration order: mega first")
   T.eq(offered[2].id, "burst", "then the synthetic one")
   T.eq(Overlay.label(state), "MEGA", "the cell opens on the first of them")
+  -- The label alone cannot say the cell holds a second one, so the cell says
+  -- it separately.  Before this the only way to learn Dynamax was on the cell
+  -- was to press a direction there was no reason to press.
+  T.eq(Overlay.cyclable(state), true, "and says out loud that it can be cycled")
 
   T.eq(press(battle, state, "left"), true, "left at FIGHT reaches the cell")
   T.eq(Menu.isOnCell(battle), true, "and parks there")
@@ -176,6 +180,7 @@ do
   T.eq(action, "toggle", "and reports the toggle for the confirm sound")
   T.eq(state:armed(), "burst", "A arms the transformation the cell was showing")
   T.eq(Overlay.label(state), "BURST*", "which is what the label marks")
+  T.eq(Overlay.cyclable(state), true, "and an armed cell still shows it can be cycled")
 
   local before = bursts
   Resolve.onTurnStarted(state, { battle = battle })
@@ -189,6 +194,7 @@ do
   -- once-per-battle limit exactly where it was.
   T.eq(#Overlay.offered(state), 1, "the spent one drops off the cell")
   T.eq(Overlay.label(state), "MEGA", "leaving the other showing")
+  T.eq(Overlay.cyclable(state), false, "and the cycle marker gone with it")
   press(battle, state, "left")
   press(battle, state, "a")
   T.eq(state:armed(), "mega", "which can still be armed in the same battle")
@@ -204,6 +210,7 @@ do
   local battle, state = setup(false)
   battle.burstReady = false
   T.eq(#Overlay.offered(state), 1, "precondition: only one is on offer")
+  T.eq(Overlay.cyclable(state), false, "so the cell carries no cycle marker")
   press(battle, state, "left")
   T.eq(Menu.isOnCell(battle), true, "the cursor reaches the cell")
   T.eq(press(battle, state, "right"), true, "right is claimed")
@@ -220,10 +227,16 @@ do
   press(battle, state, "left")
   press(battle, state, "right")
   T.eq(Overlay.label(state), "BURST", "precondition: the second one is selected")
+  T.eq(Overlay.cyclable(state), true, "precondition: and the cell is a selector")
   battle.burstReady = false
   T.eq(Overlay.label(state), "MEGA",
     "a selection that stops being offered falls back to what is left")
   T.eq(Overlay.shouldOffer(state), true, "and the cell stays up")
+  -- A key item gate can turn false between turns, so the marker has to be
+  -- read off the offer each frame rather than latched when the cell appeared:
+  -- a cell still promising LEFT/RIGHT with nothing to cycle to is the same
+  -- lie as a cell hiding that it has two, pointed the other way.
+  T.eq(Overlay.cyclable(state), false, "without the cycle marker it no longer earns")
 end
 
 -- Cycling away disarms: the cell shows one label, so an armed flag hiding

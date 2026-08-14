@@ -3,6 +3,28 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.13.0
+
+### Changed
+
+- **The battle menu cell now says when it is holding more than one
+  transformation, instead of leaving the second one to be found by accident.**
+  With a mega and a Dynamax both on offer the cell read MEGA and nothing else,
+  and the only way to learn that LEFT and RIGHT reached DYNAMAX was to press a
+  direction there was no reason to press. A small hollow arrow now sits at the
+  right-hand edge of the cell's row whenever more than one transformation is
+  available, in the last column inside the command box -- the same one both
+  battle layouts already use for their own "there is more" arrow, and the
+  hollow shape rather than the solid one because the solid arrow is the cursor
+  everywhere else in this engine. It is read off the offer every frame, so it
+  goes again the moment the offer drops back to one, which happens mid-battle
+  when a key item leaves the bag or a transformation is spent. A cell holding a
+  single transformation is unchanged in every respect: the same label in the
+  same column, the same cursor, and LEFT and RIGHT still step off the cell
+  rather than cycling. One glyph is all the affordance there was room for --
+  DYNAMAX with its armed mark already fills the classic layout's row to the
+  pixel.
+
 ## 0.12.0
 
 ### Changed

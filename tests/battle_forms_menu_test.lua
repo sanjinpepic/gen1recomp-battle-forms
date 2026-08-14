@@ -93,6 +93,8 @@ do
   local battle = makeBattle(1, {})
   state:onBattleStarted({ battle = battle })
   T.eq(Overlay.shouldOffer(state), true, "precondition: an eligible mon offers the toggle")
+  T.eq(Overlay.cyclable(state), false,
+    "precondition: one transformation leaves the cell a plain label")
 
   battle.game.input = makeInput({ left = true })
   T.eq(Menu.handleInput(battle, state), true, "left at FIGHT (column 0) is claimed")
@@ -173,6 +175,62 @@ do
   state3:onBattleStarted({ battle = battle3 })
   T.eq(Menu.handleInput(battle3, state3), true,
     "a stale drainHold left over from HP presentation never blocks this trigger")
+end
+
+-- ---------------------------------------------------------------------
+-- The cell's geometry.  Only one transformation is registered in this file,
+-- which is what ships, so the first three checks are the 0.12.0 cell pinned
+-- where it was: the label in FIGHT/ITEM's own column and the cursor in
+-- theirs, and nothing else drawn on the row.
+--
+-- The rest is the width budget the cycle marker leaves behind it.  The
+-- marker sits in the last column inside the command box -- classic
+-- Font.drawBox(8, 12, 12, 6) borders tiles 8 and 19, widescreen
+-- Font.drawBox(20, 13, 18, 5) borders 20 and 37 -- so the gap from the label
+-- column to it is every pixel a label has.  Classic is the tighter layout
+-- and DYNAMAX plus the armed '*' fills it exactly; one more character in any
+-- shipping label draws over the marker rather than wrapping, and there is
+-- nowhere for either of them to move to.
+-- ---------------------------------------------------------------------
+do
+  local GLYPH = 8 -- the font page's flat advance (src/render/Font.lua)
+  local ARMED = 1 -- the '*' src/overlay.lua appends
+
+  T.eq(Menu.CELL.classic.cursor, 72, "classic keeps the cursor in FIGHT/ITEM's column")
+  T.eq(Menu.CELL.classic.label, 80, "and the label in the column they print at")
+  T.eq(Menu.CELL.wide.cursor, 168, "widescreen keeps its own cursor column")
+  T.eq(Menu.CELL.wide.label, 176, "and its own label column")
+
+  T.eq(Menu.CELL.classic.cycle, 18 * 8, "the marker takes classic's last free column")
+  T.eq(Menu.CELL.wide.cycle, 36 * 8, "and widescreen's, one in from each right border")
+
+  -- Read out of the sources main.lua itself names, the way the options suite
+  -- reads its file list.  A roster mirrored by hand here would keep passing
+  -- after the next transformation is registered, which is the single moment
+  -- this check exists for.
+  local function readFile(path)
+    local handle = assert(io.open(path, "rb"), "cannot open " .. path)
+    local body = handle:read("*a")
+    handle:close()
+    return body
+  end
+  local labels = {}
+  for name in readFile(MOD .. "/main.lua"):gmatch('"(src/[%w_]+%.lua)"') do
+    for label in readFile(MOD .. "/" .. name):gmatch('label%s*=%s*"([^"]+)"') do
+      labels[#labels + 1] = label
+    end
+  end
+  T.check(#labels >= 2, "the shipping labels were read back out of the sources")
+
+  for _, layout in ipairs({ "classic", "wide" }) do
+    local at = Menu.CELL[layout]
+    local budget = at.cycle - at.label
+    for _, label in ipairs(labels) do
+      T.check((#label + ARMED) * GLYPH <= budget,
+        ("%s: %s armed fits the %d px the marker leaves a label"):format(
+          layout, label, budget))
+    end
+  end
 end
 
 T.finish("battle_forms_menu")

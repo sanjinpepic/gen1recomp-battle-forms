@@ -7,7 +7,7 @@ return {
   tags = { "gameplay", "battle" },
   differences = {
     changed = {
-      "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA when the trainer has a Key Stone and the active mon carries a matching stone, and DYNAMAX for any mon at all once the trainer has a Dynamax Band, and LEFT and RIGHT cycle between them when both are on offer",
+      "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA when the trainer has a Key Stone and the active mon carries a matching stone, and DYNAMAX for any mon at all once the trainer has a Dynamax Band, and LEFT and RIGHT cycle between them when both are on offer, which the cell marks with a small hollow arrow at the right-hand end of its row so the second one is never hidden behind the first",
       "an existing save loses mega evolution until a Key Stone is bought, and loses Dynamax until a Dynamax Band is: both were previously ungated, and the real games require the trainer to carry one as well as the Pokemon to carry its own item",
     },
     added = {

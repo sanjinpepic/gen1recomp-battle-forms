@@ -67,6 +67,21 @@ function M.label(state)
   return entry.label
 end
 
+-- Whether the cell is a selector right now rather than a plain label, which
+-- is what src/menu.lua draws its cycle marker from and what decides whether
+-- LEFT/RIGHT cycle -- one predicate, so a cell that says it can be cycled and
+-- a cell that can be are the same cell.
+--
+-- Deliberately NOT folded into label() the way the armed '*' is.  The marker
+-- is a font tile, and a tile reached through a string goes via Font.encode,
+-- which hands any single non-ASCII character to the TTF in a translated build
+-- instead of to the page the glyph lives on.  Keeping it out also means one
+-- transformation on offer reaches Font.draw with exactly the string it always
+-- has, rather than with a string that happens to come out the same.
+function M.cyclable(state)
+  return #M.offered(state) > 1
+end
+
 -- Moves the selection along the offered list and wraps, so the cell reaches
 -- every transformation from every other one.  Nothing to do below two: with a
 -- single entry the cell is a label, not a selector, and src/menu.lua leaves

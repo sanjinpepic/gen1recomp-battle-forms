@@ -22,7 +22,9 @@
 -- cursor and text already use, so it reads as another row of the same menu
 -- rather than a bolted-on extra.  It is also the reason several
 -- transformations share ONE cell and cycle: there was never a second row to
--- give the next mechanic, so the cell had to hold them instead.
+-- give the next mechanic, so the cell had to hold them instead -- and the
+-- reason the cell has to SAY it holds them in one spare column rather than in
+-- words, since the row it sits on is as wide as the box and no wider.
 --
 -- Owning the WHOLE frame while the cursor sits on the cell (rather than trying
 -- to intercept one button at a time) is deliberate.  Input:wasPressed does
@@ -100,8 +102,10 @@ function M.handleInput(battle, state)
     -- -- UP and DOWN still do that, and both lead back to the same column-0
     -- cell the cursor arrived from.  Below two there is nothing to cycle
     -- through, so this branch never runs and the cursor behaves exactly as it
-    -- did when MEGA was the only thing here.
-    if #deps.overlay.offered(state) > 1 then
+    -- did when MEGA was the only thing here.  The same predicate draws the
+    -- cycle marker, so the cell cannot advertise a direction that does
+    -- nothing or swallow one it never offered.
+    if deps.overlay.cyclable(state) then
       if input:wasPressed("left") then
         deps.overlay.cycle(state, -1)
         return true
@@ -144,12 +148,49 @@ local function withHiddenCursor(battle, onCell, fn)
   if not ok then error(err, 0) end
 end
 
--- x=80/176 and cursor x=72/168 are not new numbers: they are the same
--- column FIGHT and ITEM already print at (classic 80, wide 176) and the
--- same column their own cursor already sits in (classic 72, wide 168).
--- The cell is drawn one row below/above them, at y=120 -- the blank spacer
--- row between the FIGHT/PKMN line and the ITEM/RUN line in both templates.
+-- None of these columns are new numbers.  `cursor` and `label` are the same
+-- ones FIGHT and ITEM already put their cursor and their text in (classic
+-- 72/80, wide 168/176).  `cycle` is the last column inside the command box --
+-- classic Font.drawBox(8, 12, 12, 6) borders tiles 8 and 19, widescreen
+-- Font.drawBox(20, 13, 18, 5) borders tiles 20 and 37, so tiles 18 and 36 --
+-- which is where each layout already parks its own "there is more" arrow.
+-- The row is y=120, the blank spacer row between the FIGHT/PKMN line and the
+-- ITEM/RUN line, empty in both templates.
+--
+-- The gap from `label` to `cycle` is the entire width a label has: 64px
+-- classic, 112px wide, so 8 and 14 glyphs at the font's flat 8px advance.
+-- Classic binds, and DYNAMAX plus the armed '*' already spends all 8 of it.
+-- That is why the affordance is ONE glyph rather than a pair around the
+-- label or a count -- neither fits the widest label that ships.
+local CELL = {
+  classic = { cursor = 72, label = 80, cycle = 144 },
+  wide = { cursor = 168, label = 176, cycle = 288 },
+}
+M.CELL = CELL
+
 local ROW_Y = 120
+
+local CURSOR_GLYPH = 0xED
+
+-- The HOLLOW arrow, not the solid one.  $ED is the cursor in every menu this
+-- engine draws, including the one this cell puts at `cursor` on the same row,
+-- and a second solid arrow there would read as a second cursor.  The move
+-- list already uses the pair exactly this way -- $ED for where the player is,
+-- $EC for a marker that is not the player.
+local CYCLE_GLYPH = 0xEC
+
+-- Both layouts draw the same three things and differ only in which columns
+-- they draw them at, so the decision of WHAT appears is made once instead of
+-- twice: a cell that gained a marker in classic alone would be a cell missing
+-- from half the game, which is the mistake src/overlay.lua's header exists to
+-- prevent for the decisions above it.
+local function drawCell(Font, state, at, onCell)
+  Font.draw(deps.overlay.label(state), at.label, ROW_Y)
+  if deps.overlay.cyclable(state) then
+    Font.drawCode(CYCLE_GLYPH, at.cycle, ROW_Y)
+  end
+  if onCell then Font.drawCode(CURSOR_GLYPH, at.cursor, ROW_Y) end
+end
 
 -- Noted before the shouldOffer check rather than after it, in both draw
 -- paths: "the wrapper ran and the decision said no" and "the wrapper is not
@@ -169,8 +210,7 @@ function M.drawClassic(battle, state, vanillaDraw, Font)
   withHiddenCursor(battle, onCell, function() vanillaDraw(battle) end)
   if not Font then return end
   love.graphics.setColor(0, 0, 0, 1)
-  Font.draw(deps.overlay.label(state), 80, ROW_Y)
-  if onCell then Font.drawCode(0xED, 72, ROW_Y) end
+  drawCell(Font, state, CELL.classic, onCell)
 end
 
 function M.drawWide(battle, state, vanillaDraw, Font)
@@ -182,8 +222,7 @@ function M.drawWide(battle, state, vanillaDraw, Font)
   withHiddenCursor(battle, onCell, function() vanillaDraw(battle) end)
   if not Font then return end
   love.graphics.setColor(0, 0, 0, 1)
-  Font.draw(deps.overlay.label(state), 176, ROW_Y)
-  if onCell then Font.drawCode(0xED, 168, ROW_Y) end
+  drawCell(Font, state, CELL.wide, onCell)
 end
 
 -- BattleState._battleFormsMenuPatched (and WideBattle's own copy below) is
