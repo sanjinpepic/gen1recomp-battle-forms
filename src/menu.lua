@@ -151,7 +151,17 @@ end
 -- row between the FIGHT/PKMN line and the ITEM/RUN line in both templates.
 local ROW_Y = 120
 
+-- Noted before the shouldOffer check rather than after it, in both draw
+-- paths: "the wrapper ran and the decision said no" and "the wrapper is not
+-- the function the engine calls" are different bugs, and a note behind the
+-- check could not tell them apart.
+local function note(battle, key, what)
+  local diag = deps and deps.diag
+  if diag then pcall(diag.note, battle, key, "wrapper: %s ran", what) end
+end
+
 function M.drawClassic(battle, state, vanillaDraw, Font)
+  note(battle, "drawTextArea", "BattleState.drawTextArea")
   if not deps or not deps.overlay.shouldOffer(state) then
     return vanillaDraw(battle)
   end
@@ -164,6 +174,7 @@ function M.drawClassic(battle, state, vanillaDraw, Font)
 end
 
 function M.drawWide(battle, state, vanillaDraw, Font)
+  note(battle, "wideDraw", "WideBattle.draw")
   if not deps or not deps.overlay.shouldOffer(state) then
     return vanillaDraw(battle)
   end
@@ -180,24 +191,49 @@ end
 -- second install (a mod reloaded, or somehow loaded twice) sees it already
 -- true and leaves the class alone instead of wrapping its own wrapper.
 function M.install(mod, state)
+  local diag = deps and deps.diag
+  local function record(fmt, ...)
+    if diag then diag.record(fmt, ...) end
+  end
+
   local okState, BattleState = pcall(require, "src.battle.BattleState")
   if not okState or type(BattleState) ~= "table" then
+    record("install: require(src.battle.BattleState) failed (%s)",
+      tostring(BattleState))
     if mod.log then
       mod.log:error("battle_forms: src.battle.BattleState unavailable -- "
         .. "the transformation menu cell is disabled")
     end
     return false
   end
-  if BattleState._battleFormsMenuPatched then return true end
+  if BattleState._battleFormsMenuPatched then
+    -- Worth a line of its own rather than a silent success: an install that
+    -- finds the guard already set wraps NOTHING, so the wrappers doing the
+    -- work belong to whichever load got here first and close over that load's
+    -- arm state -- which is a live cell fed by a state nothing updates.
+    record("install: BattleState was already patched -- this load wrapped "
+      .. "nothing and the wrappers in place close over an earlier load's "
+      .. "arm state")
+    return true
+  end
+  record("install: BattleState resolved, no earlier patch")
   BattleState._battleFormsMenuPatched = true
 
   local okFont, Font = pcall(require, "src.render.Font")
+  -- Font going missing costs the cell its text without costing anything else,
+  -- which draws as a menu that looks exactly like a menu with no cell.
+  record("install: Font %s", okFont and "resolved"
+    or ("unavailable (" .. tostring(Font) .. ")"))
   if not okFont then Font = nil end
   local okSound, Sound = pcall(require, "src.core.Sound")
   if not okSound then Sound = nil end
 
   local vanillaUpdate = BattleState.update
   BattleState.update = function(self, dt)
+    if diag then
+      pcall(diag.note, self, "update", "wrapper: BattleState.update ran")
+      pcall(diag.menu, self)
+    end
     local ok, handled, action = pcall(M.handleInput, self, state)
     if ok and handled then
       if action == "toggle" and Sound then
@@ -215,16 +251,30 @@ function M.install(mod, state)
     if not ok then pcall(vanillaDrawTextArea, self) end
   end
 
+  record("install: wrapped BattleState.update and BattleState.drawTextArea")
+
+  -- Reported separately from the classic pair because it is separately
+  -- survivable and separately fatal: a widescreen battle draws through this
+  -- function and never through drawTextArea, so this one failing to wrap
+  -- takes the cell away in widescreen alone.
   local okWide, WideBattle = pcall(require, "src.battle.WideBattle")
-  if okWide and type(WideBattle) == "table" and type(WideBattle.draw) == "function"
-      and not WideBattle._battleFormsMenuPatched then
+  local wide
+  if not okWide or type(WideBattle) ~= "table" then
+    wide = "unavailable (" .. tostring(WideBattle) .. ")"
+  elseif type(WideBattle.draw) ~= "function" then
+    wide = "has no draw function to wrap"
+  elseif WideBattle._battleFormsMenuPatched then
+    wide = "was already patched"
+  else
     WideBattle._battleFormsMenuPatched = true
     local vanillaWideDraw = WideBattle.draw
     WideBattle.draw = function(battle)
       local ok = pcall(M.drawWide, battle, state, vanillaWideDraw, Font)
       if not ok then pcall(vanillaWideDraw, battle) end
     end
+    wide = "wrapped"
   end
+  record("install: WideBattle.draw %s", wide)
 
   return true
 end

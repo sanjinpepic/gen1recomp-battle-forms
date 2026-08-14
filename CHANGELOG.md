@@ -3,6 +3,38 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.9.0
+
+### Added
+
+- **A DEBUG TRACE option that records why the battle menu cell and primal
+  reversion did or did not happen.** Both had been failing on a real install
+  with nothing anywhere to say why, and the reason nothing said anything is
+  that `mod.log` reaches a `print()` the packaged launcher discards -- so this
+  writes to mod storage instead, at
+  `mod_storage/<game>/<playthrough>/battle_forms/trace/`, where a player can
+  open it. With the option on it records what the menu patch actually wrapped
+  and whether it found itself already installed, what the transformation
+  registry holds, the first time each wrapped draw and update function is
+  called, the full decision behind the cell whenever that decision changes,
+  which battle events are delivered at all, and every primal reversion attempt
+  down to becomeForm's own refusal reason. It is off by default and does
+  nothing at all while it is: no writes, no log lines, no work beyond one
+  option read.
+
+### Fixed
+
+- **A handler that threw took every handler behind it down with it, silently.**
+  The engine catches a throwing event listener and carries on, but it catches
+  the whole listener -- and three handlers shared one `battle.started`
+  subscription, so the first to fail cancelled the two after it and the
+  engine's report went to the same discarded `print()`. Every call is guarded
+  on its own now and says which one threw and with what error, through the log
+  and the trace both. They were left sharing one listener rather than split
+  into one each because `Events:on` re-sorts by priority on every subscribe and
+  Lua's sort is not stable, so separate listeners would have traded a silent
+  failure for an undefined order.
+
 ## 0.8.0
 
 ### Changed

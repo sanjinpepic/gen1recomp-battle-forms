@@ -41,12 +41,18 @@ return function(mod)
     { key = "megas", label = "MEGA EVOLUTIONS", type = "choice",
       default = "official", choices = { { "OFFICIAL", "official" },
                                         { "ALL", "all" } } },
+    -- diagnostic: records why the menu cell and primal reversion did or did
+    -- not happen, into mod storage (src/diag.lua).  Off unless a bug is being
+    -- chased -- it answers questions a player never has.
+    { key = "debug_trace", label = "DEBUG TRACE", type = "choice",
+      default = "off",
+      choices = { { "OFF", "off" }, { "ON", "on" } } },
   })
 
   local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
                   "src/stone.lua", "src/shop.lua", "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/resolve.lua",
-                  "src/primal.lua", "src/conditional.lua",
+                  "src/primal.lua", "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/conditional.lua" }
@@ -62,6 +68,7 @@ return function(mod)
   local eligibility = m["src/eligibility.lua"]
   local anim = m["src/anim.lua"]
   local state = m["src/arm.lua"].new()
+  local diag = m["src/diag.lua"]
 
   for _, pair in ipairs(megaset.problems(rawMegas)) do
     mod.log:error("data/megas.lua: %s carries no officialness marker -- wrap "
@@ -102,6 +109,7 @@ return function(mod)
       .. "battle menu (%s) -- no stone can be armed until that is fixed",
       tostring(why))
   end
+  diag.registry(registry, registered, why)
 
   local resolve = m["src/resolve.lua"]
   resolve.bind({ registry = registry, forms = m["src/forms.lua"],
@@ -112,7 +120,7 @@ return function(mod)
   -- so it has no way to reach the armed flag or the once-per-battle limit.
   local primal = m["src/primal.lua"]
   primal.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
-                primals = primals, log = mod.log })
+                primals = primals, log = mod.log, diag = diag })
 
   -- Condition-driven forms are wired the same way and for the same reason:
   -- the forms primitive, their own pairing table, and nothing else.  They
@@ -130,34 +138,82 @@ return function(mod)
   local overlay = m["src/overlay.lua"]
   overlay.bind({ registry = registry })
 
+  -- Bound after everything it reads and before anything that reports through
+  -- it.  The option is read live rather than captured: changing it in the
+  -- manager does not reload the mod (ManagerState:setOption writes
+  -- loader.modOptions in place), so a captured value would mean the switch
+  -- only ever took effect on the next boot.
+  diag.bind({ mod = mod, registry = registry, overlay = overlay, state = state,
+              eligibility = eligibility, megas = megas,
+              enabled = function()
+                return mod.options:get("debug_trace") == "on"
+              end })
+
   -- The menu cell owns input/draw seams overlay.lua has no hook for
   -- (BattleState.update, BattleState.drawTextArea, WideBattle.draw), which
   -- is why it is a separate module even though it reads the same shouldOffer
   -- decision.
   local menu = m["src/menu.lua"]
-  menu.bind({ overlay = overlay })
+  menu.bind({ overlay = overlay, diag = diag })
   menu.install(mod, state)
 
+  -- Events:emit pcalls the LISTENER, not the calls inside it, so three
+  -- handlers sharing one listener meant the first to throw silently cancelled
+  -- the two behind it -- and the engine's report for that is a print() the
+  -- packaged launcher discards, so the symptom was a mechanic that just
+  -- stopped happening.  Each call is guarded on its own now, and says what it
+  -- caught.
+  --
+  -- Guarded rather than split into a listener each, which would isolate them
+  -- just as well: Events:on table.sorts the list by priority on every
+  -- subscribe and Lua's sort is not stable, so listeners sharing a priority
+  -- have no guaranteed order between them where calls in one listener do.
+  local function run(what, fn)
+    local ok, err = pcall(fn)
+    if not ok then diag.fault(what, err) end
+  end
+
   mod.events:on("battle.started", function(ev)
-    state:onBattleStarted(ev)
-    primal.onBattleStarted(ev)
-    conditional.onBattleStarted(ev)
+    diag.reached("battle.started", ev)
+    run("arm.onBattleStarted", function() state:onBattleStarted(ev) end)
+    run("primal.onBattleStarted", function() primal.onBattleStarted(ev) end)
+    run("conditional.onBattleStarted", function() conditional.onBattleStarted(ev) end)
   end)
-  mod.events:on("battle.turn_started", function(ev) resolve.onTurnStarted(state, ev) end)
+  mod.events:on("battle.turn_started", function(ev)
+    diag.reached("battle.turn_started", ev)
+    run("resolve.onTurnStarted", function() resolve.onTurnStarted(state, ev) end)
+  end)
   mod.events:on("battle.battler_switched", function(ev)
-    resolve.onBattlerSwitched(ev)
-    primal.onBattlerSwitched(ev)
-    conditional.onBattlerSwitched(ev)
+    diag.reached("battle.battler_switched", ev)
+    run("resolve.onBattlerSwitched", function() resolve.onBattlerSwitched(ev) end)
+    run("primal.onBattlerSwitched", function() primal.onBattlerSwitched(ev) end)
+    run("conditional.onBattlerSwitched", function() conditional.onBattlerSwitched(ev) end)
   end)
   -- Subscribing is also what makes these three fire at all: the engine builds
   -- their payloads behind a Runtime.wants check on the exact event name, so an
   -- unsubscribed battle.damage_dealt is never constructed in the first place.
-  mod.events:on("battle.move_used", function(ev) conditional.onMoveUsed(ev) end)
-  mod.events:on("battle.damage_dealt", function(ev) conditional.onDamageDealt(ev) end)
-  mod.events:on("battle.turn_ended", function(ev) conditional.onTurnEnded(ev) end)
-  mod.events:on("battle.fainted", function(ev) resolve.onFainted(ev) end)
+  mod.events:on("battle.move_used", function(ev)
+    diag.reached("battle.move_used", ev)
+    run("conditional.onMoveUsed", function() conditional.onMoveUsed(ev) end)
+  end)
+  mod.events:on("battle.damage_dealt", function(ev)
+    diag.reached("battle.damage_dealt", ev)
+    run("conditional.onDamageDealt", function() conditional.onDamageDealt(ev) end)
+  end)
+  mod.events:on("battle.turn_ended", function(ev)
+    diag.reached("battle.turn_ended", ev)
+    run("conditional.onTurnEnded", function() conditional.onTurnEnded(ev) end)
+  end)
+  mod.events:on("battle.fainted", function(ev)
+    diag.reached("battle.fainted", ev)
+    run("resolve.onFainted", function() resolve.onFainted(ev) end)
+  end)
   mod.events:on("battle.ended", function(ev)
-    resolve.onBattleEnded(ev)
-    state:onBattleEnded(ev)
+    diag.reached("battle.ended", ev)
+    run("resolve.onBattleEnded", function() resolve.onBattleEnded(ev) end)
+    run("arm.onBattleEnded", function() state:onBattleEnded(ev) end)
+    -- Last, so the flush it performs carries everything the handlers above
+    -- had to say about the battle that just ended.
+    run("diag.onBattleEnded", function() diag.onBattleEnded(ev) end)
   end)
 end

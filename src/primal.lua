@@ -34,13 +34,33 @@ function M.bind(modules) deps = modules end
 -- primal mon coming back from the bench arrives on the fresh, form-blind
 -- battler makeBattler hands back, and needs exactly the same override applied
 -- exactly the same way as one entering for the first time.
-local function transform(battle, battler)
+--
+-- `source` names the handler and the battler so the diagnostic can tell "the
+-- switch-in handler never ran" from "it ran and found no pairing"; deps.diag
+-- is optional for the same reason deps.log is, and every early return reports
+-- because each of them is a different reason for a Groudon that stays
+-- ordinary.
+local function transform(battle, battler, source)
   local mon = battler and battler.mon
-  if not mon then return end
+  if not mon then
+    if deps.diag then
+      deps.diag.primal(source, battle, nil, nil, nil, "no mon on the battler")
+    end
+    return
+  end
   local formId = deps.eligibility.formForMon(deps.primals, mon)
-  if not formId then return end
+  if not formId then
+    if deps.diag then
+      deps.diag.primal(source, battle, mon, nil, nil,
+        "no pairing in data/primals.lua for this species and stone")
+    end
+    return
+  end
 
   local ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
+  if deps.diag then
+    deps.diag.primal(source, battle, mon, formId, ok, reason)
+  end
   if not ok and deps.log then
     -- A guard that refuses must say so out loud.  There is no player action
     -- behind a primal reversion, so a silent refusal here would show as a
@@ -60,14 +80,14 @@ end
 function M.onBattleStarted(ev)
   local battle = ev and ev.battle
   if not battle then return end
-  transform(battle, battle.player)
-  transform(battle, battle.enemy)
+  transform(battle, battle.player, "battle.started player")
+  transform(battle, battle.enemy, "battle.started enemy")
 end
 
 function M.onBattlerSwitched(ev)
   local battle = ev and ev.battle
   if not battle then return end
-  transform(battle, ev.battler)
+  transform(battle, ev.battler, "battler_switched")
 end
 
 return M

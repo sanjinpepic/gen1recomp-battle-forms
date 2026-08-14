@@ -63,4 +63,18 @@ T.eq(megasRow and megasRow.choices and megasRow.choices[1][2], "official",
 T.eq(megasRow and megasRow.choices and megasRow.choices[2][2], "all",
   "ALL is the second")
 
+-- DEBUG TRACE reaches the same screen and must default to off there, not
+-- merely be documented as off: it is the switch a player is told to flip when
+-- something has gone wrong, and it costs nothing only while nobody has.
+local traceRow
+for _, row in ipairs(schema or {}) do
+  if row.key == "debug_trace" then traceRow = row end
+end
+T.check(traceRow ~= nil, "the debug_trace option is defined")
+T.eq(traceRow and traceRow.default, "off", "it defaults to off")
+T.eq(traceRow and traceRow.choices and traceRow.choices[1][2], "off",
+  "OFF is the first choice")
+T.eq(traceRow and traceRow.choices and traceRow.choices[2][2], "on",
+  "ON is the second")
+
 T.finish("battle_forms_load")
