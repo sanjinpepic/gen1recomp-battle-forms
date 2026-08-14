@@ -81,13 +81,14 @@ return function(mod)
                   "src/stone.lua", "src/keyitems.lua", "src/shop.lua",
                   "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
+                  "src/substitute.lua", "src/maxmoves.lua",
                   "src/tera.lua", "src/resolve.lua",
                   "src/primal.lua", "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
-                  "data/gigantamax.lua" }
+                  "data/gigantamax.lua", "data/maxmoves.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -144,6 +145,18 @@ return function(mod)
   -- see src/announce.lua for why they stay quiet.
   local announce = m["src/announce.lua"]
 
+  -- The Max Move roster, registered before anything can use it and
+  -- unconditionally, for the reason the key items are: a battle can hold a move
+  -- id and a move id with no record behind it is a battle that cannot be drawn
+  -- or saved.  What IS conditional is which types get one -- src/maxmoves.lua
+  -- asks the merged chart, because a move naming a type this game has never
+  -- heard of would fail the load rather than fail quietly.
+  local maxmoves = m["src/maxmoves.lua"]
+  local guardState = maxmoves.newGuard()
+  maxmoves.bind({ anim = anim, announce = announce, log = mod.log,
+                  guard = guardState })
+  local maxCatalog = maxmoves.install(mod, m["data/maxmoves.lua"])
+
   -- One cell on the command menu hosts every manually activated
   -- transformation there is, because the blank spacer row it draws into is the
   -- only space either battle layout has spare.  Mega evolution is the first
@@ -167,10 +180,20 @@ return function(mod)
   -- the mega and not both.  Dynamax is still handed the forms primitive and its
   -- own pairing table and nothing else, so like primal reversion it has no way
   -- to reach the mega's eligibility.
+  --
+  -- It is also the only entry handed the move-substitution mechanism, and it is
+  -- handed the mechanism rather than the Max Moves: `maxMoves` answers with the
+  -- per-slot decision for one battle's merged data, so Dynamax never learns
+  -- what a Max Move is and a second consumer -- a Z-Move -- arrives as another
+  -- picker rather than as a change here.
   local dynamax = m["src/dynamax.lua"]
   dynamax.bind({ forms = m["src/forms.lua"],
                  gigantamax = m["data/gigantamax.lua"], keyitems = keyitems,
-                 announce = announce, log = mod.log })
+                 announce = announce, log = mod.log,
+                 substitute = m["src/substitute.lua"],
+                 maxMoves = function(data)
+                   return maxmoves.picker(maxCatalog, data)
+                 end })
   local dynamaxState = dynamax.new()
   local dynaOk, dynaWhy = registry:register(dynamax.entry(dynamaxState))
   if not dynaOk then
@@ -278,6 +301,7 @@ return function(mod)
     run("conditional.onBattleStarted", function() conditional.onBattleStarted(ev) end)
     run("dynamax.onBattleStarted", function() dynamax.onBattleStarted(dynamaxState) end)
     run("tera.onBattleStarted", function() tera.onBattleStarted(teraState) end)
+    run("maxmoves.onBattleStarted", function() maxmoves.onBattleStarted(guardState) end)
   end)
   mod.events:on("battle.turn_started", function(ev)
     diag.reached("battle.turn_started", ev)
@@ -316,6 +340,10 @@ return function(mod)
     diag.reached("battle.turn_ended", ev)
     run("conditional.onTurnEnded", function() conditional.onTurnEnded(ev) end)
     run("dynamax.onTurnEnded", function() dynamax.onTurnEnded(dynamaxState, ev) end)
+    -- Max Guard's shield lasts the turn it went up.  Guarded on its own like
+    -- everything beside it, which is what stops a throw above from leaving a
+    -- Pokemon semi-invulnerable for the rest of the battle.
+    run("maxmoves.onTurnEnded", function() maxmoves.onTurnEnded(guardState) end)
   end)
   mod.events:on("battle.fainted", function(ev)
     diag.reached("battle.fainted", ev)
@@ -336,6 +364,7 @@ return function(mod)
     -- back rather than a mon to strip, so it is given the event and not just
     -- the state.
     run("tera.onBattleEnded", function() tera.onBattleEnded(teraState, ev) end)
+    run("maxmoves.onBattleEnded", function() maxmoves.onBattleEnded(guardState) end)
     -- After the party sweep above, and it must stay after it: this marks the
     -- battle closed so no later frame can adopt it and re-apply a form to a
     -- mon resolve.onBattleEnded has just reverted.

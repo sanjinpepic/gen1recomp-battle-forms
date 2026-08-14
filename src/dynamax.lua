@@ -48,10 +48,23 @@
 -- on a switch and on a faint, one per battle per trainer, and the Gigantamax
 -- shape where there is art for it are all battle-visible and all safe.
 --
--- Max Moves and G-Max Moves are out of scope by the same reasoning that keeps
--- them out of the changelog: they replace the mon's moveset for the duration,
--- which is a move-substitution system that Z-Moves would share, and it is not
--- a form change.
+-- MAX MOVES, which arrived after the rest of this and through a mechanism of
+-- their own.  A Dynamaxed Pokemon's moves are substituted rather than rewritten:
+-- src/substitute.lua replaces the battler's whole `curMoves` array and puts the
+-- original back by reference, because the tables inside that array are the party
+-- Pokemon's own move records and writing to one is writing to the save.  So the
+-- three turns now unwind two things instead of one, on exactly the same four
+-- paths, and the substitution is torn down through the same finish() every one
+-- of them already went through.
+--
+-- One departure worth stating: the move a player picked on the turn they
+-- Dynamaxed is the move they picked.  The activation lands at turn_started,
+-- which the engine raises AFTER both actions are chosen (BattleState.lua:
+-- 2463-2469) -- that placement is deliberate and is what keeps a mega from
+-- costing a turn -- and the action it raises with is the move slot the FIGHT
+-- menu handed over.  Substituting the array cannot reach a choice already made,
+-- so the first turn of a Dynamax runs the base move and the two after it are
+-- Max Moves.
 local M = {}
 
 M.ID = "dynamax"
@@ -70,8 +83,12 @@ function M.bind(modules) deps = modules end
 -- a second Dynamax to track -- and a single record is also a single thing to
 -- drop at battle end, which is what stops a mon reference outliving the battle
 -- that owned it.
+-- `moves` is the substitution's own record and is created here rather than on
+-- activation so that every teardown path can hand it to restore() blind,
+-- including the ones that run when nothing was ever substituted.
 function M.new()
-  return { mon = nil, turns = 0, form = nil }
+  return { mon = nil, turns = 0, form = nil,
+           moves = deps and deps.substitute and deps.substitute.new() or nil }
 end
 
 -- Ends the state and takes the Gigantamax shape back off, but only if the mon
@@ -87,6 +104,11 @@ end
 local function finish(state, battle, battler)
   local mon, form = state.mon, state.form
   state.mon, state.turns, state.form = nil, 0, nil
+  -- Before the form work and unconditionally.  The substitution holds the
+  -- battler it covered, so it needs neither the `battler` argument -- which is
+  -- nil on the switch-out path -- nor a live mon to put the original move array
+  -- back where it found it.
+  if deps.substitute then deps.substitute.restore(state.moves) end
   if not mon then return false end
   if form and mon.form == form then
     if battler and battler.mon == mon then
@@ -174,6 +196,15 @@ function M.entry(state)
         end
       end
 
+      -- After the form change, because a Gigantamax form may retype the mon and
+      -- a Max Move follows the base move's type rather than the Pokemon's --
+      -- but the order still matters for the one thing it decides, which is that
+      -- a refused Gigantamax cannot leave the moveset half substituted.
+      if deps.substitute and deps.maxMoves then
+        deps.substitute.apply(state.moves, battler,
+                              deps.maxMoves(battle.data))
+      end
+
       if deps.announce then
         if state.form then
           deps.announce.gigantamax(battle, battler)
@@ -240,6 +271,10 @@ end
 -- battle is the leak src/arm.lua drops its own battle to avoid.
 local function forget(state)
   state.mon, state.turns, state.form = nil, 0, nil
+  -- The substitution is not swept by anything the way a form is, so it is
+  -- unwound here as well as in finish().  The battler it is holding is a second
+  -- reference that must not outlive the battle either.
+  if deps.substitute then deps.substitute.restore(state.moves) end
 end
 
 M.onBattleStarted = forget

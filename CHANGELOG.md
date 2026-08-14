@@ -3,6 +3,28 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.16.0
+
+### Added
+
+- **Max Moves, on a move-substitution mechanism built to be shared.** A
+  Dynamaxed Pokemon's damaging moves now become the Max Move for their own type
+  -- MAX FLARE for a Fire move, MAX GEYSER for a Water one -- with a power taken
+  from the move being replaced, and its status moves become MAX GUARD, which
+  shields it for the turn and goes first so that it can. Each Max Move spends
+  the PP of the slot it stands in for and writes nothing else to the Pokemon at
+  all: the battler's whole move list is swapped for one the battle owns and the
+  original list is put back on the same four paths the Dynamax already ended on,
+  because those move slots are the party Pokemon's own records and a single flag
+  written into one would land in the save. The move a player picked on the turn
+  they Dynamaxed still runs as itself -- the transformation resolves after both
+  actions are chosen, which is what keeps it from costing a turn -- so the Max
+  Moves are there from the second turn. G-Max moves are not included: nothing in
+  the species data, the move data or the engine describes one, and a table of
+  invented powers behind real names would be content this mod made up. Z-Moves
+  are not part of this release either; they are the substitution mechanism's
+  intended second consumer and will arrive through it rather than beside it.
+
 ## 0.15.0
 
 ### Added

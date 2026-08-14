@@ -10,7 +10,7 @@
 -- exists.
 --
 -- WHAT ANNOUNCES.  Primal reversion, mega evolution, Dynamax at both ends of
--- its three turns, and Terastallization.  Nothing else.
+-- its three turns, Terastallization, and Max Guard.  Nothing else.
 --
 -- Mega is here even though the player asked for it: the armed marker is gone
 -- from the cell by the time the change lands, the cell itself is gone with the
@@ -172,6 +172,29 @@ end
 -- Appending is the only insert that cannot displace a row already queued.
 function M.dynamaxEnded(battle, battler)
   return emit(battle, "say", DYNAMAX_END, battler)
+end
+
+-- Max Guard is the one line here that is RETURNED rather than queued, and it
+-- has to be: it is printed from inside a move effect's `run`, and the engine
+-- takes that function's messages and queues them itself
+-- (BattleState.lua:3707-3717).  Pushing a copy through say or sayNext as well
+-- would print the line twice.
+--
+-- "protected itself!" is seventeen characters, one inside the eighteen a battle
+-- row holds, which is why the name gets the row above it to itself.
+-- This is also the one line that must never answer nil, which is why it has a
+-- nameless form where every other line here would rather stay silent: an effect
+-- that hands the engine no messages at all reads as a refusal
+-- (primaryEffectFailed, BattleState.lua:3570) and cancels the move's animation,
+-- so a battler with no name would turn Max Guard into a move that visibly did
+-- nothing rather than one that quietly said less.
+local MAX_GUARD = "%s\nprotected itself!"
+local MAX_GUARD_UNNAMED = "It protected\nitself!"
+
+function M.maxGuard(battler)
+  local name = displayName(battler)
+  if not name then return MAX_GUARD_UNNAMED end
+  return text(MAX_GUARD, name)
 end
 
 return M
