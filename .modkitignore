@@ -7,4 +7,5 @@ tests/battle_forms_resolve_test.lua
 tests/battle_forms_anim_test.lua
 tests/battle_forms_overlay_test.lua
 tests/battle_forms_parity_test.lua
+tests/battle_forms_shop_test.lua
 pokemon_alternative_forms_implementation.md

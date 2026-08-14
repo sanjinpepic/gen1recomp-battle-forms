@@ -30,24 +30,42 @@ function M.effectFor(megas, stoneId)
 end
 
 -- Every stone named anywhere in the mega table, with its item record.
-function M.items(megas)
+-- A stone missing from `indices` is left out entirely: an item with no bag
+-- index cannot be represented in a Gen 1 save (GenSave.lua builds its
+-- id-to-byte maps only from records that have one), so registering it would
+-- ship something a player could pick up and then silently lose.
+function M.items(megas, indices)
   local out = {}
   for _, byStone in pairs(megas) do
     for stoneId in pairs(byStone) do
-      out[stoneId] = {
-        id = stoneId,
-        name = stoneId:gsub("_", " "),
-        price = 0,
-        effect = stoneId,
-        needsTarget = true,
-      }
+      local index = indices and indices[stoneId]
+      if index then
+        out[stoneId] = {
+          id = stoneId,
+          name = stoneId:gsub("_", " "),
+          -- The Celadon evolution-stone shelf sells its stones at 2100; a
+          -- mega stone sits above that.
+          price = 4000,
+          index = index,
+          effect = stoneId,
+          needsTarget = true,
+        }
+      end
     end
   end
   return out
 end
 
-function M.install(mod, megas)
-  for stoneId, record in pairs(M.items(megas)) do
+function M.install(mod, megas, indices)
+  local items = M.items(megas, indices)
+  for _, byStone in pairs(megas) do
+    for stoneId in pairs(byStone) do
+      if not items[stoneId] then
+        mod.log:error("%s has no bag index -- add it to data/stones.lua", stoneId)
+      end
+    end
+  end
+  for stoneId, record in pairs(items) do
     mod.content.items:register(stoneId, record)
     mod.content.item_effects:register(stoneId, {
       needsTarget = true,

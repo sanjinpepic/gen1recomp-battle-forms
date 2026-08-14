@@ -34,8 +34,8 @@ end
 
 return function(mod)
   local names = { "src/eligibility.lua", "src/forms.lua", "src/stone.lua",
-                  "src/arm.lua", "src/resolve.lua", "src/anim.lua",
-                  "src/overlay.lua", "data/megas.lua" }
+                  "src/shop.lua", "src/arm.lua", "src/resolve.lua", "src/anim.lua",
+                  "src/overlay.lua", "data/megas.lua", "data/stones.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -43,12 +43,14 @@ return function(mod)
   end
 
   local megas = m["data/megas.lua"]
+  local indices = m["data/stones.lua"]
   local eligibility = m["src/eligibility.lua"]
   local anim = m["src/anim.lua"]
   local state = m["src/arm.lua"].new()
 
   m["src/stone.lua"].bind(eligibility)
-  m["src/stone.lua"].install(mod, megas)
+  m["src/stone.lua"].install(mod, megas, indices)
+  m["src/shop.lua"].install(mod, indices)
   anim.install(mod)
 
   local resolve = m["src/resolve.lua"]
