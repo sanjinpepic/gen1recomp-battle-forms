@@ -25,11 +25,15 @@ local function readFile(path)
   return body
 end
 
+-- Every sibling main.lua reads, because it reads them all before it installs
+-- anything: one missing name and the load bails early, which shows up here as
+-- the whole shop being empty rather than as anything about options.
 local SHIPPED = { "manifest.json", "main.lua",
   "src/eligibility.lua", "src/forms.lua", "src/megaset.lua", "src/stone.lua",
   "src/shop.lua", "src/arm.lua", "src/resolve.lua", "src/primal.lua",
-  "src/anim.lua", "src/overlay.lua", "src/menu.lua", "data/megas.lua",
-  "data/stones.lua", "data/primals.lua", "data/orbs.lua" }
+  "src/conditional.lua", "src/anim.lua", "src/overlay.lua", "src/menu.lua",
+  "data/megas.lua", "data/stones.lua", "data/primals.lua", "data/orbs.lua",
+  "data/conditional.lua" }
 
 -- The fixture data set carries no Celadon floor, so the clerk entry this mod
 -- extends is seeded onto it -- trimmed to the fields shop.lua reads and

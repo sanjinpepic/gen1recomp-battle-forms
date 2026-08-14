@@ -3,6 +3,34 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.7.0
+
+### Added
+
+- **Forms that change themselves, driven by what happens in the battle rather
+  than by an item or a menu.** Darmanitan and Minior flip when their HP
+  crosses half and flip back when it crosses again, Wishiwashi schools while
+  it is above a quarter and is level 20 or better, Aegislash draws its blade
+  on an attacking move and shields again on a status one, Morpeko alternates
+  at the end of every round, Mimikyu's disguise and Eiscue's face break on a
+  damaging hit, and Greninja bonds when a hit it dealt knocks something out.
+  Each is one row in a new `data/conditional.lua` naming a species, a form and
+  the trigger it answers to, and the answer is re-derived from the mon every
+  time rather than remembered, which is what lets the reversible ones flip
+  back and forth for as long as the fight lasts. None of them touches mega
+  evolution: no MEGA cell appears for these species, the trainer's one change
+  per battle is not spent, and a Greninja that already megaed keeps its mega
+  when its knockout trigger fires, because a conditional form refuses to dress
+  a mon that is wearing another form. Castform and Cherrim were left out
+  because both are weather-driven and Gen 1 has no weather at all -- the
+  battle seeds a weather field and nothing ever assigns it -- and Cramorant
+  because Gulp Missile is a payload fired back at an attacker, which is
+  ability behaviour this mod does not implement. As with every other form
+  here, these are the stats, the types and the picture and never the ability:
+  the species alone is the trigger, since a Gen 1 Pokemon carries no ability
+  field to gate on, so every Darmanitan and every Greninja qualifies rather
+  than the rare ones that would in the real games.
+
 ## 0.6.0
 
 ### Added

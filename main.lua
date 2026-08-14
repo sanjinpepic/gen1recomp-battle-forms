@@ -45,9 +45,10 @@ return function(mod)
 
   local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
                   "src/stone.lua", "src/shop.lua", "src/arm.lua",
-                  "src/resolve.lua", "src/primal.lua", "src/anim.lua",
-                  "src/overlay.lua", "src/menu.lua", "data/megas.lua",
-                  "data/stones.lua", "data/primals.lua", "data/orbs.lua" }
+                  "src/resolve.lua", "src/primal.lua", "src/conditional.lua",
+                  "src/anim.lua", "src/overlay.lua", "src/menu.lua",
+                  "data/megas.lua", "data/stones.lua", "data/primals.lua",
+                  "data/orbs.lua", "data/conditional.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -97,6 +98,14 @@ return function(mod)
   primal.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                 primals = primals, log = mod.log })
 
+  -- Condition-driven forms are wired the same way and for the same reason:
+  -- the forms primitive, their own pairing table, and nothing else.  They
+  -- carry no item, so they are not handed eligibility either -- there is no
+  -- stamp for them to read.
+  local conditional = m["src/conditional.lua"]
+  conditional.bind({ forms = m["src/forms.lua"],
+                     rows = m["data/conditional.lua"], log = mod.log })
+
   -- Decision only: overlay says whether a mega is on offer and what to call
   -- it, and the menu cell is the one thing that draws it.  It owned a START
   -- handler and a corner indicator until 0.2.1; both are gone because the
@@ -115,12 +124,20 @@ return function(mod)
   mod.events:on("battle.started", function(ev)
     state:onBattleStarted(ev)
     primal.onBattleStarted(ev)
+    conditional.onBattleStarted(ev)
   end)
   mod.events:on("battle.turn_started", function(ev) resolve.onTurnStarted(state, ev) end)
   mod.events:on("battle.battler_switched", function(ev)
     resolve.onBattlerSwitched(ev)
     primal.onBattlerSwitched(ev)
+    conditional.onBattlerSwitched(ev)
   end)
+  -- Subscribing is also what makes these three fire at all: the engine builds
+  -- their payloads behind a Runtime.wants check on the exact event name, so an
+  -- unsubscribed battle.damage_dealt is never constructed in the first place.
+  mod.events:on("battle.move_used", function(ev) conditional.onMoveUsed(ev) end)
+  mod.events:on("battle.damage_dealt", function(ev) conditional.onDamageDealt(ev) end)
+  mod.events:on("battle.turn_ended", function(ev) conditional.onTurnEnded(ev) end)
   mod.events:on("battle.fainted", function(ev) resolve.onFainted(ev) end)
   mod.events:on("battle.ended", function(ev)
     resolve.onBattleEnded(ev)

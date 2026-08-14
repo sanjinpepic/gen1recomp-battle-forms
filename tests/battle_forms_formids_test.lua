@@ -24,6 +24,7 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 -- and both are read here because a wrong id is exactly as silent in either.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local primals = dofile(MOD .. "/data/primals.lua")
+local conditional = dofile(MOD .. "/data/conditional.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 
@@ -53,7 +54,16 @@ for _, table_ in ipairs({ megas, primals }) do
     end
   end
 end
+-- data/conditional.lua is species -> one row, not species -> item -> form,
+-- because a condition-driven form has no item to key on.  Same id rule,
+-- one level shallower.
+local conditionalSpecies = {}
+for species, row in pairs(conditional) do
+  formIds[#formIds + 1] = row.form
+  conditionalSpecies[#conditionalSpecies + 1] = species
+end
 table.sort(formIds)
+table.sort(conditionalSpecies)
 
 T.check(#formIds > 0, "the wired tables name at least one form")
 
@@ -64,6 +74,22 @@ T.eq(primals.GROUDON and primals.GROUDON.RED_ORB, "GROUDON_PRIMAL",
   "data/primals.lua still pairs Groudon with the Red Orb")
 T.eq(primals.KYOGRE and primals.KYOGRE.BLUE_ORB, "KYOGRE_PRIMAL",
   "data/primals.lua still pairs Kyogre with the Blue Orb")
+
+-- Same reasoning for the conditional rows: a row quietly dropped would only
+-- make the id sweep one shorter, and nothing would fail.  The list is the
+-- wired roster, so a form added without art or without a seam fails here.
+T.eq(table.concat(conditionalSpecies, ","),
+  "AEGISLASH,DARMANITAN,EISCUE,GRENINJA,MIMIKYU,MINIOR,MORPEKO,WISHIWASHI",
+  "data/conditional.lua wires exactly the eight species it says it does")
+
+-- A row is keyed by the BASE species, and that key is what src/conditional.lua
+-- indexes with mon.species -- so a key that is not itself a record in
+-- national.lua is a row that can never fire, as silently as a wrong form id.
+for _, species in ipairs(conditionalSpecies) do
+  T.check(isRecordKey(species), species
+    .. " is a record KEY in national.lua (a conditional row keyed on a "
+    .. "species that does not exist can never fire)")
+end
 
 for _, formId in ipairs(formIds) do
   T.check(isRecordKey(formId), formId

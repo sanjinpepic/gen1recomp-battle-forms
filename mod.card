@@ -1,7 +1,7 @@
 -- Sharing metadata.  Read by tooling and the manager's detail pane; never by
 -- the loader's merge, so nothing here can break a load.
 return {
-  summary = "Mid-battle form changes: mega evolution, and primal reversion for Groudon and Kyogre.",
+  summary = "Mid-battle form changes: mega evolution, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species.",
   author = "sanjinpepic",
   contact = "https://github.com/sanjinpepic",
   tags = { "gameplay", "battle" },
@@ -16,6 +16,8 @@ return {
       "primal reversion for Groudon and Kyogre, which happens by itself on entering battle and on switching in -- no menu entry, nothing to arm, and no once-per-battle limit, so both can revert in one fight and neither spends the trainer's mega",
       "the Red Orb and the Blue Orb as bag items, assigned to a Pokemon the way a stone is and sold at the Indigo Plateau lobby counter",
       "the form survives switching out and unwinds when the battle ends or the mon faints",
+      "condition-driven forms for eight species, with no item and no menu: Darmanitan and Minior flip at half HP, Wishiwashi schools above a quarter HP from level 20, Aegislash draws its blade on an attacking move and shields on a status one, Morpeko alternates every round, Mimikyu and Eiscue break on a damaging hit, and Greninja bonds on a knockout it dealt",
+      "the reversible ones flip back and forth as many times as the battle calls for, because the form is re-derived from the mon rather than remembered",
     },
     known = {
       "abilities are unaffected -- nothing here makes an ability do anything, and no ability animations ship yet",
@@ -28,6 +30,12 @@ return {
       "turning MEGA EVOLUTIONS down to OFFICIAL leaves any other stone already in the bag exactly where it is, inert -- a stone is never unregistered, because an item a save carries has to stay nameable",
       "the form lasts the battle and is never written to the save",
       "one National Dex mega, Meowstic (female), has no art in the installed sprite sets and is not wired -- it would show the ordinary Meowstic sprite with a mega's stats",
+      "the condition-driven forms are gated on the species, not on the ability that drives them in the real games, because a Gen 1 Pokemon has no ability field to read -- so every Darmanitan enters Zen Mode and every Greninja bonds, where those are hidden abilities only some of them would have",
+      "Mimikyu's disguise and Eiscue's face change the form but do not absorb the hit that breaks them, and neither comes back during the battle",
+      "Aegislash returns to its shield form on any status move, standing in for King's Shield, which Gen 1 has no move record for",
+      "Castform and Cherrim are not wired: both change with the weather, and Gen 1 battles have no weather to change with",
+      "Cramorant is not wired either -- Gulp Missile is a payload fired back at an attacker rather than a form, and nothing here makes an ability do anything",
+      "a species can have one condition-driven form, so there is no priority order to get wrong; the reversible ones are re-derived, not tracked, and unwind with everything else at the end of the battle",
     },
   },
   credits = {

@@ -87,6 +87,39 @@ T.eq(Forms.revertForm(returned, DATA), true,
   "a battler rebuilt on send-out can still revert its mon")
 T.eq(returned.mon.form, nil, "and the marker comes back off")
 
+-- Condition-driven forms flip back and forth for as long as a battle lasts,
+-- and this is the property that lets them: nothing is cached across a change.
+-- becomeForm derives curStats from the target record every time and
+-- revertForm derives them back from mon.stats and the base record every time,
+-- so A -> B -> A -> B is four independent derivations rather than one
+-- remembered "before" being handed round -- which is what a primitive built
+-- only for mega evolution, where a mon changes at most once, could plausibly
+-- have got away with.
+local flipper = battler()
+local flipBase, flipTypes = flipper.mon.stats, DATA.pokemon.CHARIZARD.types
+for round = 1, 4 do
+  T.eq(Forms.becomeForm(DATA, flipper, "CHARIZARD_MEGA_X"), true,
+    "round " .. round .. ": the same battler changes form again")
+  T.eq(flipper.mon.form, "MEGA_X", "round " .. round .. ": and is marked again")
+  T.check(flipper.curStats ~= flipBase,
+    "round " .. round .. ": curStats is a freshly computed block")
+  T.check(flipper.curStats.attack > flipBase.attack,
+    "round " .. round .. ": computed from the form record, not from a cache")
+  T.eq(flipper.curTypes, DATA.pokemon.CHARIZARD_MEGA_X.types,
+    "round " .. round .. ": and the form's types are in force")
+
+  T.eq(Forms.revertForm(flipper, DATA), true,
+    "round " .. round .. ": and reverts again")
+  T.eq(flipper.mon.form, nil, "round " .. round .. ": the mark comes off again")
+  T.eq(flipper.curStats, flipBase,
+    "round " .. round .. ": curStats is the mon's own block again")
+  T.eq(flipper.curTypes, flipTypes,
+    "round " .. round .. ": and curTypes the base species' again")
+end
+T.eq(flipper.mon.stats, flipBase,
+  "and four round trips left the mon's own stat block exactly where it was")
+T.eq(flipper.mon.stats.attack, 84, "with its original values")
+
 -- The battle-end sweep walks the party, where there is no battler at all.
 local benched = battler()
 Forms.becomeForm(DATA, benched, "CHARIZARD_MEGA_X")
