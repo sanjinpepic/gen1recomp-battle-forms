@@ -3,6 +3,20 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.2.1
+
+### Fixed
+
+- **There is one way to arm a mega now, not one and a half.** START still
+  toggled it as well as the menu cell, and START worked only on the first
+  command menu of a battle -- from the second turn onward it did nothing at
+  all, which reads as a broken key rather than as a hint to use the menu. The
+  cause is the engine bug 0.2.0 already worked around: `drainHold` is never
+  returned to nil once an HP bar finishes draining, so the safety gate that
+  guards the START hook refuses for the rest of the battle. Both the START
+  handler and the corner MEGA indicator are gone; the menu cell says the same
+  thing where the player is already looking.
+
 ## 0.2.0
 
 ### Changed

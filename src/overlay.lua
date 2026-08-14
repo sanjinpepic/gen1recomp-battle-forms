@@ -31,23 +31,4 @@ function M.label(state)
   return state:isArmed() and "MEGA*" or "MEGA"
 end
 
-function M.install(mod, state)
-  mod.hooks:wrap("battle.overlay", function(next, battle)
-    local out = next(battle)
-    if M.shouldOffer(state) then
-      mod.ui.Font.draw(M.label(state), 8, 8)
-    end
-    return out
-  end)
-
-  -- Returning true consumes the press so START does not also do whatever it
-  -- would otherwise have done.  Falling through when nothing is on offer
-  -- keeps START working normally for a player with no stone.
-  mod.hooks:wrap("battle.menu_auxiliary", function(next, game, ctx)
-    if not M.shouldOffer(state) then return next(game, ctx) end
-    state:toggle()
-    return true
-  end)
-end
-
 return M

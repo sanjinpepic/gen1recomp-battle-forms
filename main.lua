@@ -57,9 +57,12 @@ return function(mod)
   resolve.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                  megas = megas, animId = anim.ID })
 
+  -- Decision only: overlay says whether a mega is on offer and what to call
+  -- it, and the menu cell is the one thing that draws it.  It owned a START
+  -- handler and a corner indicator until 0.2.1; both are gone because the
+  -- menu cell says the same thing in the place the player is already looking.
   local overlay = m["src/overlay.lua"]
   overlay.bind({ eligibility = eligibility, megas = megas })
-  overlay.install(mod, state)
 
   -- The menu cell owns input/draw seams overlay.lua has no hook for
   -- (BattleState.update, BattleState.drawTextArea, WideBattle.draw), which

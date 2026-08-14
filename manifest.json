@@ -1,17 +1,25 @@
 {
   "id": "battle_forms",
   "name": "Battle Forms",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
-  "games": ["gen1"],
+  "games": [
+    "gen1"
+  ],
   "category": "GAMEPLAY",
   "game_version": ">=0.0.0-0 <2.0.0",
   "priority": 80,
-  "dependencies": ["national_dex"],
-  "optional_dependencies": ["universal_sprites"],
+  "dependencies": [
+    "national_dex"
+  ],
+  "optional_dependencies": [
+    "universal_sprites"
+  ],
   "conflicts": [],
-  "permissions": ["engine_internals"],
+  "permissions": [
+    "engine_internals"
+  ],
   "description": "Mid-battle form changes, with mega evolution as the first trigger."
 }
