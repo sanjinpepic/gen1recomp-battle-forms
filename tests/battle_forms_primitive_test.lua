@@ -43,4 +43,23 @@ T.eq(Forms.becomeForm(DATA, missing, "nosuchform"), nil,
   "an unknown form id refuses rather than half-applying")
 T.eq(missing.mon.species, "CHARIZARD", "a refused change leaves the mon alone")
 
+-- The bug this file exists to pin: a mega survives switching out, and the
+-- engine builds a fresh battler on the way back in.  A marker held on the
+-- battler would be lost there, and the mon would never revert.
+local switched = battler()
+Forms.becomeForm(DATA, switched, "charizard-mega-x")
+local returned = { mon = switched.mon, sprite = "fresh" }
+T.eq(returned.mon.species, "charizard-mega-x",
+  "the form survives being wrapped in a new battler")
+T.eq(Forms.revertForm(returned, DATA), true,
+  "a battler rebuilt on send-out can still revert its mon")
+T.eq(returned.mon.species, "CHARIZARD", "and the base species comes back")
+
+-- The battle-end sweep walks the party, where there is no battler at all.
+local benched = battler()
+Forms.becomeForm(DATA, benched, "charizard-mega-x")
+T.eq(Forms.revertMon(DATA, benched.mon), true, "a mon reverts without a battler")
+T.eq(benched.mon.species, "CHARIZARD", "a benched mon is restored too")
+T.eq(Forms.revertMon(DATA, benched.mon), nil, "sweeping an untransformed mon is a no-op")
+
 T.finish("battle_forms_primitive")
