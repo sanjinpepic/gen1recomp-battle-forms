@@ -33,13 +33,37 @@ local function loadSibling(mod, name)
 end
 
 return function(mod)
-  local eligibility = loadSibling(mod, "src/eligibility.lua")
-  local stone = loadSibling(mod, "src/stone.lua")
-  local megas = loadSibling(mod, "data/megas.lua")
-  if not (eligibility and stone and megas) then return end
+  local names = { "src/eligibility.lua", "src/forms.lua", "src/stone.lua",
+                  "src/arm.lua", "src/resolve.lua", "src/anim.lua",
+                  "src/overlay.lua", "data/megas.lua" }
+  local m = {}
+  for _, name in ipairs(names) do
+    m[name] = loadSibling(mod, name)
+    if not m[name] then return end
+  end
 
-  stone.bind(eligibility)
-  stone.install(mod, megas)
+  local megas = m["data/megas.lua"]
+  local eligibility = m["src/eligibility.lua"]
+  local anim = m["src/anim.lua"]
+  local state = m["src/arm.lua"].new()
 
-  mod.battleForms = { eligibility = eligibility, megas = megas }
+  m["src/stone.lua"].bind(eligibility)
+  m["src/stone.lua"].install(mod, megas)
+  anim.install(mod)
+
+  local resolve = m["src/resolve.lua"]
+  resolve.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
+                 megas = megas, animId = anim.ID })
+
+  local overlay = m["src/overlay.lua"]
+  overlay.bind({ eligibility = eligibility, megas = megas })
+  overlay.install(mod, state)
+
+  mod.events:on("battle.started", function(ev) state:onBattleStarted(ev) end)
+  mod.events:on("battle.turn_started", function(ev) resolve.onTurnStarted(state, ev) end)
+  mod.events:on("battle.fainted", function(ev) resolve.onFainted(ev) end)
+  mod.events:on("battle.ended", function(ev)
+    resolve.onBattleEnded(ev)
+    state:onBattleEnded(ev)
+  end)
 end
