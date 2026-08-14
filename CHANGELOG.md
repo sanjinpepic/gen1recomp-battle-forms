@@ -22,11 +22,15 @@ Version headings match `manifest.json`'s `version`.
   for the unwind. Primal Reversion, stance changes and Zen Mode are the same
   transaction with a different trigger, which is why the mod is not named
   after mega evolution.
-- Mega stones as bag items. Using one on a Pokemon it fits assigns it to that
-  Pokemon and is **not** used up, so the assignment can be moved or repeated.
-  Gen 1 has no held-item slot at all, so the stone is recorded on the Pokemon
-  itself; the save format stores whatever fields it finds, so this needed no
-  change to how saves are written and no engine patch.
+- Mega stones as bag items, **sold on the Celadon department store's stone
+  floor** alongside the evolution stones it already stocks, at 4000 each. The
+  shelf is extended rather than replaced, so nothing that was on sale there
+  before has gone.
+- Using a stone on a Pokemon it fits assigns it to that Pokemon and is **not**
+  used up, so the assignment can be moved or repeated. Gen 1 has no held-item
+  slot at all, so the stone is recorded on the Pokemon itself; the save format
+  stores whatever fields it finds, so this needed no change to how saves are
+  written and no engine patch.
 - The form behaves the way the real games' does at the edges. It survives
   switching out, so a mega that goes to the bench comes back still mega. It
   unwinds when the Pokemon faints, so a revived one is back to normal. It
