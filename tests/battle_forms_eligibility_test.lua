@@ -6,9 +6,9 @@ local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local megas = dofile(MOD .. "/data/megas.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 
-T.eq(E.formFor(megas, "CHARIZARD", "CHARIZARDITE_X"), "charizard-mega-x",
+T.eq(E.formFor(megas, "CHARIZARD", "CHARIZARDITE_X"), "CHARIZARD_MEGA_X",
   "species plus stone resolves to the matching form")
-T.eq(E.formFor(megas, "CHARIZARD", "CHARIZARDITE_Y"), "charizard-mega-y",
+T.eq(E.formFor(megas, "CHARIZARD", "CHARIZARDITE_Y"), "CHARIZARD_MEGA_Y",
   "the same species with a different stone resolves elsewhere")
 T.eq(E.formFor(megas, "CHARIZARD", nil), nil,
   "no stone is not eligible")
@@ -21,7 +21,7 @@ T.eq(E.stoneOf({ species = "CHARIZARD", [E.STAMP] = "CHARIZARDITE_X" }),
   "CHARIZARDITE_X", "a stamped mon reports its stone")
 
 T.eq(E.formForMon(megas, { species = "CHARIZARD", [E.STAMP] = "CHARIZARDITE_Y" }),
-  "charizard-mega-y", "mon eligibility combines both halves")
+  "CHARIZARD_MEGA_Y", "mon eligibility combines both halves")
 T.eq(E.formForMon(megas, nil), nil, "a nil mon is not eligible")
 
 T.finish("battle_forms_eligibility")

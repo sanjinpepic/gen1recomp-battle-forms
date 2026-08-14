@@ -58,7 +58,7 @@ T.eq(party[1][E.STAMP], "ALAKAZITE", "the stamp survives a box deposit and withd
 -- writer that re-emits whatever keys it finds.
 local copy = {}
 for k, v in pairs(stamped) do copy[k] = v end
-T.eq(E.formForMon(megas, copy), "alakazam-mega",
+T.eq(E.formForMon(megas, copy), "ALAKAZAM_MEGA",
   "the stamp survives a by-value save round trip and stays eligible")
 
 -- A mon that came back from a Game Boy .sav has no stamp, because a cart save

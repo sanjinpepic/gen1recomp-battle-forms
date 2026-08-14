@@ -24,11 +24,14 @@ end
 
 -- Refuses rather than half-applying.  A mon left holding a form id its
 -- species table has no record for would draw nothing and compute nothing, and
--- the failure would surface somewhere far from here.
+-- the failure would surface somewhere far from here.  The refusal reason is
+-- returned rather than swallowed: a caller (src/resolve.lua) logs it, because
+-- a silent refusal here is exactly the failure that let a wrong form id ship
+-- for a whole release without a single error anywhere.
 function M.becomeForm(data, battler, formId)
   local mon = battler and battler.mon
-  if not mon or not formId then return nil end
-  if not (data and data.pokemon and data.pokemon[formId]) then return nil end
+  if not mon or not formId then return nil, "no_target" end
+  if not (data and data.pokemon and data.pokemon[formId]) then return nil, "no_record" end
 
   mon[M.BASE] = mon[M.BASE] or mon.species
   mon.species = formId

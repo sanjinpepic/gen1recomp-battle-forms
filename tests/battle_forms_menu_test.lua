@@ -24,11 +24,14 @@ local function eligibleMon()
   return { species = "CHARIZARD", [E.STAMP] = "CHARIZARDITE_X", hp = 100 }
 end
 
+local hasRecord = { pokemon = { CHARIZARD_MEGA_X = {} } }
+
 local function makeBattle(menuIndex, pressed)
   return {
     phase = "menu",
     menuIndex = menuIndex,
     queue = {},
+    data = hasRecord,
     player = { mon = eligibleMon() },
     game = { input = makeInput(pressed) },
   }

@@ -9,7 +9,9 @@ local megas = dofile(MOD .. "/data/megas.lua")
 
 Overlay.bind({ eligibility = E, megas = megas })
 
-local eligible = { phase = "menu", player = { mon = {
+local hasRecord = { pokemon = { CHARIZARD_MEGA_X = {} } }
+
+local eligible = { phase = "menu", data = hasRecord, player = { mon = {
   species = "CHARIZARD", [E.STAMP] = "CHARIZARDITE_X" } } }
 local plain = { player = { mon = { species = "PIDGEY" } } }
 
@@ -45,10 +47,27 @@ local s3 = Arm.new()
 s3:onBattleStarted({ battle = queued })
 T.eq(Overlay.shouldOffer(s3), false, "nothing is offered while work is queued")
 
-local ready = { phase = "menu", queue = {}, player = { mon = {
+local ready = { phase = "menu", queue = {}, data = hasRecord, player = { mon = {
   species = "CHARIZARD", [E.STAMP] = "CHARIZARDITE_X" } } }
 local s4 = Arm.new()
 s4:onBattleStarted({ battle = ready })
 T.eq(Overlay.shouldOffer(s4), true, "an empty queue at the menu is offered")
+
+-- The cell must never promise a form the species table cannot deliver: the
+-- toggle would arm, the confirm sound would play, and Forms.becomeForm would
+-- refuse in silence.  This is the fixture shape of the bug 0.2.2 fixed.
+local noRecord = { phase = "menu", queue = {}, data = { pokemon = {} },
+  player = { mon = { species = "CHARIZARD", [E.STAMP] = "CHARIZARDITE_X" } } }
+local s5 = Arm.new()
+s5:onBattleStarted({ battle = noRecord })
+T.eq(Overlay.shouldOffer(s5), false,
+  "a form with no National Dex record is never offered")
+
+local noData = { phase = "menu", queue = {}, player = { mon = {
+  species = "CHARIZARD", [E.STAMP] = "CHARIZARDITE_X" } } }
+local s6 = Arm.new()
+s6:onBattleStarted({ battle = noData })
+T.eq(Overlay.shouldOffer(s6), false,
+  "a battle with no species table at all is never offered")
 
 T.finish("battle_forms_overlay")

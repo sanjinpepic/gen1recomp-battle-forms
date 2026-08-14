@@ -55,7 +55,7 @@ return function(mod)
 
   local resolve = m["src/resolve.lua"]
   resolve.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
-                 megas = megas, animId = anim.ID })
+                 megas = megas, animId = anim.ID, log = mod.log })
 
   -- Decision only: overlay says whether a mega is on offer and what to call
   -- it, and the menu cell is the one thing that draws it.  It owned a START

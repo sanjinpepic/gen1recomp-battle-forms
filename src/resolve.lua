@@ -6,6 +6,10 @@
 -- touches performMove, so there is no path along which a form change could
 -- spend PP, be Disabled, or be picked up by Metronome or Mirror Move.  That
 -- guarantee is structural, not a check.
+--
+-- deps.log is optional: main.lua passes mod.log, but the unit suite binds
+-- without one so it can run outside the engine, and a refusal with nowhere
+-- to log still must not silently keep the change.
 local M = {}
 
 local deps = nil
@@ -19,12 +23,25 @@ function M.onTurnStarted(state, ev)
   if not battle or not state:isArmed() then return end
 
   local battler = battle.player
-  local formId = deps.eligibility.formForMon(deps.megas, battler and battler.mon)
+  local mon = battler and battler.mon
+  local formId = deps.eligibility.formForMon(deps.megas, mon)
   -- A refusal must not spend the battle's one change: the player armed in
   -- good faith and nothing happened, so they keep the option.
   if not formId then return end
 
-  if not deps.forms.becomeForm(battle.data, battler, formId) then return end
+  local ok, reason = deps.forms.becomeForm(battle.data, battler, formId)
+  if not ok then
+    -- A guard that refuses must say so out loud: this exact silent path
+    -- (a mega table pointing at a name field instead of a record key) once
+    -- shipped a whole release where arming did nothing and nothing logged.
+    if deps.log then
+      deps.log:warn(
+        "battle_forms: refused mega for %s -> %s (%s) -- the national_dex "
+          .. "record is missing or data/megas.lua names the wrong id",
+        tostring(mon and mon.species), tostring(formId), tostring(reason))
+    end
+    return
+  end
   state:consume()
 
   -- The form change must not depend on the animation: a player who turned

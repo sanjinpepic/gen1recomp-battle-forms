@@ -3,6 +3,21 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.2.2
+
+### Fixed
+
+- **Arming a mega did nothing, ever, for any of the five Pokemon.** `data/megas.lua`
+  held each form under its National Dex record's `name` field (`"charizard-mega-x"`)
+  instead of the record's KEY (`CHARIZARD_MEGA_X`), which is what `data.pokemon` is
+  actually indexed by. The menu cell still appeared, the toggle still armed, and the
+  confirm sound still played, because none of that touches the species table -- only
+  the turn-start form change did, and it looked up a key that was never there, found
+  nil, and refused without a word. The mega table now names the six real record keys,
+  the MEGA cell no longer offers a form the species table has no record for, and a
+  refusal now logs the species and the form id it could not find, so this exact
+  failure cannot ship silently again.
+
 ## 0.2.1
 
 ### Fixed
