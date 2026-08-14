@@ -35,7 +35,7 @@ end
 return function(mod)
   local names = { "src/eligibility.lua", "src/forms.lua", "src/stone.lua",
                   "src/shop.lua", "src/arm.lua", "src/resolve.lua", "src/anim.lua",
-                  "src/overlay.lua", "data/megas.lua", "data/stones.lua" }
+                  "src/overlay.lua", "src/menu.lua", "data/megas.lua", "data/stones.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -60,6 +60,14 @@ return function(mod)
   local overlay = m["src/overlay.lua"]
   overlay.bind({ eligibility = eligibility, megas = megas })
   overlay.install(mod, state)
+
+  -- The menu cell owns input/draw seams overlay.lua has no hook for
+  -- (BattleState.update, BattleState.drawTextArea, WideBattle.draw), which
+  -- is why it is a separate module even though it reads the same shouldOffer
+  -- decision.
+  local menu = m["src/menu.lua"]
+  menu.bind({ overlay = overlay })
+  menu.install(mod, state)
 
   mod.events:on("battle.started", function(ev) state:onBattleStarted(ev) end)
   mod.events:on("battle.turn_started", function(ev) resolve.onTurnStarted(state, ev) end)

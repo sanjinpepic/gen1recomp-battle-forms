@@ -7,7 +7,7 @@ return {
   tags = { "gameplay", "battle" },
   differences = {
     changed = {
-      "START at the battle menu arms a mega evolution when the active mon carries a matching stone",
+      "a MEGA entry on the battle menu, shown only when the active mon carries a matching stone, arms a mega evolution",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",

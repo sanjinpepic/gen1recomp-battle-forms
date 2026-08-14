@@ -3,6 +3,26 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.2.0
+
+### Changed
+
+- **MEGA moved off START and onto the battle menu itself, as a fifth entry
+  beside FIGHT / PKMN / ITEM / RUN.** START looked like it worked in a fresh
+  battle and then silently stopped after the first turn that drained any HP,
+  because the engine's `stepHPDrain` sets a battler's `drainHold` while
+  pacing the HP bar and counts it down to zero but never back to `nil`, and
+  the safety check the engine runs before letting a mod claim START treats
+  `drainHold ~= nil` as "battle busy" -- zero still counts. Since that check
+  runs before every START press once a battle is past its first turn, no fix
+  from inside this mod could reach it. The new entry sits in the command
+  menu's own input path instead, past that gate entirely, and only appears
+  when a mega is actually available, so a player with no stone sees the same
+  four-item menu as always. This is also why the mod now declares the
+  `engine_internals` permission: the menu's cursor movement and dispatch have
+  no hook of their own, so reaching them means patching the battle screen
+  directly.
+
 ## 0.1.1
 
 ### Fixed
