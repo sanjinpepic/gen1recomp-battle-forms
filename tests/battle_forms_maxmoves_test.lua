@@ -112,7 +112,7 @@ do
     "fifteen types at seven rungs each, plus Max Guard")
   T.eq(#mod.warned, 3,
     "and the three types this chart has no record for are logged, not swallowed")
-  T.check(mod.warned[1]:find("DARK", 1, true) ~= nil,
+  T.check(mod.warned[1] ~= nil and mod.warned[1]:find("DARK", 1, true) ~= nil,
     "the first line names the type it could not register")
 
   local flare = mod.registered.moves[MaxMoves.idFor("MAXFLARE", 90)]
@@ -580,6 +580,96 @@ do
   Dynamax.onTurnEnded(state, { battle = battle })
   Dynamax.onTurnEnded(state, { battle = battle })
   T.eq(state.mon, nil, "that ends on the same clock")
+end
+
+-- ---------------------------------------------------------------------
+-- Through the real loader.
+--
+-- Everything above registers into a stub, which proves what this mod ASKS for
+-- and nothing about whether the engine will take it.  These records are the
+-- first this mod has ever put into `moves`, and two of their fields are checked
+-- references the merge resolves after every mod has had its say: `type` into the
+-- type chart and `effect` into move_effects, either of which turns into a load
+-- error at this mod's api level rather than a quiet miss.  So the whole mod is
+-- loaded from a synthesized filesystem and the merged registries are read back
+-- the way the game would see them, the way tests/battle_forms_options_test.lua
+-- does for the shop.
+-- ---------------------------------------------------------------------
+do
+  local function readFile(path)
+    local handle = assert(io.open(path, "rb"), "cannot open " .. path)
+    local body = handle:read("*a")
+    handle:close()
+    return body
+  end
+
+  -- Read out of main.lua's own source rather than mirrored by hand: a hand
+  -- mirror is a list that can silently disagree with the list that matters, and
+  -- one missing name makes main.lua bail before it installs anything.
+  local MAIN = readFile(MOD .. "/main.lua")
+  local shipped = { "manifest.json", "main.lua" }
+  for _, tree in ipairs({ "src", "data" }) do
+    for name in MAIN:gmatch('"(' .. tree .. '/[%w_]+%.lua)"') do
+      shipped[#shipped + 1] = name
+    end
+  end
+  T.check(#shipped > 10, "main.lua's sibling list was read back out of its source")
+
+  local files = {
+    ["mods/national_dex/manifest.json"] =
+      '{"id":"national_dex","name":"National Dex","version":"0.0.0","entry":"main.lua"}',
+    ["mods/national_dex/main.lua"] = "return function() end",
+  }
+  for _, name in ipairs(shipped) do
+    files["mods/battle_forms_mod/" .. name] = readFile(MOD .. "/" .. name)
+  end
+
+  local run = T.sdk.loadMods({ "battle_forms_mod", "national_dex" }, {
+    fs = T.sdk.memfs(files), data = T.fixtures.fresh(),
+  })
+  T.eq(#run.errors, 0, "the mod loads clean with a hundred-odd new move records")
+
+  -- The fixture set is a Red-era chart: fifteen types, so fifteen Max Moves at
+  -- seven rungs each and nothing for the three modern ones.
+  local chartTypes = 0
+  for _ in pairs((run.data.type_chart or {}).types or {}) do
+    chartTypes = chartTypes + 1
+  end
+  T.eq(chartTypes, 15, "precondition: the fixture chart is Red's fifteen types")
+
+  local mine, guard = 0, nil
+  for id, record in pairs(run.data.moves) do
+    if id:sub(1, #MaxMoves.PREFIX) == MaxMoves.PREFIX then
+      mine = mine + 1
+      T.eq(record.id, id, id .. "'s record id equals its registry key")
+      if id:find("MAXGUARD", 1, true) then guard = record end
+    end
+  end
+  T.eq(mine, 15 * 7 + 1, "and the merged registry carries one record per rung")
+  T.check(guard ~= nil, "with Max Guard among them")
+
+  local flare = run.data.moves[MaxMoves.idFor("MAXFLARE", 90)]
+  T.check(flare ~= nil, "MAX FLARE survived the merge")
+  T.eq(flare.power, 90, "with its power")
+  T.eq(flare.type, "FIRE", "and its type resolved against the chart")
+  T.eq(run.data.moves[MaxMoves.idFor("MAXDARKNESS", 110)], nil,
+    "and no Dark Max Move, because this chart has no Dark type to name")
+
+  -- The effect is a checked reference too: an unresolved one would have failed
+  -- the load above, but the record has to actually be there for the move to do
+  -- anything.
+  T.check((run.data.move_effects or {})[MaxMoves.GUARD_EFFECT] ~= nil,
+    "Max Guard's effect record is in the merged registry")
+
+  -- The animation is keyed by the move's own id, which is what the engine
+  -- queues (BattleState.lua:3627).  A move with no entry there plays nothing
+  -- AND makes no sound.
+  local anims = (run.data.battle_anims or {}).moveAnims or {}
+  for id in pairs(run.data.moves) do
+    if id:sub(1, #MaxMoves.PREFIX) == MaxMoves.PREFIX then
+      T.check(anims[id] ~= nil, "an animation is merged in for " .. id)
+    end
+  end
 end
 
 T.finish("battle_forms_maxmoves")
