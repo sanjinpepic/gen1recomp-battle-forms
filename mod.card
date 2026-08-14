@@ -12,7 +12,7 @@ return {
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",
       "mega stones as bag items; using one on a mon it fits assigns it to that mon and is not used up",
-      "five mega forms: Venusaur, Charizard X and Y, Blastoise, Alakazam and Gengar",
+      "96 mega forms across 87 species -- every mainline-game mega evolution plus every National Dex mega that has its own art, each sold under its own stone",
       "the form survives switching out and unwinds when the battle ends or the mon faints",
     },
     known = {
@@ -21,6 +21,7 @@ return {
       "a mon exported to a Game Boy .sav loses its stone, because a cart save has nowhere to record one",
       "there is no Key Stone: carrying the matching stone is the only requirement, where the real games also gate on the trainer",
       "the form lasts the battle and is never written to the save",
+      "one National Dex mega, Meowstic (female), has no art in the installed sprite sets and is not wired -- it would show the ordinary Meowstic sprite with a mega's stats",
     },
   },
   credits = {

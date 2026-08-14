@@ -54,6 +54,21 @@ for _, byStone in pairs(megas) do
   end
 end
 
+-- The reverse direction: every index data/stones.lua hands out must belong to
+-- a stone data/megas.lua actually names.  Without this, a stone could be
+-- retired from megas.lua and its permanent index would sit there forever,
+-- unnoticed, still sellable and still doing nothing.
+local namedStones = {}
+for _, byStone in pairs(megas) do
+  for stoneId in pairs(byStone) do
+    namedStones[stoneId] = true
+  end
+end
+for stoneId in pairs(indices) do
+  T.check(namedStones[stoneId], stoneId
+    .. " has a bag index in data/stones.lua but is not named in data/megas.lua")
+end
+
 -- A stone with no entry in data/stones.lua must not be registered at all --
 -- silently shipping an index-less item is exactly what a save cannot hold.
 local megasWithGap = { GENGAR = { GENGARITE = "gengar-mega" },

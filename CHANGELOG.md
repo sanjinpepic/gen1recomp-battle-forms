@@ -3,6 +3,28 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.4.0
+
+### Added
+
+- **The mega roster grew from five species to every mega National Dex has
+  art for: 96 forms across 87 species.** `data/megas.lua` and
+  `data/stones.lua` were extended rather than redesigned -- the pair-keyed
+  table, the permanent bag indices and the stone-based trigger all work
+  exactly as they did for the original five, just for more of them. 48 are
+  the mega evolutions from the mainline games, sold under their real item
+  names (Absolite, Garchompite, Mewtwonite X and Y, and so on); the other 48
+  are megas National Dex carries that never shipped in an official game,
+  sold under a mechanical BASE+ITE name instead, with an X/Y/Z or similar
+  suffix where a species carries more than one. One mega National Dex
+  defines, Mega Meowstic (female), has no art in the installed sprite sets
+  and was left out on purpose -- wiring it would have shown the ordinary
+  Meowstic sprite with a mega's stats and called that correct. New bag
+  indices run 104-193, leaving headroom to 255 for future additions; the
+  original six stones keep 98-103 unchanged, as they must. All 96 stones are
+  sold on the same Celadon department store stone shelf the original five
+  were, at the same price.
+
 ## 0.3.0
 
 ### Fixed

@@ -52,8 +52,11 @@ for stoneId in pairs(indices) do
   T.check(sells(stoneId), stoneId .. " is on the shelf")
 end
 
-T.eq(#mart, #VANILLA_STOCK + 6,
-  "only the original stock plus exactly the six stones ends up on the shelf")
+local stoneCount = 0
+for _ in pairs(indices) do stoneCount = stoneCount + 1 end
+
+T.eq(#mart, #VANILLA_STOCK + stoneCount,
+  "only the original stock plus exactly the wired stones ends up on the shelf")
 
 -- The base table itself is never touched -- a second mod patching the same
 -- floor must see its own stones, not ours baked into what it thinks is vanilla.
