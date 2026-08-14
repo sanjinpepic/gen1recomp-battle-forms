@@ -7,10 +7,13 @@
 -- Every mechanic of this kind needs the same four things and differs only in
 -- what it puts in them: an id, a label for the one menu cell there is room
 -- for, a predicate for whether it is on offer right now, and an activation.
--- The id is what makes the once-per-battle limits separate: mega evolution,
--- Ultra Burst, Dynamax, Terastallization and Z-Moves each get one per battle,
--- and spending one must not spend another, so the flags are keyed rather than
--- counted.
+--
+-- Being in this registry is also what puts a mechanic under the trainer's one
+-- manual transformation per battle: the limit is one across everything
+-- registered here, so a mega and a Dynamax cannot both happen in one fight.
+-- The id still keys a limit of its own beside it (src/arm.lua), because a
+-- mechanic exempted from the shared rule -- the generations differed over
+-- which were -- would still be once per battle on its own account.
 --
 -- Registration order is the order the cell cycles in, which is why the list is
 -- an array and the id map is only a lookup beside it: iterating a keyed table

@@ -129,7 +129,7 @@ local function setup(refuse)
   local battle = makeBattle()
   local state = Arm.new()
   state:onBattleStarted({ battle = battle })
-  return battle, state
+  return battle, state, registry
 end
 
 local function press(battle, state, button)
@@ -170,7 +170,7 @@ end
 -- Arming arms the selected one and nothing else, and resolving fires that
 -- one's activation.
 do
-  local battle, state = setup(false)
+  local battle, state, registry = setup(false)
   press(battle, state, "left")
   press(battle, state, "right")
   T.eq(Overlay.label(state), "BURST", "precondition: the cell is showing the second one")
@@ -189,19 +189,57 @@ do
   T.eq(battle.player.mon.form, nil, "and did not run mega evolution's")
   T.eq(state:used("burst"), true, "the one that fired is spent")
   T.eq(state:used("mega"), false, "and the one that did not is untouched")
+  T.eq(state:usedAny(), true, "but the battle's one manual transformation is gone")
 
-  -- The whole point of keying the flag: spending one leaves the other's
-  -- once-per-battle limit exactly where it was.
-  T.eq(#Overlay.offered(state), 1, "the spent one drops off the cell")
-  T.eq(Overlay.label(state), "MEGA", "leaving the other showing")
+  -- One per battle across all of them, which is the 0.14.0 rule: using either
+  -- costs the player the other for the rest of the fight.  The mega has lost
+  -- neither its own flag nor its eligibility -- it has lost the cell.
+  T.eq(registry:get("mega").available(battle), true,
+    "the mega is still perfectly eligible")
+  T.eq(#Overlay.offered(state), 0, "and yet nothing at all is on offer")
+  T.eq(Overlay.shouldOffer(state), false, "so the cell is gone for the battle")
+  T.eq(Overlay.label(state), nil, "with no label left to draw")
   T.eq(Overlay.cyclable(state), false, "and the cycle marker gone with it")
-  press(battle, state, "left")
-  press(battle, state, "a")
-  T.eq(state:armed(), "mega", "which can still be armed in the same battle")
+
+  -- Nothing can be armed through a cell that is not there, and nothing was
+  -- left armed behind it either.
+  T.eq(press(battle, state, "left"), false, "the cell cannot be reached again")
+  T.eq(state:isArmed(), false, "nothing is armed")
   Resolve.onTurnStarted(state, { battle = battle })
-  T.eq(battle.player.mon.form, "MEGA_X", "and still changes the form")
-  T.eq(state:used("mega"), true, "spending the second one too")
-  T.eq(Overlay.shouldOffer(state), false, "after which the cell is gone")
+  T.eq(battle.player.mon.form, nil, "so the next turn start changes no form")
+  T.eq(state:used("mega"), false, "and the mega's own flag is still unspent")
+end
+
+-- The cursor at the moment the cell vanishes under it.  Spending the armed
+-- transformation empties the cell mid-battle, and the frame the cursor is
+-- parked there is the one most likely to strand it: src/menu.lua clears
+-- _battleFormsMenuCell on the same frame it stops claiming input, so vanilla
+-- resumes on the real index the cursor left from.
+do
+  local battle, state = setup(false)
+  press(battle, state, "left")
+  T.eq(Menu.isOnCell(battle), true, "precondition: the cursor is on the cell")
+  press(battle, state, "a")
+  T.eq(state:armed(), "mega", "precondition: armed while standing on it")
+  T.eq(battle.menuIndex, 1, "precondition: the real index is still FIGHT")
+
+  Resolve.onTurnStarted(state, { battle = battle })
+  T.eq(Overlay.shouldOffer(state), false, "the cell empties under the cursor")
+
+  T.eq(press(battle, state, "a"), false,
+    "the next frame is handed straight back to vanilla")
+  T.eq(Menu.isOnCell(battle), false, "with the cursor no longer on a cell that is gone")
+  T.eq(battle.menuIndex, 1, "and back on the real cell it left from")
+  T.eq(Overlay.cyclable(state), false, "the cycle marker went with the cell")
+  T.eq(Overlay.label(state), nil, "and so did the label")
+
+  -- Every direction, not just the one that happened to be pressed: a stranded
+  -- cursor shows as a frame claimed by a cell that is not drawn.
+  for _, dir in ipairs({ "left", "right", "up", "down", "a" }) do
+    T.eq(press(battle, state, dir), false,
+      dir .. " on the vanished cell is left to vanilla")
+    T.eq(Menu.isOnCell(battle), false, "and never puts the cursor back on it")
+  end
 end
 
 -- Down to one on offer, the cell is the 0.7.0 cell again: right leaves it

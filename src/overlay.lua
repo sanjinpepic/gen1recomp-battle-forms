@@ -32,6 +32,22 @@ function M.offered(state)
   if battle.phase ~= "menu" then return out end
   local queue = battle.queue
   if queue and next(queue) ~= nil then return out end
+  -- One manual transformation per battle across all of them: spending any
+  -- registered entry takes every entry off the cell for the rest of the fight,
+  -- which is the mainline rule -- Sun/Moon let a trainer have a Z-Move or a
+  -- mega and not both.
+  --
+  -- Enforced here rather than a second time in src/arm.lua's toggle, and that
+  -- is the point of putting it here at all: arming is only ever reached
+  -- through a cell this function decided to draw, so one answer to "may the
+  -- player reach this" cannot disagree with itself the way two would.  The
+  -- cell simply stops listing anything, the same silent absence a missing key
+  -- item already produces.
+  --
+  -- The per-id check below is a separate rule and stays separate: it is what a
+  -- mechanic exempted from this one would still be held to, and it is what
+  -- keeps a spent mega spent.
+  if state:usedAny() then return out end
   for _, entry in ipairs(deps.registry:all()) do
     if not state:used(entry.id) and entry.available(battle) then
       out[#out + 1] = entry

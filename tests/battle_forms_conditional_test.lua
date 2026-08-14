@@ -418,9 +418,35 @@ T.eq(Overlay.shouldOffer(armState), false,
 hurtTo(cellBattle, cellBattle.player, 0.3)
 T.eq(cellMon.form, "ZEN", "the conditional form still happens")
 T.eq(armState:used(Mega.ID), false, "and the trainer's one mega is not spent")
+T.eq(armState:usedAny(), false,
+  "nor the one manual transformation the whole battle shares")
 T.eq(armState:isArmed(), false, "and nothing was armed")
 T.eq(Overlay.shouldOffer(armState), false,
   "and still no MEGA cell after the change")
+
+-- The same boundary from the other side, which is what 0.14.0 put at risk: the
+-- trainer has already used their one manual transformation, and a
+-- condition-driven form must not have been swept up by that.  These forms are
+-- not in the registry, are unlimited, and flip back and forth by design, so a
+-- spent arm state is nothing they can be asked about.
+local lockedState = Arm.new()
+local lockedMon = newMon("DARMANITAN")
+local lockedBattle = makeBattle(lockedMon, newMon("CHARIZARD"))
+lockedState:onBattleStarted({ battle = lockedBattle })
+lockedState:consume(Mega.ID)
+T.eq(lockedState:usedAny(), true,
+  "precondition: the battle's manual transformation is spent")
+hurtTo(lockedBattle, lockedBattle.player, 0.3)
+T.eq(lockedMon.form, "ZEN",
+  "a conditional form still fires after the manual one was used")
+-- And flips back, which is the part a once-per-battle limit would have killed
+-- most quietly: the change happening once and never again looks like a working
+-- mechanic right up until the mon is healed.
+healTo(lockedBattle, lockedBattle.player, 0.9)
+T.eq(lockedMon.form, nil, "and still flips back, unlimited, as it always has")
+hurtTo(lockedBattle, lockedBattle.player, 0.2)
+T.eq(lockedMon.form, "ZEN", "and back again")
+T.eq(lockedState:used(Mega.ID), true, "with the spent flag it found untouched")
 
 --------------------------------------------------------------------------
 -- Coming back from the bench

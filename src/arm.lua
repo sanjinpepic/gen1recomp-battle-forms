@@ -7,9 +7,22 @@
 -- `spent` is battle-scoped and keyed by transformation id, both on purpose.
 -- Mega evolution is once per battle per TRAINER, not per Pokemon: having used
 -- it, the player cannot mega a second team member, so the flag can never live
--- on a mon.  And every mechanic that will sit beside it carries a limit of its
--- own, so arming a mega must not spend a Dynamax -- which one keyless boolean
--- could not express.
+-- on a mon.  The key is what keeps one mechanic's limit from being another's:
+-- a spent mega stays spent on its own terms whatever else the battle does.
+--
+-- `spentAny` is the coarser rule laid over those: the mainline games give a
+-- trainer ONE manual transformation per battle across all of them, the way
+-- Sun/Moon ruled Z-Moves against Mega Evolution, so megaing costs the battle's
+-- Dynamax as well as its mega.  Recorded here and enforced in src/overlay.lua,
+-- where every other reason the cell is absent is already decided -- see that
+-- file for why it is decided there and not here as well.
+--
+-- Two flags rather than one because they answer different questions and a
+-- mechanic exempt from the second would still owe the first.
+--
+-- Neither reaches primal reversion or the condition-driven forms.  Those are
+-- not in the registry and nothing consumes on their behalf, so a Groudon
+-- reverting costs the trainer nothing and cannot be costed anything.
 --
 -- The armed transformation is always the selected one.  The cell shows exactly
 -- one label at a time, so an armed flag sitting behind a label the player
@@ -26,17 +39,18 @@ State.__index = State
 
 function M.new()
   return setmetatable({ battle = nil, armedId = nil, selectedId = nil,
-                        spent = {} }, State)
+                        spent = {}, spentAny = false }, State)
 end
 
 -- The three entry points below are one write, expressed once: a state that
--- reset three of its four fields on one path and four on another would spend
+-- reset four of its five fields on one path and five on another would spend
 -- or refund a transformation depending on how the battle was picked up.
 local function begin(self, battle)
   self.battle = battle
   self.armedId = nil
   self.selectedId = nil
   self.spent = {}
+  self.spentAny = false
 end
 
 function State:onBattleStarted(ev)
@@ -66,6 +80,11 @@ function State:armed() return self.armedId end
 function State:selected() return self.selectedId end
 function State:used(id) return self.spent[id] == true end
 
+-- Whether this battle's one manual transformation has already gone, whichever
+-- one it was.  Asked of the whole state rather than of an id, because the
+-- answer is the same for every id there is.
+function State:usedAny() return self.spentAny end
+
 function State:select(id)
   if self.selectedId == id then return end
   self.selectedId = id
@@ -81,6 +100,7 @@ end
 
 function State:consume(id)
   self.spent[id] = true
+  self.spentAny = true
   if self.armedId == id then self.armedId = nil end
 end
 

@@ -233,4 +233,44 @@ do
   end
 end
 
+-- ---------------------------------------------------------------------
+-- The cell vanishing while the cursor is standing on it.
+--
+-- Spending the transformation empties the cell mid-battle, and the frame the
+-- cursor is parked there is the one most likely to strand it.  handleInput
+-- clears _battleFormsMenuCell on the same frame it stops claiming input, and
+-- the two have to happen together: a frame handed back to vanilla with the
+-- flag still set is a cursor on a cell nothing draws, and both draw paths
+-- would already have stopped drawing it.
+--
+-- Parked from ITEM rather than FIGHT on purpose -- a cursor that came back to
+-- the wrong place would land on FIGHT, so returning to FIGHT proves nothing.
+-- ---------------------------------------------------------------------
+do
+  local state = Arm.new()
+  local battle = makeBattle(3, {})
+  state:onBattleStarted({ battle = battle })
+  battle.game.input = makeInput({ left = true })
+  Menu.handleInput(battle, state)
+  T.eq(Menu.isOnCell(battle), true, "precondition: the cursor is parked on the cell")
+
+  state:consume(Mega.ID)
+  T.eq(Overlay.shouldOffer(state), false, "the cell empties under the cursor")
+
+  battle.game.input = makeInput({})
+  T.eq(Menu.handleInput(battle, state), false,
+    "the very next frame goes straight back to vanilla")
+  T.eq(Menu.isOnCell(battle), false, "with the cursor off the cell that is gone")
+  T.eq(battle.menuIndex, 3, "and back on ITEM, the real cell it left from")
+
+  -- Every direction, because a stranded cursor is a frame claimed by a cell
+  -- that is not drawn and any one of them could be the claim.
+  for _, dir in ipairs({ "left", "right", "up", "down", "a" }) do
+    battle.game.input = makeInput({ [dir] = true })
+    T.eq(Menu.handleInput(battle, state), false,
+      dir .. " on the vanished cell is left to vanilla")
+    T.eq(Menu.isOnCell(battle), false, "and never puts the cursor back on it")
+  end
+end
+
 T.finish("battle_forms_menu")

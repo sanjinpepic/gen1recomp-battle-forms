@@ -133,11 +133,12 @@ return function(mod)
   end
 
   -- The second entry on that cell, and the one that proves it is a cell rather
-  -- than a mega with decoration: registered through the same registry, cycled
-  -- to with LEFT/RIGHT, and carrying a once-per-battle flag of its own that
-  -- arming a mega cannot spend.  Dynamax is handed the forms primitive and its
+  -- than a mega with decoration: registered through the same registry and
+  -- cycled to with LEFT/RIGHT.  Being registered is also what puts it under the
+  -- trainer's one manual transformation per battle, so a player picks this or
+  -- the mega and not both.  Dynamax is still handed the forms primitive and its
   -- own pairing table and nothing else, so like primal reversion it has no way
-  -- to reach the mega's eligibility or its limit.
+  -- to reach the mega's eligibility.
   local dynamax = m["src/dynamax.lua"]
   dynamax.bind({ forms = m["src/forms.lua"],
                  gigantamax = m["data/gigantamax.lua"], keyitems = keyitems,

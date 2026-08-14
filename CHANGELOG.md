@@ -3,6 +3,25 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.14.0
+
+### Changed
+
+- **Using one of the transformations the player asks for now costs them the
+  others for the rest of the battle.** Mega evolution and Dynamax each carried a
+  once-per-battle limit of its own, so a trainer could mega on one turn and
+  Dynamax on another in the same fight, which no mainline game allows -- Sun and
+  Moon ruled Z-Moves against Mega Evolution exactly this way. Spending either
+  one now takes the whole battle menu cell away for the remainder of that
+  battle rather than leaving the other on it, and it goes the same silent way it
+  already goes when a key item is missing: the cell is simply absent, and the
+  cursor steps back to the command it came from if it was standing there. Each
+  mechanic still keeps its own limit underneath, so a spent mega is spent on its
+  own account whatever else happens. Primal reversion and the eight
+  condition-driven forms are untouched, because neither is something the player
+  asks for: both stay unlimited, both still flip as often as the battle calls
+  for, and neither spends the trainer's one transformation nor is spent by it.
+
 ## 0.13.0
 
 ### Changed

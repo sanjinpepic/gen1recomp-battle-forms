@@ -220,6 +220,34 @@ T.eq(b8.player.mon.form, "MEGA_X",
   "and megas normally after a primal reversion happened in the same battle")
 T.eq(s8:used(Mega.ID), true, "the mega spends the battle's one change, as it always did")
 
+-- The other side of the same boundary, and the one 0.14.0 could have broken:
+-- the trainer's one manual transformation is now gone, and primal reversion
+-- must not have noticed.  It has no limit to have been charged and no cell to
+-- have been taken away, so a Groudon coming in after the mega still reverts --
+-- and reverts on both send-out paths, since either could have been the one
+-- taught to ask the arm state a question it must not ask.
+T.eq(s8:usedAny(), true, "precondition: the battle's manual transformation is spent")
+local afterMega = newMon("GROUDON", "RED_ORB")
+b8.player = battlerFor(afterMega, true)
+Primal.onBattlerSwitched({ battle = b8, battler = b8.player })
+T.eq(afterMega.form, "PRIMAL",
+  "a Groudon switching in after the mega was spent still reverts")
+T.check(b8.player.curStats.attack > afterMega.stats.attack,
+  "with the primal form's stats really in force")
+T.eq(s8:usedAny(), true, "and the reversion spent nothing of its own")
+T.eq(s8:used(Mega.ID), true, "leaving the mega's flag exactly as it found it")
+
+-- battle.started is the other path a primal mon arrives by, so a battle whose
+-- arm state already carries a spent transformation reverts on entering too.
+local startedSpent = newMon("GROUDON", "RED_ORB")
+local b8b = makeBattle(startedSpent)
+local s8b = Arm.new()
+s8b:onBattleStarted({ battle = b8b })
+s8b:consume(Mega.ID)
+Primal.onBattleStarted({ battle = b8b })
+T.eq(startedSpent.form, "PRIMAL",
+  "and a spent arm state does not stop a reversion at battle start either")
+
 -- Arming a mega while a primal Pokemon is out changes nothing and costs
 -- nothing: the mon is not in the mega table, so the turn handler refuses and
 -- the armed flag survives for whoever comes in next.

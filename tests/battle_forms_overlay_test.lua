@@ -117,4 +117,36 @@ bindMegas(megas)
 T.eq(Overlay.shouldOffer(s7), true,
   "the same mon in the same battle is offered the cell under ALL")
 
+-- One manual transformation per battle, across every entry the registry holds.
+-- This is the gate itself, so the second entry is synthetic and exists only in
+-- this file: what has to be shown is an entry whose OWN flag is unspent and
+-- whose predicate still says yes going off the cell anyway, and the mega
+-- cannot be both the spent one and the untouched one at once.
+do
+  local registry = Transforms.new()
+  T.eq(registry:register(Mega.entry({ eligibility = E, megas = megas,
+    keyitems = KeyItems })), true, "the mega entry registers")
+  local other = { id = "other", label = "OTHER",
+                  available = function() return true end,
+                  activate = function() return true end }
+  T.eq(registry:register(other), true, "and a second entry beside it")
+  Overlay.bind({ registry = registry })
+
+  local s8 = Arm.new()
+  s8:onBattleStarted({ battle = ready })
+  T.eq(#Overlay.offered(s8), 2, "both are on the cell")
+  T.eq(Overlay.cyclable(s8), true, "which is what makes it a selector")
+
+  s8:consume(Mega.ID)
+  T.eq(s8:used("other"), false, "the second entry's own flag is unspent")
+  T.eq(other.available(ready), true, "and its predicate still says yes")
+  T.eq(#Overlay.offered(s8), 0, "and yet nothing is on offer")
+  T.eq(Overlay.shouldOffer(s8), false, "so the cell is gone")
+  T.eq(Overlay.selected(s8), nil, "with nothing for it to be showing")
+  T.eq(Overlay.label(s8), nil, "no label to draw")
+  T.eq(Overlay.cyclable(s8), false, "and no cycle marker to draw beside it")
+  Overlay.cycle(s8, 1)
+  T.eq(Overlay.label(s8), nil, "and cycling an empty cell finds nothing to select")
+end
+
 T.finish("battle_forms_overlay")

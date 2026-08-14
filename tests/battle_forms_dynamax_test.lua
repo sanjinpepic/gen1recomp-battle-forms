@@ -20,6 +20,7 @@ local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local Resolve = dofile(MOD .. "/src/resolve.lua")
+local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Announce = dofile(MOD .. "/src/announce.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
@@ -381,8 +382,14 @@ do
   T.eq(arm:toggle(Dynamax.ID), false, "a spent Dynamax refuses to arm again")
   T.eq(arm:isArmed(), false, "so nothing is armed")
 
-  -- The mega is untouched by all of it and can still be armed and spent.
-  T.eq(arm:toggle(Mega.ID), true, "the mega is still there to arm")
+  -- The mega's own flag is untouched by all of it, which is what keeps the two
+  -- limits distinct.  What the mega HAS lost is the cell -- the battle's one
+  -- manual transformation went with the Dynamax, and that is pinned through
+  -- src/overlay.lua further down -- so the arm state is driven directly here.
+  -- What is under test either side of this line is the form interaction, and
+  -- that needs a mega laid over a live Gigantamax to be testable at all.
+  T.eq(arm:used(Mega.ID), false, "the mega's own flag survived the Dynamax")
+  T.eq(arm:toggle(Mega.ID), true, "so the arm state still takes it")
   Resolve.onTurnStarted(arm, { battle = battle })
   T.eq(arm:used(Mega.ID), true, "and spends its own flag")
   T.eq(arm:used(Dynamax.ID), true, "leaving the Dynamax's spent")
@@ -421,8 +428,11 @@ do
   T.eq(arm:used(Dynamax.ID), false, "and the Dynamax is not")
   T.eq(battle.player.mon.form, "MEGA_X", "the mega landed")
 
-  T.eq(entry.available(battle), true, "the Dynamax is still on offer")
-  T.eq(entry.activate(battle), true, "and still activates")
+  -- The entry's own predicate, not the cell: the cell has already withdrawn it
+  -- for the battle (below), and what these two lines are for is the form
+  -- interaction behind it.
+  T.eq(entry.available(battle), true, "the Dynamax's own predicate still passes")
+  T.eq(entry.activate(battle), true, "and it still activates")
   T.eq(battle.player.mon.form, "MEGA_X",
     "but refuses to dress a mon already wearing another form")
   T.eq(state.form, nil, "so it holds no form to give back")
@@ -432,6 +442,87 @@ do
   Dynamax.onTurnEnded(state, { battle = battle })
   Dynamax.onTurnEnded(state, { battle = battle })
   T.eq(battle.player.mon.form, "MEGA_X", "and its expiry leaves the mega alone")
+end
+
+-- ---------------------------------------------------------------------
+-- One manual transformation per battle, across both of them.
+--
+-- The two checks above are about the arm state's keyed flags, which are
+-- deliberately unchanged.  These are about what the player can actually reach:
+-- the cell, decided by src/overlay.lua, which is where the shared limit lives.
+-- ---------------------------------------------------------------------
+
+-- Everything the cell needs before it will draw at all: the command menu with
+-- an empty queue, and both trainer items, so a cell that is missing below is
+-- missing for the reason under test and not for one of the other four.
+local function cellBattle()
+  local battle = makeBattle("CHARIZARD", "CHARIZARDITE_X")
+  battle.phase = "menu"
+  battle.queue = {}
+  battle.game.save.inventory[KeyItems.KEY_STONE] = 1
+  return battle
+end
+
+local function bothRegistered()
+  local registry = Transforms.new()
+  registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
+                                 keyitems = KeyItems, announce = Announce }))
+  registry:register(Dynamax.entry(Dynamax.new()))
+  Overlay.bind({ registry = registry })
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                 megas = megas })
+  return registry
+end
+
+local function labels(arm)
+  local out = {}
+  for _, entry in ipairs(Overlay.offered(arm)) do out[#out + 1] = entry.label end
+  return table.concat(out, ",")
+end
+
+-- The mega first: it takes the Dynamax with it.
+do
+  local registry = bothRegistered()
+  local battle = cellBattle()
+  local arm = Arm.new()
+  arm:onBattleStarted({ battle = battle })
+  T.eq(labels(arm), "MEGA,DYNAMAX", "precondition: both are on the cell")
+
+  arm:toggle(Mega.ID)
+  Resolve.onTurnStarted(arm, { battle = battle })
+  T.eq(battle.player.mon.form, "MEGA_X", "the mega landed")
+  T.eq(labels(arm), "", "and took the Dynamax off the cell with it")
+  T.eq(arm:usedAny(), true, "the battle's one manual transformation is gone")
+  T.eq(arm:used(Dynamax.ID), false,
+    "without spending the Dynamax's own flag -- the cell is what withholds it")
+  T.eq(registry:get(Dynamax.ID).available(battle), true,
+    "and without touching its predicate either")
+end
+
+-- The Dynamax first: the same rule, the other way round.
+do
+  local registry = bothRegistered()
+  local battle = cellBattle()
+  local arm = Arm.new()
+  arm:onBattleStarted({ battle = battle })
+  T.eq(labels(arm), "MEGA,DYNAMAX", "precondition: both are on the cell")
+
+  arm:toggle(Dynamax.ID)
+  Resolve.onTurnStarted(arm, { battle = battle })
+  T.eq(battle.player.mon.form, "GMAX", "the Gigantamax landed")
+  T.eq(labels(arm), "", "and the mega went off the cell with it")
+  T.eq(arm:usedAny(), true, "the battle's one manual transformation is gone")
+  T.eq(arm:used(Mega.ID), false, "with the mega's own flag unspent")
+  T.eq(registry:get(Mega.ID).available(battle), true,
+    "and the mega still perfectly eligible")
+
+  -- The limit is the BATTLE's.  A player who spends it in one fight walks into
+  -- the next with both back, which is the only reason it can sit in the arm
+  -- state at all rather than on a mon or in the save.
+  arm:onBattleEnded({ battle = battle })
+  arm:onBattleStarted({ battle = cellBattle() })
+  T.eq(arm:usedAny(), false, "the next battle starts with the limit back")
+  T.eq(labels(arm), "MEGA,DYNAMAX", "and with both on the cell again")
 end
 
 -- ---------------------------------------------------------------------

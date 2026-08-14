@@ -17,10 +17,13 @@ T.eq(state:toggle("mega"), true, "toggling arms")
 T.eq(state:isArmed(), true, "armed state sticks")
 T.eq(state:toggle("mega"), false, "toggling again disarms")
 
+T.eq(state:usedAny(), false, "and with the battle's one manual transformation intact")
+
 state:toggle("mega")
 state:consume("mega")
 T.eq(state:isArmed(), false, "consuming clears the armed flag")
 T.eq(state:used("mega"), true, "consuming records that this battle has had its one change")
+T.eq(state:usedAny(), true, "and that the battle's one manual transformation is gone")
 
 T.eq(state:toggle("mega"), false, "a battle that already changed form cannot arm again")
 T.eq(state:isArmed(), false, "and it stays unarmed")
@@ -28,6 +31,7 @@ T.eq(state:isArmed(), false, "and it stays unarmed")
 state:onBattleEnded({ battle = battle })
 T.eq(state:current(), nil, "the reference is dropped when the battle ends")
 T.eq(state:used("mega"), false, "the once-per-battle limit resets with the battle")
+T.eq(state:usedAny(), false, "and so does the one the whole battle shares")
 
 -- A second battle must start completely clean, including after one where the
 -- player armed but never fired.
@@ -36,16 +40,20 @@ state:toggle("mega")
 state:onBattleStarted({ battle = battle })
 T.eq(state:isArmed(), false, "a new battle clears a leftover armed flag")
 
--- Each transformation carries its own limit, which is the whole reason the
--- flag is keyed rather than counted: mega evolution, Dynamax and the rest each
--- get one per battle in the real games, so spending one must leave the others
--- exactly where they were.
+-- Each transformation still carries a limit of its own, keyed by id, and the
+-- battle-wide one laid over it in 0.14.0 does not stand in for it: a spent
+-- mega is spent on its own account, so a mechanic later exempted from the
+-- shared rule is still refused a second go.  What the shared rule does is stop
+-- the cell OFFERING the others, which is src/overlay.lua's and is pinned in
+-- the overlay, transforms and dynamax suites -- this file is the record
+-- underneath it, and the two are checked apart on purpose.
 local multi = Arm.new()
 multi:onBattleStarted({ battle = battle })
 multi:toggle("mega")
 multi:consume("mega")
 T.eq(multi:used("mega"), true, "the transformation that fired is spent")
 T.eq(multi:used("dynamax"), false, "and no other transformation was spent with it")
+T.eq(multi:usedAny(), true, "though the battle's shared limit went with it")
 T.eq(multi:toggle("dynamax"), true, "another transformation can still be armed")
 T.eq(multi:armed(), "dynamax", "the armed flag names which one it is")
 multi:consume("dynamax")
