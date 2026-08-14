@@ -15,6 +15,14 @@ function M.bind(modules) deps = modules end
 function M.shouldOffer(state)
   local battle = state:current()
   if not battle or state:used() then return false end
+  -- The indicator must be on screen exactly when the key is live.  The
+  -- engine only fires battle.menu_auxiliary at the command menu with an
+  -- empty queue (BattleSafety.inspect), but battle.overlay draws on every
+  -- frame regardless of phase; without this check the toggle would appear
+  -- during messages and other busy phases where pressing START does nothing.
+  if battle.phase ~= "menu" then return false end
+  local queue = battle.queue
+  if queue and next(queue) ~= nil then return false end
   local mon = battle.player and battle.player.mon
   return deps.eligibility.formForMon(deps.megas, mon) ~= nil
 end

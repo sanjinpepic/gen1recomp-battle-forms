@@ -3,6 +3,20 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.1.1
+
+### Fixed
+
+- **The MEGA indicator no longer appears when START would do nothing.** It
+  could be on screen mid-message -- for example while "Wild MANKEY appeared!"
+  was still printing -- where pressing START had no effect, advertising a key
+  that was not live. The cause was that the indicator's visibility check
+  never looked at the battle's phase, only at eligibility and the once-per-
+  battle limit, while the engine only wires START to the toggle when the
+  battle is at the command menu with nothing queued. The indicator now
+  requires that same condition, so it is on screen exactly when the key does
+  something.
+
 ## 0.1.0
 
 ### Added
