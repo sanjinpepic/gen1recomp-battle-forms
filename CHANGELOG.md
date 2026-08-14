@@ -3,6 +3,25 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.2.4
+
+### Fixed
+
+- **0.2.3's fix for the vanishing mega only worked in this development
+  checkout.** It got the picture back by calling `BattleState:speciesSprite`
+  with a third `transformed` argument that does not exist in the released
+  engine -- it was added by editing `BattleState.lua` locally, and the
+  player runs the engine the launcher ships, not this checkout. Against the
+  real engine the extra argument is silently ignored, `speciesSprite` always
+  forces the Transformed mon's gray palette, and a mega would have rendered
+  gray, if it rendered at all, for every player who reported the original
+  bug. The picture is now rebuilt through `BattleState.makeBattler`, the
+  same constructor every ordinary send-out already uses -- it builds a
+  battler's sprite through the species' own palette, not Transform's forced
+  gray -- so a throwaway battler built for the mega form, keeping only its
+  `sprite` field, is the real send-out picture. Nothing here needs anything
+  from the engine beyond what `engine_internals` already exposes.
+
 ## 0.2.3
 
 ### Fixed

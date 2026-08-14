@@ -66,56 +66,87 @@ T.eq(Forms.revertMon(DATA, benched.mon), true, "a mon reverts without a battler"
 T.eq(benched.mon.species, "CHARIZARD", "a benched mon is restored too")
 T.eq(Forms.revertMon(DATA, benched.mon), nil, "sweeping an untransformed mon is a no-op")
 
--- A fake battle exposing speciesSprite, recording every call and answering
--- from a species -> picture table (nil for anything not listed, standing in
--- for a lookup that misses).
-local function fakeBattle(pics)
-  local calls = {}
-  return {
-    speciesSprite = function(_, species, isPlayerSide, transformed)
-      calls[#calls + 1] = { species = species, isPlayerSide = isPlayerSide,
-                             transformed = transformed }
-      return pics[species]
-    end,
-  }, calls
+-- The picture is proven genuinely reloaded through the real engine
+-- constructor, not through a fake standing in for whatever forms.lua
+-- happens to call.  This suite runs with the engine checkout as cwd, so
+-- "src.battle.BattleState" and "tests.modkit" resolve to the real files --
+-- the identical relative path forms.lua's own require resolves at runtime.
+-- tests.modkit registers a headless love stub so BattleState's image loader
+-- runs without a real love2d window, and T.fixtures gives species backed by
+-- real sprite files under tests/fixture_data/assets so two different
+-- species genuinely build two different cached image objects.
+local T2 = require("tests.modkit")
+local RealBattleState = require("src.battle.BattleState")
+local fixtureData = T2.fixtures.fresh()
+
+local function fixtureMon(species)
+  return { species = species, level = 10,
+           dvs = { hp = 15, attack = 15, defense = 15, speed = 15, special = 15 },
+           statExp = {} }
 end
 
--- becomeForm reloads the picture, asking for the FORM's own color rather
--- than Transform's forced gray.
-local withBattle = battler()
-local battle1, calls1 = fakeBattle({ ["charizard-mega-x"] = "mega-pic",
-                                     CHARIZARD = "base-pic" })
-T.eq(Forms.becomeForm(DATA, withBattle, "charizard-mega-x", battle1), true,
+-- The picture actually built for a species, independent of forms.lua, to
+-- compare against what becomeForm/revertForm leave on the battler.
+local function realSprite(species, isPlayer)
+  return RealBattleState.makeBattler(fixtureData, fixtureMon(species), isPlayer).sprite
+end
+
+local baseSprite = realSprite("FIXMON_A", false)
+local formSprite = realSprite("FIXMON_B", false)
+T.check(baseSprite ~= formSprite,
+  "sanity: the two fixture species really do build distinct pictures")
+
+-- becomeForm reloads the picture through makeBattler's own-palette path,
+-- never through speciesSprite's forced Transform gray.
+local withBattle = { mon = fixtureMon("FIXMON_A"), sprite = "stale", isPlayer = false }
+local battle1 = { data = fixtureData }
+T.eq(Forms.becomeForm(fixtureData, withBattle, "FIXMON_B", battle1), true,
   "form change succeeds with a battle in hand")
-T.eq(withBattle.sprite, "mega-pic", "the picture is reloaded through the battle")
-T.eq(#calls1, 1, "speciesSprite is asked once")
-T.eq(calls1[1].species, "charizard-mega-x", "for the new form id")
-T.eq(calls1[1].isPlayerSide, false, "on the battler's own side")
-T.eq(calls1[1].transformed, false,
-  "and asks for the form's real color, not Transform's forced gray")
+T.eq(withBattle.sprite, formSprite,
+  "the picture is rebuilt through makeBattler for the new species")
 
 -- revertForm reloads too, and gets back the BASE species' picture.
-T.eq(Forms.revertForm(withBattle, DATA, battle1), true, "revert succeeds")
-T.eq(withBattle.sprite, "base-pic", "revert reloads the base species' picture")
-T.eq(#calls1, 2, "speciesSprite is asked again on revert")
-T.eq(calls1[2].species, "CHARIZARD", "for the base species this time")
+T.eq(Forms.revertForm(withBattle, fixtureData, battle1), true, "revert succeeds")
+T.eq(withBattle.sprite, baseSprite, "revert rebuilds the base species' picture")
 
--- A battle with no speciesSprite method at all (not every fake in this
--- codebase bothers to stub it) is treated the same as no battle: succeed,
--- leave the picture alone.
-local noMethod = battler()
-T.eq(Forms.becomeForm(DATA, noMethod, "charizard-mega-x", {}), true,
-  "a battle-shaped table with no speciesSprite still succeeds")
-T.eq(noMethod.sprite, "stale", "and leaves the picture alone")
+-- A battle with no `.data` (the fixture shape every other suite's fake
+-- battle uses, since none of them touch the picture today) still succeeds:
+-- makeBattler(nil, ...) genuinely errors indexing a nil data table, the
+-- pcall around the build catches it, and the previous picture survives.
+local noData = { mon = fixtureMon("FIXMON_A"), sprite = "stale", isPlayer = false }
+T.eq(Forms.becomeForm(fixtureData, noData, "FIXMON_B", {}), true,
+  "a battle-shaped table with no data still succeeds")
+T.eq(noData.sprite, "stale", "and leaves the picture alone")
 
--- A speciesSprite that resolves but comes back nil (a missing sprite path,
--- say) must not blank the picture the way the old unconditional nil did.
-local missingPic = battler()
-local battle2 = fakeBattle({})
-T.eq(Forms.becomeForm(DATA, missingPic, "charizard-mega-x", battle2), true,
-  "form change succeeds even when the sprite lookup misses")
+-- A species record makeBattler can build a battler for, but that resolves
+-- to no sprite asset at all (no dex/sprite metadata) -- must not blank the
+-- picture the way an unconditional overwrite would.
+fixtureData.pokemon.FIXMON_GHOST = {
+  baseStats = fixtureData.pokemon.FIXMON_A.baseStats,
+  types = fixtureData.pokemon.FIXMON_A.types,
+  name = "FIXMON GHOST",
+}
+local missingPic = { mon = fixtureMon("FIXMON_A"), sprite = "stale", isPlayer = false }
+T.eq(Forms.becomeForm(fixtureData, missingPic, "FIXMON_GHOST", battle1), true,
+  "form change succeeds even when the new species has no sprite asset")
 T.eq(missingPic.sprite, "stale",
-  "a nil lookup leaves the previous picture intact rather than blanking it")
+  "a build that resolves with no sprite leaves the previous picture intact")
+
+-- BattleState itself unavailable (an older engine, or the mod running
+-- somewhere engine_internals was never granted) degrades the same way,
+-- proven by forcing the real require machinery to fail rather than
+-- special-casing forms.lua's own pcall.
+local savedLoaded = package.loaded["src.battle.BattleState"]
+package.loaded["src.battle.BattleState"] = nil
+package.preload["src.battle.BattleState"] = function()
+  error("battle_forms test: forced require failure")
+end
+local unavailable = { mon = fixtureMon("FIXMON_A"), sprite = "stale", isPlayer = false }
+T.eq(Forms.becomeForm(fixtureData, unavailable, "FIXMON_B", battle1), true,
+  "form change still succeeds when BattleState cannot be required at all")
+T.eq(unavailable.sprite, "stale", "and the picture is left alone")
+package.preload["src.battle.BattleState"] = nil
+package.loaded["src.battle.BattleState"] = savedLoaded
 
 -- battler.name follows the form record and is restored on revert, so the
 -- HUD does not wait for the next send-out to catch up.

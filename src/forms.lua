@@ -25,20 +25,34 @@ end
 -- The battle picture is rebuilt from the new species rather than merely
 -- invalidated: BattleState builds battler.sprite once at send-out and the
 -- draw path just blits whatever is cached there, so clearing it with nothing
--- to reload left the mon undrawn for the rest of the fight.  `battle` is
--- optional -- the unit suite binds fakes with no real battle in play -- and
--- when it, or its speciesSprite method, is missing the picture is simply
--- left as it was rather than blanked; "or battler.sprite" covers a lookup
--- that resolves but comes back nil the same way.
+-- to reload left the mon undrawn for the rest of the fight.
 --
--- transformed=false: BattleState:speciesSprite's other caller (Transform)
--- forces PAL_GRAYMON, correct for a copied species that really is gray, but
--- a mega form is not Transform and keeps its own color -- forcing it gray
--- would trade "the sprite vanished" for "the sprite is the wrong color".
-local function reloadSprite(battle, battler, speciesId)
-  if not (battle and battle.speciesSprite and battler) then return end
-  battler.sprite = battle:speciesSprite(speciesId, battler.isPlayer, false)
-                    or battler.sprite
+-- BattleState:speciesSprite looked like the obvious way to rebuild it, but
+-- its only real caller is Transform, and it forces PAL_GRAYMON to match a
+-- Transformed mon's copied-and-grayed sprite (transform.asm's
+-- DeterminePaletteID) -- exactly wrong for a mega, which keeps its own
+-- color.  BattleState.makeBattler builds the same picture through the
+-- species' own palette (the monPalette path every normal send-out uses) and
+-- is a pure constructor -- it reads data/mon and returns a fresh battler,
+-- mutating nothing -- so a throwaway one built for this mon, discarding
+-- everything but its sprite, is the real send-out picture without forcing
+-- gray and without touching the engine.
+--
+-- `battle` is optional -- the unit suite exercises forms.lua with a bare
+-- battler and no battle at all -- and requiring BattleState is wrapped in
+-- pcall because engine_internals is a courtesy the host owes the mod, not a
+-- guarantee: whenever the module, or the build itself, is unavailable the
+-- picture is simply left as it was rather than blanked.  "or battler.sprite"
+-- covers a build that resolves but comes back with no sprite the same way.
+local function reloadSprite(battle, battler)
+  if not (battle and battler) then return end
+  local okRequire, BattleState = pcall(require, "src.battle.BattleState")
+  if not okRequire or not (BattleState and BattleState.makeBattler) then return end
+  local okBuild, fresh = pcall(BattleState.makeBattler, battle.data, battler.mon,
+                                battler.isPlayer)
+  if okBuild then
+    battler.sprite = fresh and fresh.sprite or battler.sprite
+  end
 end
 
 -- The HUD name is cached on the battler at send-out (mon.nickname or
@@ -60,7 +74,7 @@ end
 -- a silent refusal here is exactly the failure that let a wrong form id ship
 -- for a whole release without a single error anywhere.
 --
--- `battle` is optional and threaded through only to reach speciesSprite --
+-- `battle` is optional and threaded through only to reach makeBattler --
 -- forms.lua stays unit-testable with a bare battler and no battle at all.
 function M.becomeForm(data, battler, formId, battle)
   local mon = battler and battler.mon
@@ -70,7 +84,7 @@ function M.becomeForm(data, battler, formId, battle)
   mon[M.BASE] = mon[M.BASE] or mon.species
   mon.species = formId
   recompute(data, mon, formId)
-  reloadSprite(battle, battler, formId)
+  reloadSprite(battle, battler)
   reloadName(data, battler, mon, formId)
   return true
 end
@@ -91,7 +105,7 @@ function M.revertForm(battler, data, battle)
   if not battler then return nil end
   local done = M.revertMon(data, battler.mon)
   if done then
-    reloadSprite(battle, battler, battler.mon.species)
+    reloadSprite(battle, battler)
     reloadName(data, battler, battler.mon, battler.mon.species)
   end
   return done
