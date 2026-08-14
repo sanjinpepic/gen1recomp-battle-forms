@@ -51,12 +51,14 @@ return function(mod)
 
   local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
                   "src/stone.lua", "src/shop.lua", "src/arm.lua",
-                  "src/transforms.lua", "src/mega.lua", "src/resolve.lua",
+                  "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
+                  "src/resolve.lua",
                   "src/primal.lua", "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
-                  "data/orbs.lua", "data/conditional.lua" }
+                  "data/orbs.lua", "data/conditional.lua",
+                  "data/gigantamax.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -116,6 +118,25 @@ return function(mod)
       .. "battle menu (%s) -- no stone can be armed until that is fixed",
       tostring(why))
   end
+
+  -- The second entry on that cell, and the one that proves it is a cell rather
+  -- than a mega with decoration: registered through the same registry, cycled
+  -- to with LEFT/RIGHT, and carrying a once-per-battle flag of its own that
+  -- arming a mega cannot spend.  Dynamax is handed the forms primitive and its
+  -- own pairing table and nothing else, so like primal reversion it has no way
+  -- to reach the mega's eligibility or its limit.
+  local dynamax = m["src/dynamax.lua"]
+  dynamax.bind({ forms = m["src/forms.lua"],
+                 gigantamax = m["data/gigantamax.lua"],
+                 announce = announce, log = mod.log })
+  local dynamaxState = dynamax.new()
+  local dynaOk, dynaWhy = registry:register(dynamax.entry(dynamaxState))
+  if not dynaOk then
+    mod.log:error("battle_forms: Dynamax was refused a place on the battle "
+      .. "menu (%s) -- the cell falls back to mega evolution alone",
+      tostring(dynaWhy))
+  end
+
   diag.registry(registry, registered, why)
 
   local resolve = m["src/resolve.lua"]
@@ -196,6 +217,7 @@ return function(mod)
     run("arm.onBattleStarted", function() state:onBattleStarted(ev) end)
     run("primal.onBattleStarted", function() primal.onBattleStarted(ev) end)
     run("conditional.onBattleStarted", function() conditional.onBattleStarted(ev) end)
+    run("dynamax.onBattleStarted", function() dynamax.onBattleStarted(dynamaxState) end)
   end)
   mod.events:on("battle.turn_started", function(ev)
     diag.reached("battle.turn_started", ev)
@@ -206,6 +228,12 @@ return function(mod)
     run("resolve.onBattlerSwitched", function() resolve.onBattlerSwitched(ev) end)
     run("primal.onBattlerSwitched", function() primal.onBattlerSwitched(ev) end)
     run("conditional.onBattlerSwitched", function() conditional.onBattlerSwitched(ev) end)
+    -- After resolve's switch-in reapply, and it has to stay after it: this
+    -- reads ev.previous (the mon LEAVING) where resolve reads ev.battler (the
+    -- one arriving), so the two never touch the same mon -- but a Dynamax
+    -- ending has to clear mon.form before any later handler asks what form the
+    -- mon is wearing.
+    run("dynamax.onBattlerSwitched", function() dynamax.onBattlerSwitched(dynamaxState, ev) end)
   end)
   -- Subscribing is also what makes these three fire at all: the engine builds
   -- their payloads behind a Runtime.wants check on the exact event name, so an
@@ -221,15 +249,22 @@ return function(mod)
   mod.events:on("battle.turn_ended", function(ev)
     diag.reached("battle.turn_ended", ev)
     run("conditional.onTurnEnded", function() conditional.onTurnEnded(ev) end)
+    run("dynamax.onTurnEnded", function() dynamax.onTurnEnded(dynamaxState, ev) end)
   end)
   mod.events:on("battle.fainted", function(ev)
     diag.reached("battle.fainted", ev)
     run("resolve.onFainted", function() resolve.onFainted(ev) end)
+    run("dynamax.onFainted", function() dynamax.onFainted(dynamaxState, ev) end)
   end)
   mod.events:on("battle.ended", function(ev)
     diag.reached("battle.ended", ev)
     run("resolve.onBattleEnded", function() resolve.onBattleEnded(ev) end)
     run("arm.onBattleEnded", function() state:onBattleEnded(ev) end)
+    -- Beside the arm state's own reset and after the party sweep above, for
+    -- the same two reasons: the sweep has already taken every form off, and
+    -- what is left to drop is the mon reference, which must not outlive the
+    -- battle that owned it.
+    run("dynamax.onBattleEnded", function() dynamax.onBattleEnded(dynamaxState) end)
     -- After the party sweep above, and it must stay after it: this marks the
     -- battle closed so no later frame can adopt it and re-apply a form to a
     -- mon resolve.onBattleEnded has just reverted.

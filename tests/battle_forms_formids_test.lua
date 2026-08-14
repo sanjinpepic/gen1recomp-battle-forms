@@ -25,6 +25,7 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local primals = dofile(MOD .. "/data/primals.lua")
 local conditional = dofile(MOD .. "/data/conditional.lua")
+local gigantamax = dofile(MOD .. "/data/gigantamax.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 
@@ -62,8 +63,16 @@ for species, row in pairs(conditional) do
   formIds[#formIds + 1] = row.form
   conditionalSpecies[#conditionalSpecies + 1] = species
 end
+-- data/gigantamax.lua is species -> form id, flatter still: a Gigantamax has
+-- no item and no condition to key on, only the species that owns one.
+local gigantamaxSpecies = {}
+for species, formId in pairs(gigantamax) do
+  formIds[#formIds + 1] = formId
+  gigantamaxSpecies[#gigantamaxSpecies + 1] = species
+end
 table.sort(formIds)
 table.sort(conditionalSpecies)
+table.sort(gigantamaxSpecies)
 
 T.check(#formIds > 0, "the wired tables name at least one form")
 
@@ -90,6 +99,33 @@ for _, species in ipairs(conditionalSpecies) do
     .. " is a record KEY in national.lua (a conditional row keyed on a "
     .. "species that does not exist can never fire)")
 end
+
+-- The same rule for the Gigantamax table, indexed by src/dynamax.lua with
+-- mon.species: a key that is not a record is a species that silently never
+-- Gigantamaxes and gets a plain Dynamax forever.
+T.eq(#gigantamaxSpecies, 31,
+  "data/gigantamax.lua wires exactly the 31 species it says it does")
+for _, species in ipairs(gigantamaxSpecies) do
+  T.check(isRecordKey(species), species
+    .. " is a record KEY in national.lua (a Gigantamax keyed on a species "
+    .. "that does not exist can never fire)")
+end
+
+-- The two exclusions named outright, so dropping one from the table is not
+-- the same as never having decided about it.  Corviknight is out for want of
+-- front art; the Low Key and Rapid Strike Gigantamax records are out because
+-- their art is filed under the base species, where a mon of that species key
+-- would never find it.
+T.eq(gigantamax.CORVIKNIGHT, nil,
+  "Corviknight is not wired -- its Gigantamax has no front art")
+T.eq(gigantamax.TOXTRICITY, "TOXTRICITY_AMPED_GMAX",
+  "Toxtricity wires the Amped Gigantamax, the one its base record is")
+T.eq(gigantamax.URSHIFU, "URSHIFU_SINGLE_STRIKE_GMAX",
+  "Urshifu wires the Single Strike Gigantamax, the one its base record is")
+T.eq(gigantamax.TOXTRICITY_LOW_KEY, nil,
+  "the Low Key variant is not wired under its own species key")
+T.eq(gigantamax.URSHIFU_RAPID_STRIKE, nil,
+  "the Rapid Strike variant is not wired under its own species key")
 
 for _, formId in ipairs(formIds) do
   T.check(isRecordKey(formId), formId

@@ -9,13 +9,20 @@
 -- that cannot go missing with a file, which is the whole reason this module
 -- exists.
 --
--- WHAT ANNOUNCES.  Primal reversion and mega evolution, and nothing else.
+-- WHAT ANNOUNCES.  Primal reversion, mega evolution, and Dynamax at both
+-- ends of its three turns.  Nothing else.
 --
 -- Mega is here even though the player asked for it: the armed marker is gone
 -- from the cell by the time the change lands, the cell itself is gone with the
 -- battle's one mega spent, and a player who turned battle animations off asked
 -- for exactly that and got a mega with no signal at all -- the same four-way
 -- silence, reached from the other direction.
+--
+-- Dynamax announces at both ends because it is the only transformation here
+-- that ENDS on its own.  A mega lasts the battle, so its one line is the whole
+-- story; a Dynamax quietly stops being a Dynamax three turns later, and for a
+-- species with no Gigantamax shape there is no picture change at either end to
+-- notice it by.  The expiry line is what makes the clock visible at all.
 --
 -- The eight condition-driven forms stay silent, and that is a decision about
 -- frequency rather than about importance.  They answer the battle, not the
@@ -71,6 +78,14 @@ end
 local PRIMAL = "%s's\nPrimal Reversion!"
 local MEGA = "%s's\nMega Evolution!"
 
+-- The Dynamax three take the verb rather than the possessive, which is what
+-- the real games print and also what keeps them inside the same 18-character
+-- row: "Gigantamaxed!" is 13, and "Enemy " plus a ten-character nickname is
+-- already the full width on the line above it.
+local DYNAMAX = "%s\nDynamaxed!"
+local GIGANTAMAX = "%s\nGigantamaxed!"
+local DYNAMAX_END = "%s's\nDynamax ended!"
+
 -- say appends to the battle's queue; sayNext inserts at the battle's own
 -- insert cursor, the one the engine is using itself.  Which is correct depends
 -- entirely on where the caller sits in that queue, so each transformation
@@ -105,6 +120,27 @@ end
 -- print it, after the send-out and before the command menu.
 function M.primal(battle, battler)
   return emit(battle, "say", PRIMAL, battler)
+end
+
+-- Dynamax and Gigantamax resolve from battle.turn_started beside mega
+-- evolution and take the cursor for the same reason: the queue is drained and
+-- the insert cursor cleared, so this lands at the head of the turn rather than
+-- behind the turn's own actions.
+function M.dynamax(battle, battler)
+  return emit(battle, "sayNext", DYNAMAX, battler)
+end
+
+function M.gigantamax(battle, battler)
+  return emit(battle, "sayNext", GIGANTAMAX, battler)
+end
+
+-- The expiry is the other case entirely.  It resolves from battle.turn_ended,
+-- where the engine has already queued this round's residual damage and its
+-- messages through the very cursor sayNext would steal -- taking it there
+-- would print the Dynamax ending BEFORE the poison that ended the turn.
+-- Appending is the only insert that cannot displace a row already queued.
+function M.dynamaxEnded(battle, battler)
+  return emit(battle, "say", DYNAMAX_END, battler)
 end
 
 return M

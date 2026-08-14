@@ -3,6 +3,28 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.11.0
+
+### Added
+
+- **Dynamax and Gigantamax, the first transformation here that runs on a clock
+  instead of lasting the battle.** DYNAMAX joins mega evolution on the battle
+  menu cell, which now cycles between the two on LEFT and RIGHT, and lasts three
+  turns unless the Pokemon switches out or faints first; each trainer gets one a
+  battle, and the limit is its own, so arming a Dynamax never spends the mega nor
+  the mega it. Thirty-one species have a Gigantamax shape to wear while it lasts
+  and every other species Dynamaxes in its own, which is deliberate rather than
+  partial -- Corviknight and the Low Key and Rapid Strike variants of Toxtricity
+  and Urshifu are left plain for want of usable art, because a form wired without
+  it falls back to the base species' picture and does so quietly. It does not
+  multiply HP, and that was the hard call: maximum and current HP both live on
+  the Pokemon itself, which is save data, and the engine keeps no battle-only
+  copy to move instead, so a three-turn HP boost would be a timed write into the
+  save whose one missed unwind could never be told apart from honest growth.
+  Max Moves and G-Max Moves are deliberately not here -- they replace the
+  Pokemon's moveset for the duration, which is a move-substitution system rather
+  than a form change, and it shares its shape with Z-Moves.
+
 ## 0.10.0
 
 ### Added

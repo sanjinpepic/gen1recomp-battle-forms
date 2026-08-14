@@ -1,13 +1,13 @@
 -- Sharing metadata.  Read by tooling and the manager's detail pane; never by
 -- the loader's merge, so nothing here can break a load.
 return {
-  summary = "Mid-battle form changes: mega evolution, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species.",
+  summary = "Mid-battle form changes: mega evolution, Dynamax and Gigantamax, primal reversion for Groudon and Kyogre, and condition-driven forms for eight more species.",
   author = "sanjinpepic",
   contact = "https://github.com/sanjinpepic",
   tags = { "gameplay", "battle" },
   differences = {
     changed = {
-      "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA and arms a mega evolution, shown only when the active mon carries a matching stone",
+      "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA when the active mon carries a matching stone and DYNAMAX for any mon at all, and LEFT and RIGHT cycle between them when both are on offer",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",
@@ -18,8 +18,11 @@ return {
       "the form survives switching out and unwinds when the battle ends or the mon faints",
       "condition-driven forms for eight species, with no item and no menu: Darmanitan and Minior flip at half HP, Wishiwashi schools above a quarter HP from level 20, Aegislash draws its blade on an attacking move and shields on a status one, Morpeko alternates every round, Mimikyu and Eiscue break on a damaging hit, and Greninja bonds on a knockout it dealt",
       "the reversible ones flip back and forth as many times as the battle calls for, because the form is re-derived from the mon rather than remembered",
-      "the menu cell cycles on LEFT and RIGHT when more than one transformation is available, each with its own once-per-battle limit -- mega evolution is the only one registered today, so the cell holds one label and neither key cycles",
+      "the menu cell cycles on LEFT and RIGHT when more than one transformation is available, each with its own once-per-battle limit, so arming a Dynamax never spends the mega and the mega never spends the Dynamax",
+      "Dynamax for every species, once per battle per trainer, lasting three turns and ending early on switching out or fainting",
+      "Gigantamax for 31 of those species, which is a Dynamax with a form change laid on top -- the stats, the types and the picture of the G-Max form for as long as the three turns last",
       "a battle message when a Pokemon reverts or mega evolves, in the real games' own words -- neither change renames the Pokemon and primal reversion has no animation, so without a line the whole mechanic rested on one sprite being present",
+      "a message at both ends of a Dynamax, because it is the only transformation here that ends on its own and a species with no Gigantamax shape has no picture change at either end to notice it by",
       "a battle already under way is picked up the moment the mod is enabled, so turning it on mid-fight from the mod manager brings the MEGA cell and primal reversion with it instead of doing nothing until the next battle",
       "DEBUG TRACE, off by default, which records into mod storage why the menu cell and primal reversion did or did not happen -- for reporting a bug, not for playing with",
     },
@@ -41,6 +44,11 @@ return {
       "Cramorant is not wired either -- Gulp Missile is a payload fired back at an attacker rather than a form, and nothing here makes an ability do anything",
       "a species can have one condition-driven form, so there is no priority order to get wrong; the reversible ones are re-derived, not tracked, and unwind with everything else at the end of the battle",
       "the condition-driven forms print no message, on purpose: several of them change every single turn, and a line each would bury the battle text a player is reading",
+      "Dynamax does not multiply HP: maximum and current HP both live on the Pokemon, which is save data, and the engine keeps no battle-only copy to move instead -- a three-turn HP boost would be a timed write into the save whose one missed unwind could not be told apart from honest growth",
+      "Max Moves and G-Max Moves are not implemented; a Dynamaxed Pokemon keeps its own four moves, because replacing a moveset for the duration is a move-substitution system rather than a form change",
+      "there is no Dynamax Band and no power spot: the menu cell is the only trigger, so any Pokemon can Dynamax anywhere, where the real games gate it on both",
+      "three species with a Gigantamax form are not wired -- Corviknight, and the Low Key and Rapid Strike variants of Toxtricity and Urshifu -- because there is no usable art for them; all three still Dynamax plainly",
+      "a Pokemon that mega evolves while Dynamaxed keeps the mega when the three turns run out, since stripping it would undo something the player only gets once a battle",
       "enabling the mod mid-battle brings across only what is still derivable -- primal reversion and the HP-driven forms -- so an Aegislash or a Mimikyu whose trigger already fired arrives in its base form and resumes from the next one, and the turn already in progress cannot be megaed retroactively",
     },
   },

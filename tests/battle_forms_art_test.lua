@@ -25,6 +25,13 @@ local conditional = {}
 for species, row in pairs(dofile(MOD .. "/data/conditional.lua")) do
   conditional[species] = { CONDITION = row.form }
 end
+-- data/gigantamax.lua is species -> form id, flatter still: a Gigantamax has
+-- neither an item nor a condition to key on.  Reshaped the same way so the one
+-- sweep below covers it too.
+local gigantamax = {}
+for species, formId in pairs(dofile(MOD .. "/data/gigantamax.lua")) do
+  gigantamax[species] = { GIGANTAMAX = formId }
+end
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 local FORM_ART = MOD .. "/../data/sprites/generated/formart.lua"
@@ -62,22 +69,36 @@ local function formSuffixFor(id)
 end
 
 local checked, primalsChecked, conditionalChecked = 0, 0, 0
+local gigantamaxChecked = 0
 for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true },
-                         { table_ = conditional, conditional = true } }) do
+                         { table_ = conditional, conditional = true },
+                         { table_ = gigantamax, gigantamax = true } }) do
   for base, byItem in pairs(wired.table_) do
     for _, formId in pairs(byItem) do
       checked = checked + 1
       if wired.primal then primalsChecked = primalsChecked + 1 end
       if wired.conditional then conditionalChecked = conditionalChecked + 1 end
+      if wired.gigantamax then gigantamaxChecked = gigantamaxChecked + 1 end
       local suffix = formSuffixFor(formId)
       T.check(suffix ~= nil, formId .. " has a form suffix in national.lua")
       if suffix then
         local species = formArt[base]
         local forms = species and species.forms
-        T.check(forms and forms[suffix] ~= nil,
+        local entry = forms and forms[suffix]
+        T.check(entry ~= nil,
           base .. ".forms." .. suffix .. " (" .. formId
           .. ") has an entry in formart.lua -- a wired form with no art "
           .. "renders as its base species")
+        -- Both faces, for the Gigantamax table only.  An entry is not the
+        -- same as art: Corviknight's Gigantamax has a back picture and no
+        -- front, and half an entry passes the check above while showing the
+        -- base species from one side.  This is the check that keeps it out.
+        if wired.gigantamax and entry then
+          T.check(entry.front ~= nil,
+            base .. ".forms." .. suffix .. " has FRONT art")
+          T.check(entry.back ~= nil,
+            base .. ".forms." .. suffix .. " has BACK art")
+        end
       end
     end
   end
@@ -87,5 +108,26 @@ T.check(checked > 0, "at least one wired form was checked against formart.lua")
 T.eq(primalsChecked, 2, "both primal forms were checked against formart.lua")
 T.eq(conditionalChecked, 8,
   "all eight conditional forms were checked against formart.lua")
+T.eq(gigantamaxChecked, 31,
+  "all 31 wired Gigantamax forms were checked against formart.lua")
+
+-- The two exclusions, pinned as facts about the data rather than as prose in
+-- data/gigantamax.lua's header.  If a later art build fills Corviknight's
+-- front in, or the form art index starts filing a variant's art under its own
+-- species key, this fails and says the table can grow.
+do
+  local corviknight = formArt.CORVIKNIGHT and formArt.CORVIKNIGHT.forms
+    and formArt.CORVIKNIGHT.forms.GMAX
+  T.check(corviknight ~= nil,
+    "CORVIKNIGHT.forms.GMAX exists in formart.lua")
+  T.check(corviknight == nil or corviknight.front == nil,
+    "CORVIKNIGHT.forms.GMAX still has no front art -- the reason it is not "
+    .. "wired; wire it once this stops being true")
+  for _, variant in ipairs({ "TOXTRICITY_LOW_KEY", "URSHIFU_RAPID_STRIKE" }) do
+    T.check(formArt[variant] == nil,
+      variant .. " has no form art entry of its own -- its Gigantamax art is "
+      .. "filed under the base species, which is why the variant is not wired")
+  end
+end
 
 T.finish("battle_forms_art")
