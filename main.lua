@@ -33,5 +33,13 @@ local function loadSibling(mod, name)
 end
 
 return function(mod)
-  mod.battleForms = { loadSibling = loadSibling }
+  local eligibility = loadSibling(mod, "src/eligibility.lua")
+  local stone = loadSibling(mod, "src/stone.lua")
+  local megas = loadSibling(mod, "data/megas.lua")
+  if not (eligibility and stone and megas) then return end
+
+  stone.bind(eligibility)
+  stone.install(mod, megas)
+
+  mod.battleForms = { eligibility = eligibility, megas = megas }
 end
