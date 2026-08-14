@@ -3,6 +3,25 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.12.0
+
+### Changed
+
+- **The trainer now needs an item of their own, so an existing save loses mega
+  evolution until a Key Stone is bought.** This mod only ever modelled the item
+  a Pokemon carries; the real games gate both mechanics a second time on
+  something the trainer wears, and without that tier a stone was the whole
+  requirement and Dynamax had no requirement at all -- which is why it was
+  offered for every species from the first route. The Key Stone and the Dynamax
+  Band are sold at the Celadon department store's stone counter for ¥200 each,
+  ahead of the mega stones on the same shelf, and each opens only its own gate:
+  a Key Stone does nothing for a Dynamax and the Band does nothing for a mega.
+  A missing key item is silent in battle, the way an ineligible species already
+  was -- the menu cell is simply not there rather than there and refusing.
+  Primal reversion is untouched and takes no trainer item, because the orbs are
+  the whole of its requirement in the real games too, and neither are the eight
+  condition-driven forms.
+
 ## 0.11.0
 
 ### Added

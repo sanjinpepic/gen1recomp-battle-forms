@@ -227,13 +227,23 @@ local function describe(battle)
     spent[#spent + 1] = ("%s=%s"):format(entry.id,
       tostring(deps.state:used(entry.id)))
   end
+  -- The trainer's own items, because a missing one is a new way for the cell to
+  -- be absent and it looks from a chair exactly like every other way.  Read
+  -- through the same function the gates use, so this can never report a bag the
+  -- gate is not looking at.
+  local carried = {}
+  for _, itemId in ipairs(deps.keyitems.ITEMS) do
+    carried[#carried + 1] = ("%s=%s"):format(itemId,
+      tostring(deps.keyitems.held(battle, itemId)))
+  end
   return ("menu: armState=%s phase=%s queueEmpty=%s species=%s stone=%s "
-    .. "form=%s record=%s used[%s] offered=%d"):format(
+    .. "form=%s record=%s keys[%s] used[%s] offered=%d"):format(
     where, tostring(battle.phase),
     tostring(queue == nil or next(queue) == nil),
     tostring(mon and mon.species), tostring(deps.eligibility.stoneOf(mon)),
     tostring(formId),
     tostring(formId ~= nil and pokemon ~= nil and pokemon[formId] ~= nil),
+    table.concat(carried, " "),
     table.concat(spent, " "), #deps.overlay.offered(deps.state))
 end
 

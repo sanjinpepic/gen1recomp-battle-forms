@@ -18,6 +18,7 @@ local Forms = dofile(MOD .. "/src/forms.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
+local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local Resolve = dofile(MOD .. "/src/resolve.lua")
 local Announce = dofile(MOD .. "/src/announce.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
@@ -68,7 +69,11 @@ local function makeBattle(species, stamped)
     said = said,
     player = { isPlayer = true, mon = mon, name = mon.nickname,
                curStats = mon.stats, curTypes = DATA.pokemon[mon.species].types },
-    game = { save = { party = { mon } } },
+    -- The trainer's Dynamax Band, which is the whole of Dynamax's
+    -- requirement: with an empty bag every check below would be about a cell
+    -- that is not offered rather than about the state behind it.
+    game = { save = { party = { mon },
+                      inventory = { [KeyItems.DYNAMAX_BAND] = 1 } } },
     enemyParty = {},
     say = function(_, line) said[#said + 1] = line end,
     sayNext = function(_, line) said[#said + 1] = line end,
@@ -79,7 +84,7 @@ local function makeBattle(species, stamped)
 end
 
 local function bind(log)
-  Dynamax.bind({ forms = Forms, gigantamax = GIGANTAMAX,
+  Dynamax.bind({ forms = Forms, gigantamax = GIGANTAMAX, keyitems = KeyItems,
                  announce = Announce, log = log })
 end
 
@@ -111,20 +116,35 @@ do
   T.eq(type(entry.activate), "function", "and an activation")
 
   local reg = Transforms.new()
-  T.eq(reg:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas })),
-    true, "mega registers")
+  T.eq(reg:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
+    keyitems = KeyItems })), true, "mega registers")
   T.eq(reg:register(entry), true, "and Dynamax registers beside it")
   T.eq(reg:count(), 2, "the cell now hosts two transformations")
   T.eq(reg:get("dynamax"), entry, "and the registry answers for it")
 
-  -- Every species may Dynamax: there is no stone to carry and no pairing table
-  -- to be missing from, which is what makes this the first entry whose
-  -- predicate asks nothing about the mon but that it exists.
+  -- Every species may Dynamax once the trainer has the Band: there is no stone
+  -- to carry and no pairing table to be missing from, which is what makes this
+  -- the only entry whose predicate asks nothing about the mon but that it
+  -- exists.
   T.eq(entry.available(makeBattle("PIDGEY")), true,
     "a species with no Gigantamax is still offered a Dynamax")
   T.eq(entry.available(makeBattle("CHARIZARD")), true,
     "and so is one with a Gigantamax")
   T.eq(entry.available({ player = nil }), false, "with no mon out, nothing is offered")
+
+  -- ...and nothing at all without it.  The Band is the outer gate and the
+  -- refusal is silent: the predicate answers false, so the cell is absent
+  -- exactly the way it is for a species the mega table has never heard of.
+  local banded = makeBattle("CHARIZARD")
+  banded.game.save.inventory = {}
+  T.eq(entry.available(banded), false,
+    "no Dynamax Band, no Dynamax, whatever the species")
+  banded.game.save.inventory = { [KeyItems.KEY_STONE] = 1 }
+  T.eq(entry.available(banded), false,
+    "and a Key Stone is not a Dynamax Band -- the two gates are separate items")
+  banded.game.save.inventory[KeyItems.DYNAMAX_BAND] = 1
+  T.eq(entry.available(banded), true,
+    "buying the Band mid-save makes Dynamax available with nothing reloaded")
 end
 
 -- ---------------------------------------------------------------------

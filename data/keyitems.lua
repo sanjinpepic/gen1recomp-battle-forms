@@ -1,0 +1,20 @@
+-- Bag byte for each trainer key item.
+--
+-- The same rule data/stones.lua and data/orbs.lua run on, for the same
+-- reason: Gen 1 stores items as byte ids, so an item with no index cannot
+-- exist in a save at all, and changing an index silently turns every key item
+-- already in a player's bag into a different item.  These are permanent; new
+-- items append.
+--
+-- Three tables, ONE range.  These are neither stones nor orbs -- nothing is
+-- stamped with them and no Pokemon carries one -- but they share the bag with
+-- both, so they continue where data/orbs.lua stopped (194-195) rather than
+-- starting over.  tests/battle_forms_keyitems_test.lua pins that no two of
+-- the three tables ever hand out the same byte.
+--
+-- Order here is also shelf order (src/shop.lua sorts by index), so the Key
+-- Stone stands in front of the Dynamax Band at the counter.
+return {
+  KEY_STONE    = 196,
+  DYNAMAX_BAND = 197,
+}

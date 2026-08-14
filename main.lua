@@ -50,14 +50,15 @@ return function(mod)
   })
 
   local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
-                  "src/stone.lua", "src/shop.lua", "src/arm.lua",
+                  "src/stone.lua", "src/keyitems.lua", "src/shop.lua",
+                  "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
                   "src/resolve.lua",
                   "src/primal.lua", "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
-                  "data/orbs.lua", "data/conditional.lua",
+                  "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua" }
   local m = {}
   for _, name in ipairs(names) do
@@ -91,9 +92,20 @@ return function(mod)
   local primals = m["data/primals.lua"]
   local orbIndices = m["data/orbs.lua"]
 
+  -- The other tier of item: worn by the trainer rather than stamped on a mon,
+  -- and what decides whether a mechanic is on offer at all.  Registered before
+  -- either shelf is stocked and unconditionally, because an item a save carries
+  -- has to stay nameable no matter what any gate later says about it.
+  local keyitems = m["src/keyitems.lua"]
+  local keyIndices = m["data/keyitems.lua"]
+  keyitems.install(mod, keyIndices)
+
   m["src/stone.lua"].bind(eligibility)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
+  -- Before the stones, so the two items that make that shelf worth anything
+  -- are at the top of it rather than under ninety-odd stones.
+  m["src/shop.lua"].installKeyItems(mod, keyIndices)
   m["src/shop.lua"].install(mod, indices, megaset.stoneIds(megas))
   m["src/shop.lua"].installOrbs(mod, orbIndices)
   anim.install(mod)
@@ -112,7 +124,8 @@ return function(mod)
   local registry = m["src/transforms.lua"].new()
   local registered, why = registry:register(m["src/mega.lua"].entry({
     forms = m["src/forms.lua"], eligibility = eligibility, megas = megas,
-    animId = anim.ID, announce = announce, log = mod.log }))
+    keyitems = keyitems, animId = anim.ID, announce = announce,
+    log = mod.log }))
   if not registered then
     mod.log:error("battle_forms: mega evolution was refused a place on the "
       .. "battle menu (%s) -- no stone can be armed until that is fixed",
@@ -127,7 +140,7 @@ return function(mod)
   -- to reach the mega's eligibility or its limit.
   local dynamax = m["src/dynamax.lua"]
   dynamax.bind({ forms = m["src/forms.lua"],
-                 gigantamax = m["data/gigantamax.lua"],
+                 gigantamax = m["data/gigantamax.lua"], keyitems = keyitems,
                  announce = announce, log = mod.log })
   local dynamaxState = dynamax.new()
   local dynaOk, dynaWhy = registry:register(dynamax.entry(dynamaxState))
@@ -173,7 +186,7 @@ return function(mod)
   -- loader.modOptions in place), so a captured value would mean the switch
   -- only ever took effect on the next boot.
   diag.bind({ mod = mod, registry = registry, overlay = overlay, state = state,
-              eligibility = eligibility, megas = megas,
+              eligibility = eligibility, megas = megas, keyitems = keyitems,
               enabled = function()
                 return mod.options:get("debug_trace") == "on"
               end })

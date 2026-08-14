@@ -19,6 +19,7 @@ local Arm = dofile(MOD .. "/src/arm.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 -- ---------------------------------------------------------------------
@@ -103,7 +104,12 @@ local function makeBattle()
     burstReady = true,
     player = { isPlayer = true, mon = mon, curStats = mon.stats,
                curTypes = DATA.pokemon.CHARIZARD.types },
-    game = { save = { party = { mon } }, input = makeInput({}) },
+    -- The trainer's Key Stone lives here, in the bag src/keyitems.lua reads:
+    -- without it the mega cell is not offered at all and every check below
+    -- would be about an empty cell rather than about a cell with two entries.
+    game = { save = { party = { mon },
+                      inventory = { [KeyItems.KEY_STONE] = 1 } },
+             input = makeInput({}) },
     enemyParty = {},
     animNext = function() end,
     animationsOn = function() return false end,
@@ -113,7 +119,8 @@ end
 local function setup(refuse)
   local registry = Transforms.new()
   T.eq(registry:register(Mega.entry({ forms = Forms, eligibility = E,
-    megas = megas, animId = "TESTANIM" })), true, "mega registers first")
+    megas = megas, keyitems = KeyItems, animId = "TESTANIM" })), true,
+    "mega registers first")
   T.eq(registry:register(burstEntry(refuse)), true, "the synthetic one registers second")
   Overlay.bind({ registry = registry })
   Menu.bind({ overlay = Overlay })

@@ -11,7 +11,10 @@
 --
 -- deps.log is optional: main.lua passes mod.log, but the unit suites bind
 -- without one so they can run outside the engine, and a refusal with nowhere
--- to report to still must not silently keep the change.
+-- to report to still must not silently keep the change.  deps.keyitems is not,
+-- and deliberately so -- a gate that may be left out of the deps table is a
+-- gate that is silently absent, which is precisely the state this file was in
+-- before it had one.
 local M = {}
 
 M.ID = "mega"
@@ -21,11 +24,20 @@ function M.entry(deps)
     id = M.ID,
     label = "MEGA",
 
-    -- A stone can name a form the species table has no record for -- a wrong
-    -- id in data/megas.lua, or national_dex data that never loaded -- and
+    -- Two tiers, the trainer's before the Pokemon's, exactly as the real games
+    -- ask them: no Key Stone means no mega whatever the mon in front is
+    -- carrying.  Failing here is how the gate stays silent -- the cell is
+    -- simply absent, the same as it is for an ineligible species, rather than
+    -- appearing and then refusing.
+    --
+    -- A stone can also name a form the species table has no record for -- a
+    -- wrong id in data/megas.lua, or national_dex data that never loaded -- and
     -- offering the cell then would arm a change Forms.becomeForm can only
     -- refuse.  The record must exist before the menu promises it.
     available = function(battle)
+      if not deps.keyitems.held(battle, deps.keyitems.KEY_STONE) then
+        return false
+      end
       local mon = battle.player and battle.player.mon
       local formId = deps.eligibility.formForMon(deps.megas, mon)
       if not formId then return false end

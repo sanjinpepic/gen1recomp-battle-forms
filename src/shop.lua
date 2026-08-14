@@ -38,6 +38,23 @@ function M.install(mod, indices, offered)
   shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, offered)
 end
 
+-- The trainer key items sell on the mega stones' own floor, and ahead of them.
+--
+-- Same shelf because it is the only counter this mod already owns and because
+-- a player buying their first stone should see the thing that makes it work in
+-- the same list; not the Indigo Plateau counter, because that one is the last
+-- room before the Elite Four and a mechanic gated behind it is a mechanic
+-- gated behind the endgame.  Ahead of the stones because the shelf carries
+-- ninety-odd of them and a Key Stone at the bottom of that is a Key Stone
+-- nobody finds -- main.lua calls this before M.install, and a deep registry
+-- concatenates patches in the order they arrive.
+--
+-- Every key item registered is a key item sold: no option gates one, so there
+-- is no subset to offer.
+function M.installKeyItems(mod, indices)
+  shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
+end
+
 -- The orbs sell at the Indigo Plateau lobby, the last counter before the
 -- Elite Four, rather than on the mega stones' shelf.  They are a different
 -- transformation type and Groudon and Kyogre are endgame Pokemon, so the two

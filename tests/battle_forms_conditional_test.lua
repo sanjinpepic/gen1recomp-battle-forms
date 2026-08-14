@@ -21,6 +21,7 @@ local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
+local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local rows = dofile(MOD .. "/data/conditional.lua")
 -- The whole mega roster: what these forms must stay clear of is every mega,
 -- not the option's current selection.
@@ -81,7 +82,7 @@ Conditional.bind({ forms = Forms, rows = rows })
 -- with nothing else registered -- exactly the shape the shipping mod wires.
 local registry = Transforms.new()
 registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                               animId = "TESTANIM" }))
+                               keyitems = KeyItems, animId = "TESTANIM" }))
 Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
                megas = megas })
 Overlay.bind({ registry = registry })
@@ -107,7 +108,10 @@ end
 -- conditional mon being offered nothing then means the species, not the
 -- moment.
 local function makeBattle(playerMon, enemyMon)
-  local battle = { data = DATA, phase = "menu", queue = {} }
+  -- Carrying the Key Stone, so "no MEGA cell for a conditional species" below
+  -- means the species and not an empty bag.
+  local battle = { data = DATA, phase = "menu", queue = {},
+    game = { save = { inventory = { [KeyItems.KEY_STONE] = 1 } } } }
   battle.player = playerMon and battlerFor(playerMon, true) or nil
   battle.enemy = enemyMon and battlerFor(enemyMon, false) or nil
   return battle

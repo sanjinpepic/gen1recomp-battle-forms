@@ -113,11 +113,17 @@ function M.entry(state)
     id = M.ID,
     label = "DYNAMAX",
 
-    -- Every species may Dynamax, which is what makes this the first entry with
-    -- no eligibility question of its own: there is no stone to carry and no
-    -- pairing table to be missing from.  The once-per-battle limit is the
-    -- registry's own, applied by src/overlay.lua before this is ever asked.
+    -- Every species may Dynamax, which is what makes this the only entry whose
+    -- whole requirement sits on the trainer: there is no stone to carry and no
+    -- pairing table to be missing from, so the Dynamax Band is not the outer of
+    -- two tiers the way the Key Stone is -- it is the only tier there is.
+    -- Without it nothing Dynamaxes at all, and the cell is simply absent rather
+    -- than present and refusing.  The once-per-battle limit is the registry's
+    -- own, applied by src/overlay.lua before this is ever asked.
     available = function(battle)
+      if not deps.keyitems.held(battle, deps.keyitems.DYNAMAX_BAND) then
+        return false
+      end
       local mon = battle.player and battle.player.mon
       return mon ~= nil and mon.species ~= nil
     end,

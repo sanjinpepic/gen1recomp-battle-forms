@@ -12,6 +12,7 @@ local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
+local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 -- The whole roster: every check below holds for any wired mega, and the
 -- OFFICIAL/ALL split is pinned in the eligibility suite.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
@@ -20,7 +21,8 @@ local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 -- below is the 0.7.0 menu, unchanged.  The multi-entry cell is pinned in the
 -- transforms suite, on a second entry that exists only there.
 local registry = Transforms.new()
-registry:register(Mega.entry({ eligibility = E, megas = megas }))
+registry:register(Mega.entry({ eligibility = E, megas = megas,
+  keyitems = KeyItems }))
 Overlay.bind({ registry = registry })
 Menu.bind({ overlay = Overlay })
 
@@ -36,6 +38,13 @@ end
 
 local hasRecord = { pokemon = { CHARIZARD_MEGA_X = {} } }
 
+-- The trainer's Key Stone, which every fixture here carries: without it the
+-- cell is never offered and each check below would pass for the wrong reason.
+-- A fresh table per battle because a fixture is free to take it away again.
+local function bag()
+  return { inventory = { [KeyItems.KEY_STONE] = 1 } }
+end
+
 local function makeBattle(menuIndex, pressed)
   return {
     phase = "menu",
@@ -43,7 +52,7 @@ local function makeBattle(menuIndex, pressed)
     queue = {},
     data = hasRecord,
     player = { mon = eligibleMon() },
-    game = { input = makeInput(pressed) },
+    game = { save = bag(), input = makeInput(pressed) },
   }
 end
 
@@ -56,7 +65,7 @@ do
   local state = Arm.new()
   local battle = { phase = "menu", menuIndex = 1, queue = {},
     player = { mon = { species = "PIDGEY", hp = 100 } },
-    game = { input = makeInput({ left = true }) } }
+    game = { save = bag(), input = makeInput({ left = true }) } }
   state:onBattleStarted({ battle = battle })
 
   T.eq(Overlay.shouldOffer(state), false, "precondition: an ineligible mon offers nothing")

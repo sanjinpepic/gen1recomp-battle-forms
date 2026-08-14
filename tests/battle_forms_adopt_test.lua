@@ -21,6 +21,7 @@ local Resolve = dofile(MOD .. "/src/resolve.lua")
 local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
+local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local primals = dofile(MOD .. "/data/primals.lua")
@@ -86,6 +87,10 @@ local function makeBattle(playerMon, enemyMon, phase)
     data = DATA, phase = phase or "messages", queue = {}, nextInsert = nil,
     player = playerMon and battlerFor(playerMon, true) or nil,
     enemy = enemyMon and battlerFor(enemyMon, false) or nil,
+    -- The trainer's Key Stone.  Adoption is about what a battle already under
+    -- way brings across, so the bag has to be the ordinary one -- an empty
+    -- bag would hide the MEGA cell and the check below would say nothing.
+    game = { save = { inventory = { [KeyItems.KEY_STONE] = 1 } } },
     animationsOn = function() return true end,
   }
   b.say = function(self, text)
@@ -116,7 +121,8 @@ Conditional.bind({ forms = Forms, rows = rows })
 
 local registry = Transforms.new()
 registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                               animId = "TESTANIM", announce = Announce }))
+                               keyitems = KeyItems, animId = "TESTANIM",
+                               announce = Announce }))
 Overlay.bind({ registry = registry })
 Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
                megas = megas })

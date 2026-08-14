@@ -28,6 +28,7 @@ local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
+local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local primals = dofile(MOD .. "/data/primals.lua")
 
@@ -110,11 +111,11 @@ local function newDiag(mod)
   local Arm = dofile(MOD .. "/src/arm.lua")
   local registry = Transforms.new()
   local registered, why = registry:register(Mega.entry({ eligibility = E,
-    megas = megas }))
+    megas = megas, keyitems = KeyItems }))
   Overlay.bind({ registry = registry })
   local state = Arm.new()
   Diag.bind({ mod = mod, registry = registry, overlay = Overlay, state = state,
-              eligibility = E, megas = megas,
+              eligibility = E, megas = megas, keyitems = KeyItems,
               enabled = function() return mod.option == "on" end })
   return { diag = Diag, overlay = Overlay, state = state, registry = registry,
            registered = registered, why = why }
@@ -124,7 +125,8 @@ local function eligibleBattle()
   local mon = newMon("CHARIZARD", "CHARIZARDITE_X")
   return { phase = "menu", queue = {}, data = DATA, menuIndex = 1,
            player = { mon = mon, isPlayer = true },
-           game = { input = { wasPressed = function() return false end } } }
+           game = { save = { inventory = { [KeyItems.KEY_STONE] = 1 } },
+                    input = { wasPressed = function() return false end } } }
 end
 
 -- ---------------------------------------------------------------------
@@ -228,6 +230,9 @@ do
     "and the form the stamp resolves to")
   T.check(line:find("record=true", 1, true) ~= nil,
     "and whether that form has a record in the battle's species table")
+  T.check(line:find("keys[KEY_STONE=true DYNAMAX_BAND=false]", 1, true) ~= nil,
+    "and which of the trainer's key items are in the bag, which is the one "
+      .. "reason for an absent cell that nothing else in this line explains")
   T.check(line:find("used[mega=false]", 1, true) ~= nil,
     "and whether each registered transformation is already spent")
   T.check(line:find("offered=1", 1, true) ~= nil,

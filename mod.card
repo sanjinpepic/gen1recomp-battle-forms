@@ -7,7 +7,8 @@ return {
   tags = { "gameplay", "battle" },
   differences = {
     changed = {
-      "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA when the active mon carries a matching stone and DYNAMAX for any mon at all, and LEFT and RIGHT cycle between them when both are on offer",
+      "a fifth entry on the battle menu that hosts the transformations the player has to ask for and shows whichever are available; it reads MEGA when the trainer has a Key Stone and the active mon carries a matching stone, and DYNAMAX for any mon at all once the trainer has a Dynamax Band, and LEFT and RIGHT cycle between them when both are on offer",
+      "an existing save loses mega evolution until a Key Stone is bought, and loses Dynamax until a Dynamax Band is: both were previously ungated, and the real games require the trainer to carry one as well as the Pokemon to carry its own item",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",
@@ -15,6 +16,7 @@ return {
       "96 mega forms across 87 species, each sold under its own stone; MEGA EVOLUTIONS picks between the 48 the real games have, which is the default, and all of them",
       "primal reversion for Groudon and Kyogre, which happens by itself on entering battle and on switching in -- no menu entry, nothing to arm, and no once-per-battle limit, so both can revert in one fight and neither spends the trainer's mega",
       "the Red Orb and the Blue Orb as bag items, assigned to a Pokemon the way a stone is and sold at the Indigo Plateau lobby counter",
+      "the Key Stone and the Dynamax Band as trainer key items, sold for 200 each at the head of the Celadon department store's stone shelf; each gates only its own mechanic, neither is used on a Pokemon, and neither can be sold, tossed or left in the PC once bought",
       "the form survives switching out and unwinds when the battle ends or the mon faints",
       "condition-driven forms for eight species, with no item and no menu: Darmanitan and Minior flip at half HP, Wishiwashi schools above a quarter HP from level 20, Aegislash draws its blade on an attacking move and shields on a status one, Morpeko alternates every round, Mimikyu and Eiscue break on a damaging hit, and Greninja bonds on a knockout it dealt",
       "the reversible ones flip back and forth as many times as the battle calls for, because the form is re-derived from the mon rather than remembered",
@@ -32,7 +34,7 @@ return {
       "a Pokemon holds one of these items at a time, a stone or an orb, the way a held item slot would work -- which costs nothing today, as no species has both a mega and a primal form",
       "Gold is not supported; this is Red/Blue/Yellow only for now",
       "a mon exported to a Game Boy .sav loses its stone, because a cart save has nowhere to record one",
-      "there is no Key Stone: carrying the matching stone is the only requirement, where the real games also gate on the trainer",
+      "primal reversion has no trainer key item, matching the real games, where the Red and Blue Orbs are the whole requirement -- so a Groudon or Kyogre reverts with an empty bag behind it",
       "Mega Rayquaza counts as official here but its stone does not exist: the real games trigger that one off knowing Dragon Ascent, and the Rayquazite sold here is this mod's own invention, because a stone is the only trigger implemented",
       "turning MEGA EVOLUTIONS down to OFFICIAL leaves any other stone already in the bag exactly where it is, inert -- a stone is never unregistered, because an item a save carries has to stay nameable",
       "the form lasts the battle and is never written to the save",
@@ -46,7 +48,7 @@ return {
       "the condition-driven forms print no message, on purpose: several of them change every single turn, and a line each would bury the battle text a player is reading",
       "Dynamax does not multiply HP: maximum and current HP both live on the Pokemon, which is save data, and the engine keeps no battle-only copy to move instead -- a three-turn HP boost would be a timed write into the save whose one missed unwind could not be told apart from honest growth",
       "Max Moves and G-Max Moves are not implemented; a Dynamaxed Pokemon keeps its own four moves, because replacing a moveset for the duration is a move-substitution system rather than a form change",
-      "there is no Dynamax Band and no power spot: the menu cell is the only trigger, so any Pokemon can Dynamax anywhere, where the real games gate it on both",
+      "there is no power spot: the Dynamax Band and the menu cell are the whole trigger, so a trainer carrying one can Dynamax anywhere, where the real games also gate it on where the battle is happening",
       "three species with a Gigantamax form are not wired -- Corviknight, and the Low Key and Rapid Strike variants of Toxtricity and Urshifu -- because there is no usable art for them; all three still Dynamax plainly",
       "a Pokemon that mega evolves while Dynamaxed keeps the mega when the three turns run out, since stripping it would undo something the player only gets once a battle",
       "enabling the mod mid-battle brings across only what is still derivable -- primal reversion and the HP-driven forms -- so an Aegislash or a Mimikyu whose trigger already fired arrives in its base form and resumes from the next one, and the turn already in progress cannot be megaed retroactively",

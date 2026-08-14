@@ -17,6 +17,8 @@ local E = dofile(MOD .. "/src/eligibility.lua")
 local raw = dofile(MOD .. "/data/megas.lua")
 local indices = dofile(MOD .. "/data/stones.lua")
 local orbIndices = dofile(MOD .. "/data/orbs.lua")
+local keyIndices = dofile(MOD .. "/data/keyitems.lua")
+local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 
 local function readFile(path)
   local handle = assert(io.open(path, "rb"), "cannot open " .. path)
@@ -128,8 +130,8 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local mart = martOf(data)
   local sold = {}
   for _, id in ipairs(mart) do sold[id] = true end
-  T.eq(#mart, #FLOOR_STOCK + (case.all and 96 or 48),
-    "the Celadon shelf holds the floor's own stock plus "
+  T.eq(#mart, #FLOOR_STOCK + 2 + (case.all and 96 or 48),
+    "the Celadon shelf holds the floor's own stock, both key items and "
       .. (case.all and "every" or "only the official") .. " stone with the "
       .. "option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
@@ -175,6 +177,34 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
       orbId .. " is not on the Celadon shelf with the option " .. case.label)
   end
 
+  -- The trainer's key items, checked here rather than only in their own suite
+  -- because main.lua is what decides they are registered at all and that
+  -- decision is invisible to a module test.  Never gated: no option turns one
+  -- off, and a bag byte with no record behind it is a save the game can no
+  -- longer read back -- the same rule the stones keep.
+  for _, itemId in ipairs(KeyItems.ITEMS) do
+    T.check(data.items and data.items[itemId] ~= nil,
+      itemId .. " is a registered item with the option " .. case.label)
+    T.eq(data.items[itemId].index, keyIndices[itemId],
+      itemId .. " keeps its permanent bag byte with the option " .. case.label)
+    T.check(data.item_effects == nil or data.item_effects[itemId] == nil,
+      itemId .. " registers no item effect -- it gates a mechanic, it is not "
+        .. "used on anything (option " .. case.label .. ")")
+    T.check(sold[itemId],
+      itemId .. " is sold on the Celadon shelf with the option " .. case.label)
+  end
+
+  -- Ahead of every mega stone on that shelf, whatever the option leaves on it:
+  -- a Key Stone under ninety-odd stones is a Key Stone a player never finds.
+  local firstStone, lastKey = nil, nil
+  for i, id in ipairs(mart) do
+    if indices[id] and not firstStone then firstStone = i end
+    if keyIndices[id] then lastKey = i end
+  end
+  T.check(lastKey ~= nil and firstStone ~= nil and lastKey < firstStone,
+    "both key items come before the first mega stone on the shelf with the "
+      .. "option " .. case.label)
+
   local groudon = { species = "GROUDON" }
   T.eq(data.item_effects.RED_ORB.use({ target = groudon }), "kept",
     "the Red Orb assigns itself to a Groudon with the option " .. case.label)
@@ -190,6 +220,11 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   T.check(atLobby.RED_ORB and atLobby.BLUE_ORB,
     "both orbs are sold at the Indigo Plateau lobby with the option "
       .. case.label)
+  for _, itemId in ipairs(KeyItems.ITEMS) do
+    T.check(not atLobby[itemId],
+      itemId .. " is not on the Indigo Plateau counter with the option "
+        .. case.label)
+  end
 end
 
 T.finish("battle_forms_options")
