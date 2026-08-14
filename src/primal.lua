@@ -57,9 +57,27 @@ local function transform(battle, battler, source)
     return
   end
 
+  -- Asked BEFORE becomeForm, and asked of the record rather than of the id,
+  -- because mon.form carries the record's `form` suffix.  becomeForm being
+  -- idempotent is what makes this handler safe to run on every switch-in and
+  -- on adoption, but it also means a successful call is not the same thing as
+  -- a change -- and a message on every reapplication would print "GROUDON's
+  -- Primal Reversion!" each time an already-primal Groudon came back from the
+  -- bench.
+  local record = battle.data and battle.data.pokemon
+    and battle.data.pokemon[formId]
+  local already = record ~= nil and record.form ~= nil
+    and mon.form == record.form
+
   local ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
   if deps.diag then
     deps.diag.primal(source, battle, mon, formId, ok, reason)
+  end
+  -- The real games print a line for this one, and it is the only signal it
+  -- has: there is no animation by design and a primal keeps its species name,
+  -- so before this the whole mechanic rested on one back sprite being present.
+  if ok and not already and deps.announce then
+    deps.announce.primal(battle, battler)
   end
   if not ok and deps.log then
     -- A guard that refuses must say so out loud.  There is no player action
@@ -77,11 +95,17 @@ end
 -- held item is, so a trainer's Groudon reverts on the same terms the player's
 -- does -- where the mega path is player-only because only the player can arm
 -- one.
+--
+-- `ev.source` renames the two attempts for the diagnostic and nothing else.
+-- src/adopt.lua calls this handler directly for a battle that started before
+-- the mod existed, and a trace line claiming battle.started for an attempt
+-- battle.started never made would answer the wrong question.
 function M.onBattleStarted(ev)
   local battle = ev and ev.battle
   if not battle then return end
-  transform(battle, battle.player, "battle.started player")
-  transform(battle, battle.enemy, "battle.started enemy")
+  local source = ev.source or "battle.started"
+  transform(battle, battle.player, source .. " player")
+  transform(battle, battle.enemy, source .. " enemy")
 end
 
 function M.onBattlerSwitched(ev)

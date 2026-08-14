@@ -256,6 +256,15 @@ function M.menu(battle)
   emit("%s", answer)
 end
 
+-- The mod arriving in the middle of a battle (src/adopt.lua).  Worth a line of
+-- its own because it changes what every note under it means: an adopted battle
+-- has no send-out of ours behind it, so an event-driven conditional row that
+-- never fires here is right rather than broken.
+function M.adopted(battle)
+  M.note(battle, "adopt", "adopt: took over a battle already under way "
+    .. "(phase=%s)", tostring(battle and battle.phase))
+end
+
 -- One primal reversion attempt, from whichever handler made it.  Deduplicated
 -- on the whole answer rather than counted, because the interesting case is a
 -- mon switching in repeatedly and being refused the same way every time --

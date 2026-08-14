@@ -53,7 +53,8 @@ return function(mod)
                   "src/stone.lua", "src/shop.lua", "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/resolve.lua",
                   "src/primal.lua", "src/conditional.lua", "src/diag.lua",
-                  "src/anim.lua", "src/overlay.lua", "src/menu.lua",
+                  "src/anim.lua", "src/announce.lua", "src/adopt.lua",
+                  "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/conditional.lua" }
   local m = {}
@@ -95,6 +96,12 @@ return function(mod)
   m["src/shop.lua"].installOrbs(mod, orbIndices)
   anim.install(mod)
 
+  -- The battle message a form change prints.  Handed to the two
+  -- transformations that announce and to nothing else, so the eight
+  -- condition-driven forms cannot start narrating themselves by accident --
+  -- see src/announce.lua for why they stay quiet.
+  local announce = m["src/announce.lua"]
+
   -- One cell on the command menu hosts every manually activated
   -- transformation there is, because the blank spacer row it draws into is the
   -- only space either battle layout has spare.  Mega evolution is the first
@@ -103,7 +110,7 @@ return function(mod)
   local registry = m["src/transforms.lua"].new()
   local registered, why = registry:register(m["src/mega.lua"].entry({
     forms = m["src/forms.lua"], eligibility = eligibility, megas = megas,
-    animId = anim.ID, log = mod.log }))
+    animId = anim.ID, announce = announce, log = mod.log }))
   if not registered then
     mod.log:error("battle_forms: mega evolution was refused a place on the "
       .. "battle menu (%s) -- no stone can be armed until that is fixed",
@@ -120,7 +127,8 @@ return function(mod)
   -- so it has no way to reach the armed flag or the once-per-battle limit.
   local primal = m["src/primal.lua"]
   primal.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
-                primals = primals, log = mod.log, diag = diag })
+                primals = primals, log = mod.log, diag = diag,
+                announce = announce })
 
   -- Condition-driven forms are wired the same way and for the same reason:
   -- the forms primitive, their own pairing table, and nothing else.  They
@@ -149,12 +157,22 @@ return function(mod)
                 return mod.options:get("debug_trace") == "on"
               end })
 
+  -- Enabling the mod from the manager during a battle means battle.started has
+  -- already been and gone, so the arm state below would never learn which
+  -- battle it is in and nothing manual would work for the rest of the fight.
+  -- Adoption is handed the two send-out handlers rather than the events,
+  -- because what it recovers is exactly what a send-out would have applied.
+  local adopt = m["src/adopt.lua"]
+  adopt.bind({ state = state, primal = primal, conditional = conditional,
+               diag = diag })
+
   -- The menu cell owns input/draw seams overlay.lua has no hook for
   -- (BattleState.update, BattleState.drawTextArea, WideBattle.draw), which
   -- is why it is a separate module even though it reads the same shouldOffer
-  -- decision.
+  -- decision.  Its update wrapper is also the only place the live battle
+  -- reaches this mod without an event, which is why adoption rides it.
   local menu = m["src/menu.lua"]
-  menu.bind({ overlay = overlay, diag = diag })
+  menu.bind({ overlay = overlay, diag = diag, adopt = adopt })
   menu.install(mod, state)
 
   -- Events:emit pcalls the LISTENER, not the calls inside it, so three
@@ -212,6 +230,10 @@ return function(mod)
     diag.reached("battle.ended", ev)
     run("resolve.onBattleEnded", function() resolve.onBattleEnded(ev) end)
     run("arm.onBattleEnded", function() state:onBattleEnded(ev) end)
+    -- After the party sweep above, and it must stay after it: this marks the
+    -- battle closed so no later frame can adopt it and re-apply a form to a
+    -- mon resolve.onBattleEnded has just reverted.
+    run("adopt.onBattleEnded", function() adopt.onBattleEnded(ev) end)
     -- Last, so the flush it performs carries everything the handlers above
     -- had to say about the battle that just ended.
     run("diag.onBattleEnded", function() diag.onBattleEnded(ev) end)

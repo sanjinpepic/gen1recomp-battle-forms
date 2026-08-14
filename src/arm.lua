@@ -29,18 +29,35 @@ function M.new()
                         spent = {} }, State)
 end
 
-function State:onBattleStarted(ev)
-  self.battle = ev and ev.battle or nil
+-- The three entry points below are one write, expressed once: a state that
+-- reset three of its four fields on one path and four on another would spend
+-- or refund a transformation depending on how the battle was picked up.
+local function begin(self, battle)
+  self.battle = battle
   self.armedId = nil
   self.selectedId = nil
   self.spent = {}
 end
 
+function State:onBattleStarted(ev)
+  begin(self, ev and ev.battle or nil)
+end
+
 function State:onBattleEnded()
-  self.battle = nil
-  self.armedId = nil
-  self.selectedId = nil
-  self.spent = {}
+  begin(self, nil)
+end
+
+-- Taking over a battle that started before the mod was enabled (src/adopt.lua).
+-- Refusing a battle already held is the whole of the idempotence guarantee:
+-- everything spent in this battle was spent through a cell that could only be
+-- drawn once this same battle was cached here, so a state already holding it
+-- has history worth keeping, and clearing that is how a trainer would be handed
+-- a second mega.  A state holding some OTHER battle is holding a stale
+-- reference whose spent flags belong to a fight that is over.
+function State:adopt(battle)
+  if not battle or self.battle == battle then return false end
+  begin(self, battle)
+  return true
 end
 
 function State:current() return self.battle end

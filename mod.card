@@ -19,6 +19,8 @@ return {
       "condition-driven forms for eight species, with no item and no menu: Darmanitan and Minior flip at half HP, Wishiwashi schools above a quarter HP from level 20, Aegislash draws its blade on an attacking move and shields on a status one, Morpeko alternates every round, Mimikyu and Eiscue break on a damaging hit, and Greninja bonds on a knockout it dealt",
       "the reversible ones flip back and forth as many times as the battle calls for, because the form is re-derived from the mon rather than remembered",
       "the menu cell cycles on LEFT and RIGHT when more than one transformation is available, each with its own once-per-battle limit -- mega evolution is the only one registered today, so the cell holds one label and neither key cycles",
+      "a battle message when a Pokemon reverts or mega evolves, in the real games' own words -- neither change renames the Pokemon and primal reversion has no animation, so without a line the whole mechanic rested on one sprite being present",
+      "a battle already under way is picked up the moment the mod is enabled, so turning it on mid-fight from the mod manager brings the MEGA cell and primal reversion with it instead of doing nothing until the next battle",
       "DEBUG TRACE, off by default, which records into mod storage why the menu cell and primal reversion did or did not happen -- for reporting a bug, not for playing with",
     },
     known = {
@@ -38,6 +40,8 @@ return {
       "Castform and Cherrim are not wired: both change with the weather, and Gen 1 battles have no weather to change with",
       "Cramorant is not wired either -- Gulp Missile is a payload fired back at an attacker rather than a form, and nothing here makes an ability do anything",
       "a species can have one condition-driven form, so there is no priority order to get wrong; the reversible ones are re-derived, not tracked, and unwind with everything else at the end of the battle",
+      "the condition-driven forms print no message, on purpose: several of them change every single turn, and a line each would bury the battle text a player is reading",
+      "enabling the mod mid-battle brings across only what is still derivable -- primal reversion and the HP-driven forms -- so an Aegislash or a Mimikyu whose trigger already fired arrives in its base form and resumes from the next one, and the turn already in progress cannot be megaed retroactively",
     },
   },
   credits = {

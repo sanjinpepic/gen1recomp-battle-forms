@@ -192,6 +192,11 @@ end
 -- true and leaves the class alone instead of wrapping its own wrapper.
 function M.install(mod, state)
   local diag = deps and deps.diag
+  -- The update wrapper is this mod's only per-frame seam and the only place
+  -- the live battle arrives without an event, so adoption rides it rather than
+  -- patching BattleState.update a second time.  Optional the way diag is: the
+  -- unit suites bind neither.
+  local adopt = deps and deps.adopt
   local function record(fmt, ...)
     if diag then diag.record(fmt, ...) end
   end
@@ -230,6 +235,10 @@ function M.install(mod, state)
 
   local vanillaUpdate = BattleState.update
   BattleState.update = function(self, dt)
+    -- First, ahead of the diagnostic and the input decision both: each of them
+    -- reads the arm state, and a mod enabled mid-battle has an arm state that
+    -- never learned which battle it is in.
+    if adopt then pcall(adopt.consider, self) end
     if diag then
       pcall(diag.note, self, "update", "wrapper: BattleState.update ran")
       pcall(diag.menu, self)

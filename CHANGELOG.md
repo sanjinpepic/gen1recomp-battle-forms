@@ -3,6 +3,38 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.10.0
+
+### Added
+
+- **A form change now prints a line, so it can never again be one missing file
+  away from invisible.** Primal reversion has no animation by design and keeps
+  its species name the way a mega does, so its only signal was the back sprite
+  -- and while one art file was missing, a mechanic that was working looked
+  exactly like one that was not. Groudon and Kyogre now announce with the real
+  games' own line, and mega evolution announces with its own for the same
+  reason from the other direction: the armed marker leaves the cell the instant
+  the change lands, and a player with battle animations off was getting a mega
+  that said nothing at all. The eight condition-driven forms stay silent
+  deliberately -- Aegislash flips on every move it picks and Morpeko at the
+  close of every round, and a line apiece would bury the messages a player is
+  actually reading.
+
+### Fixed
+
+- **Enabling the mod during a battle left it inert for the rest of that
+  fight.** The live battle was only ever cached from `battle.started`, an event
+  that has already been and gone by the time a player turns the mod on from the
+  manager mid-fight, so the arm state never learned which battle it was in: no
+  MEGA cell, and no primal reversion for a mon already on the field. It now
+  adopts a battle already under way from the frame it arrives, through the
+  battle-update seam the menu cell was already patched into rather than any new
+  hook. Adoption re-derives what a send-out would have applied -- primal
+  reversion, and the HP-driven conditional forms -- and leaves the rest alone:
+  it never spends the trainer's one mega, never re-transforms a mon already
+  transformed, and does not invent triggers it was not there to see, so an
+  Aegislash that attacked before the mod loaded arrives shielded.
+
 ## 0.9.0
 
 ### Added

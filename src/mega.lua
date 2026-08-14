@@ -58,6 +58,14 @@ function M.entry(deps)
         return false
       end
 
+      -- Announced before the animation is queued, so the line reads first and
+      -- the flash follows it.  It is announced at all because the animation is
+      -- the only other thing that marks this: the armed marker went with the
+      -- cell the moment the battle's one mega was spent, and a player who
+      -- turned battle animations off is left with a mega that changed the
+      -- stats, the types and the picture without saying anything.
+      if deps.announce then deps.announce.mega(battle, battler) end
+
       -- The form change must not depend on the animation: a player who turned
       -- battle animations off asked for exactly that and still gets the mega.
       if battle.animationsOn and battle:animationsOn() then
