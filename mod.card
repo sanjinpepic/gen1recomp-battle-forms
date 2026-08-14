@@ -1,0 +1,30 @@
+-- Sharing metadata.  Read by tooling and the manager's detail pane; never by
+-- the loader's merge, so nothing here can break a load.
+return {
+  summary = "Mid-battle form changes, with mega evolution as the first trigger.",
+  author = "sanjinpepic",
+  contact = "https://github.com/sanjinpepic",
+  tags = { "gameplay", "battle" },
+  differences = {
+    changed = {
+      "START at the battle menu arms a mega evolution when the active mon carries a matching stone",
+    },
+    added = {
+      "a form change that resolves before turn order, so megaing never spends a turn or a move",
+      "mega stones as bag items; using one on a mon it fits assigns it to that mon and is not used up",
+      "five mega forms: Venusaur, Charizard X and Y, Blastoise, Alakazam and Gengar",
+      "the form survives switching out and unwinds when the battle ends or the mon faints",
+    },
+    known = {
+      "abilities are unaffected -- nothing here makes an ability do anything, and no ability animations ship yet",
+      "Gold is not supported; this is Red/Blue/Yellow only for now",
+      "a mon exported to a Game Boy .sav loses its stone, because a cart save has nowhere to record one",
+      "there is no Key Stone: carrying the matching stone is the only requirement, where the real games also gate on the trainer",
+      "the form lasts the battle and is never written to the save",
+    },
+  },
+  credits = {
+    { who = "National Dex", for_ = "the alternate-form records every form change re-keys to" },
+  },
+  compat = { engine = ">=0.0.0-0 <2.0.0", modApi = 2 },
+}
