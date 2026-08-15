@@ -3,6 +3,33 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.20.0
+
+### Added
+
+- **Fusion for Kyurem, Necrozma and Calyrex, which takes a Pokemon out of the
+  party and keeps it in the PC.** The DNA Splicers, the N-Solarizer, the
+  N-Lunarizer and the Reins of Unity are bag items sold at the Indigo Plateau
+  counter beside the orbs; using one on the base Pokemon while its partner is in
+  the party joins the two, and using it again separates them and hands the
+  partner back exactly as it went in -- same level, moves, PP, stats and DVs.
+  The partner is deposited into the PC rather than carried inside the Pokemon it
+  was fused with, which was the other option and the worse one: a Game Boy `.sav`
+  export rebuilds every mon from fixed offsets and drops fields it does not know,
+  and there is no hook anywhere near it, so a partner stored inside another
+  Pokemon would have been deleted by an export with nothing able to say so.
+  Boxes go through that same export intact, so a fused pair exported to a
+  cartridge comes back as two plain Pokemon -- one in the party, one in the box
+  it was put in -- and the way back is to fuse them again. Only two strings are
+  written: which partner went in, and which Pokemon it is inside; the form is
+  derived from the first of those, and no species, stat block, HP or move list
+  is touched on either half. Fusing refuses without moving anything when there
+  is no partner in the party, when it would leave the party with nothing able to
+  battle, and when all 240 PC slots are full; separating refuses when the party
+  is full. Where one item has two possible partners -- Kyurem with both Reshiram
+  and Zekrom, Calyrex with both steeds -- the first in party order is taken, so
+  reordering the party is how the other is chosen.
+
 ## 0.19.0
 
 ### Added

@@ -94,6 +94,15 @@ function M.consider(battle)
   -- and optional where they are not: the suites bind adoption with the deps
   -- they exercise and no more.
   local ok, err
+  -- Ahead of the persistent handler, matching the order main.lua runs the two
+  -- real send-out events in, and re-derivable on exactly the same terms: a
+  -- fused Pokemon simply IS its fused form while it is out, read straight back
+  -- out of the partner species recorded on it, so applying it late answers a
+  -- question that was never asked rather than replaying a missed event.
+  if deps.fusion then
+    ok, err = pcall(deps.fusion.onBattleStarted, ev)
+    if not ok and deps.diag then deps.diag.fault("adopt.fusion", err) end
+  end
   if deps.persistent then
     ok, err = pcall(deps.persistent.onBattleStarted, ev)
     if not ok and deps.diag then deps.diag.fault("adopt.persistent", err) end

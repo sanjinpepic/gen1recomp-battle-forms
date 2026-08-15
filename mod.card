@@ -1,7 +1,7 @@
 -- Sharing metadata.  Read by tooling and the manager's detail pane; never by
 -- the loader's merge, so nothing here can break a load.
 return {
-  summary = "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, and Rotom's five appliance forms, which last beyond the battle and are kept in the save.",
+  summary = "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, Rotom's five appliance forms, and fusion for Kyurem, Necrozma and Calyrex, which joins two Pokemon into one and keeps the partner in the PC until they are separated again.",
   author = "sanjinpepic",
   contact = "https://github.com/sanjinpepic",
   tags = { "gameplay", "battle" },
@@ -40,6 +40,10 @@ return {
       "a message at both ends of a Dynamax, because it is the only transformation here that ends on its own and a species with no Gigantamax shape has no picture change at either end to notice it by",
       "Rotom's five appliance forms, which last past the end of the battle: the five appliances are bag items sold on the Celadon stone floor and used on a Pokemon the way a mega stone is, and a Rotom given one stays in that form through the battle, the save and a reload until another appliance replaces it or the same one is used again to take it back off",
       "the appliance form is the first thing this mod writes into a save, and it writes two string fields on the Pokemon and nothing else -- the item it is stamped with, and the form marker derived from that item; the species, the stat block, current HP and the move list are all left exactly as they were",
+      "fusion for Kyurem, Necrozma and Calyrex: the DNA Splicers, the N-Solarizer, the N-Lunarizer and the Reins of Unity are bag items sold at the Indigo Plateau counter beside the orbs, and using one on the base Pokemon while its partner is in the party joins the two into White or Black Kyurem, Dusk Mane or Dawn Wings Necrozma, or the Ice or Shadow Rider Calyrex",
+      "using the same item again separates them and hands the partner back exactly as it went in -- same level, moves, PP, stats and DVs -- which is the only way back, the way it is in the real games",
+      "the partner is deposited into the PC rather than carried inside the Pokemon it was fused with, so it stays an ordinary Pokemon that the box screen, a save validation and a Game Boy .sav export all already understand",
+      "two strings are written and nothing else: which partner went in, on the survivor, and which Pokemon it is inside, on the partner -- the form is derived from the first of those, and neither half has its species, stat block, HP or move list touched",
       "a battle already under way is picked up the moment the mod is enabled, so turning it on mid-fight from the mod manager brings the MEGA cell and primal reversion with it instead of doing nothing until the next battle",
       "DEBUG TRACE, off by default, which records into mod storage why the menu cell and primal reversion did or did not happen -- for reporting a bug, not for playing with",
     },
@@ -56,7 +60,12 @@ return {
       "an appliance form changes the Pokemon's picture and, in battle, its types and stats -- but the party menu and the summary screen still read the name, the types and the stat numbers off the base species, because those come from the stat block and nothing outside battle recomputes it",
       "a Pokemon holds one of these items at a time, so a Rotom carrying an appliance is a Rotom not carrying a Z-Crystal; giving it one takes the appliance form off, which is the other way back to a plain Rotom",
       "Giratina's Origin Forme and Shaymin's Sky Forme have the art and the records for this and are deliberately not wired: one hangs off a held item and the other off a time of day, and Gen 1 has neither -- wiring them would mean inventing the trigger rather than modelling it",
-      "fusion, regional forms, cosmetic forms and Ultra Burst are not implemented",
+      "regional forms, cosmetic forms and Ultra Burst are not implemented",
+      "a fused pair exported to a Game Boy .sav comes back as two plain Pokemon -- the base in the party, the partner in the box it was put in -- because the cartridge mon struct has no room for either of the two strings a fusion writes; nothing is lost, and the way back is to fuse them again",
+      "the partner is visible in the PC while it is fused, and it can be withdrawn or released like any other boxed Pokemon: withdrawing it leaves the player holding both halves at once, and releasing it means a later separation returns nothing and says so",
+      "fusing refuses, without moving anything, when there is no partner in the party, when it would leave the party with no Pokemon able to battle, and when all 240 PC slots are full; separating refuses when the party is full",
+      "where one item has two possible partners -- Kyurem with both Reshiram and Zekrom, Calyrex with both Glastrier and Spectrier -- the first in party order is the one taken, so reordering the party is how the other is chosen; Necrozma needs no such rule, because its two forms have an item each",
+      "a fusion has no animation: the engine's evolution screen re-keys the Pokemon's species and recomputes its stats, which is the one write this mod has refused since 0.2.1, so the item prints its message the way every other item here does",
       "a Terastallization writes nothing to the Pokemon whatsoever: the type override lives on the battler, which the battle takes with it, so there is nothing for the party sweep to find",
       "Terastallization keeps the same-type bonus only on the type it became, where the real games leave the Pokemon its original types' bonus as well",
       "the Tera Orb is never used up and needs no recharge, where the real games exhaust it until the next Pokemon Center -- there is one type on offer at a time and nothing to ration it against",

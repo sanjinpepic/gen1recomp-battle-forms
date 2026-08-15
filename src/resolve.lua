@@ -92,7 +92,15 @@ end
 -- persistent one cannot be swept away by a mechanic that never heard of it.
 -- deps.persistent is optional for the reason deps.log is -- the unit suites
 -- bind this module without one -- and its absence is exactly today's behaviour.
+--
+-- deps.fusion is the second module with that contract and is asked first, which
+-- costs nothing and says something: no species is both a fusion base and an
+-- appliance user, so the order can never decide an outcome, and asking the
+-- strongest claim first is the order to be wrong in if that ever stops being
+-- true.  Both answer the same question -- "is this mon's form yours?" -- so the
+-- sweep still needs no way of telling a persistent form from a battle one.
 local function settle(battle, mon)
+  if deps.fusion and deps.fusion.settle(battle.data, mon) then return end
   if deps.persistent and deps.persistent.settle(battle.data, mon) then return end
   deps.forms.revertMon(mon)
 end
@@ -125,6 +133,11 @@ function M.onFainted(ev)
   local battle = ev and ev.battle
   if not battle or not ev.battler then return end
   deps.forms.revertForm(ev.battler, battle.data, battle)
+  -- A fusion is put back for the same reason and more strongly: an appliance
+  -- form is what a Rotom looks like, where this one is a Pokemon with another
+  -- Pokemon in the PC behind it, and the party menu is exactly where a player
+  -- would see it claiming to be plain again.
+  if deps.fusion and deps.fusion.settle(battle.data, ev.battler.mon) then return end
   if deps.persistent then
     deps.persistent.settle(battle.data, ev.battler.mon)
   end

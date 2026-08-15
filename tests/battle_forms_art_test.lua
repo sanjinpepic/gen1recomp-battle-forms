@@ -38,6 +38,19 @@ end
 -- is invisible on the player's own side of the battle, and this is the one
 -- family where that would not end when the battle did.
 local persistent = dofile(MOD .. "/data/persistent.lua")
+-- data/fusion.lua is species -> item -> PARTNER -> form, one level deeper than
+-- everything above, because the partner is half of what the form is.  Flattened
+-- on the partner so the one sweep below covers it, and swept under the same
+-- stricter rule as the persistent table and for a sharper version of the same
+-- reason: a fused Pokemon wears its form until the player separates it, and a
+-- second Pokemon is sitting in the PC for as long as it does.
+local fusion = {}
+for species, byItem in pairs(dofile(MOD .. "/data/fusion.lua")) do
+  fusion[species] = {}
+  for _, byPartner in pairs(byItem) do
+    for partner, formId in pairs(byPartner) do fusion[species][partner] = formId end
+  end
+end
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 local FORM_ART = MOD .. "/../data/sprites/generated/formart.lua"
@@ -75,11 +88,12 @@ local function formSuffixFor(id)
 end
 
 local checked, primalsChecked, conditionalChecked = 0, 0, 0
-local gigantamaxChecked, persistentChecked = 0, 0
+local gigantamaxChecked, persistentChecked, fusionChecked = 0, 0, 0
 for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true },
                          { table_ = conditional, conditional = true },
                          { table_ = gigantamax, gigantamax = true },
-                         { table_ = persistent, persistent = true } }) do
+                         { table_ = persistent, persistent = true },
+                         { table_ = fusion, fusion = true } }) do
   for base, byItem in pairs(wired.table_) do
     for _, formId in pairs(byItem) do
       checked = checked + 1
@@ -87,6 +101,7 @@ for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true }
       if wired.conditional then conditionalChecked = conditionalChecked + 1 end
       if wired.gigantamax then gigantamaxChecked = gigantamaxChecked + 1 end
       if wired.persistent then persistentChecked = persistentChecked + 1 end
+      if wired.fusion then fusionChecked = fusionChecked + 1 end
       local suffix = formSuffixFor(formId)
       T.check(suffix ~= nil, formId .. " has a form suffix in national.lua")
       if suffix then
@@ -101,7 +116,7 @@ for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true }
         -- same as art: Corviknight's Gigantamax has a back picture and no
         -- front, and half an entry passes the check above while showing the
         -- base species from one side.  This is the check that keeps it out.
-        if (wired.gigantamax or wired.persistent) and entry then
+        if (wired.gigantamax or wired.persistent or wired.fusion) and entry then
           T.check(entry.front ~= nil,
             base .. ".forms." .. suffix .. " has FRONT art")
           T.check(entry.back ~= nil,
@@ -120,6 +135,8 @@ T.eq(gigantamaxChecked, 31,
   "all 31 wired Gigantamax forms were checked against formart.lua")
 T.eq(persistentChecked, 5,
   "all five wired persistent forms were checked against formart.lua")
+T.eq(fusionChecked, 6,
+  "all six fusion result forms were checked against formart.lua")
 
 -- The two exclusions, pinned as facts about the data rather than as prose in
 -- data/gigantamax.lua's header.  If a later art build fills Corviknight's

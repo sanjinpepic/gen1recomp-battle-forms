@@ -27,6 +27,7 @@ local primals = dofile(MOD .. "/data/primals.lua")
 local conditional = dofile(MOD .. "/data/conditional.lua")
 local gigantamax = dofile(MOD .. "/data/gigantamax.lua")
 local persistent = dofile(MOD .. "/data/persistent.lua")
+local fusion = dofile(MOD .. "/data/fusion.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 
@@ -62,6 +63,26 @@ for _, table_ in ipairs({ megas, primals, persistent }) do
     end
   end
 end
+-- data/fusion.lua is species -> item -> PARTNER -> form, one level deeper than
+-- the three above.  Every id it names is swept the same way, and so is every
+-- PARTNER key: a partner species that is not a record is a Pokemon this mod
+-- would never find in a party, so the item would refuse forever with nothing
+-- anywhere to say why.  A wrong id here is worse than a wrong id in any other
+-- table -- the others describe a form that never happens, and this one describes
+-- the form of a Pokemon that has a second Pokemon sitting in the PC behind it.
+local fusionBases, fusionPartners = {}, {}
+for species, byItem in pairs(fusion) do
+  fusionBases[#fusionBases + 1] = species
+  for _, byPartner in pairs(byItem) do
+    for partner, formId in pairs(byPartner) do
+      formIds[#formIds + 1] = formId
+      fusionPartners[#fusionPartners + 1] = partner
+    end
+  end
+end
+table.sort(fusionBases)
+table.sort(fusionPartners)
+
 -- data/conditional.lua is species -> one row, not species -> item -> form,
 -- because a condition-driven form has no item to key on.  Same id rule,
 -- one level shallower.
@@ -122,6 +143,58 @@ do
     "data/persistent.lua wires exactly the one species it says it does")
   T.check(isRecordKey("ROTOM"), "ROTOM is a record KEY in national.lua (a "
     .. "persistent row keyed on a species that does not exist can never fire)")
+end
+
+-- The six pairings named outright rather than counted, for the reason the
+-- primals and the appliances are: a pairing quietly dropped would only make the
+-- sweep above shorter and nothing would fail -- and here it would also strand
+-- every Pokemon already fused through it, because that pairing is the only
+-- thing entitled to name the form AND the only thing that knows the item may
+-- undo it.
+do
+  local expected = {
+    { "KYUREM",   "DNA_SPLICERS",   "RESHIRAM",  "KYUREM_WHITE" },
+    { "KYUREM",   "DNA_SPLICERS",   "ZEKROM",    "KYUREM_BLACK" },
+    { "NECROZMA", "N_SOLARIZER",    "SOLGALEO",  "NECROZMA_DUSK" },
+    { "NECROZMA", "N_LUNARIZER",    "LUNALA",    "NECROZMA_DAWN" },
+    { "CALYREX",  "REINS_OF_UNITY", "GLASTRIER", "CALYREX_ICE" },
+    { "CALYREX",  "REINS_OF_UNITY", "SPECTRIER", "CALYREX_SHADOW" },
+  }
+  local wired = 0
+  for _, row in ipairs(expected) do
+    local base, item, partner, formId = row[1], row[2], row[3], row[4]
+    local byItem = fusion[base] or {}
+    T.eq(byItem[item] and byItem[item][partner], formId,
+      "data/fusion.lua still pairs " .. base .. " + " .. partner .. " under the "
+        .. item .. " with " .. formId)
+  end
+  for _, byItem in pairs(fusion) do
+    for _, byPartner in pairs(byItem) do
+      for _ in pairs(byPartner) do wired = wired + 1 end
+    end
+  end
+  T.eq(wired, #expected,
+    "and pairs nothing else -- three families, six results")
+
+  T.eq(table.concat(fusionBases, ","), "CALYREX,KYUREM,NECROZMA",
+    "data/fusion.lua wires exactly the three base species it says it does")
+  T.eq(table.concat(fusionPartners, ","),
+    "GLASTRIER,LUNALA,RESHIRAM,SOLGALEO,SPECTRIER,ZEKROM",
+    "and exactly the six partners")
+end
+
+-- A base key is what src/fusion.lua indexes with mon.species and a partner key
+-- is what it matches a party member against, so either one that is not itself a
+-- record in national.lua is a pairing that can never fire.
+for _, species in ipairs(fusionBases) do
+  T.check(isRecordKey(species), species
+    .. " is a record KEY in national.lua (a fusion base that does not exist "
+    .. "can never fire)")
+end
+for _, species in ipairs(fusionPartners) do
+  T.check(isRecordKey(species), species
+    .. " is a record KEY in national.lua (a fusion partner that does not "
+    .. "exist could never be found in a party)")
 end
 
 -- Same reasoning for the conditional rows: a row quietly dropped would only

@@ -83,7 +83,7 @@ return function(mod)
                   "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
                   "src/substitute.lua", "src/maxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/resolve.lua",
-                  "src/primal.lua", "src/persistent.lua",
+                  "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
                   "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua",
@@ -91,7 +91,8 @@ return function(mod)
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua", "data/maxmoves.lua",
                   "data/zmoves.lua", "data/crystals.lua",
-                  "data/persistent.lua", "data/appliances.lua" }
+                  "data/persistent.lua", "data/appliances.lua",
+                  "data/fusion.lua", "data/fusers.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -153,6 +154,18 @@ return function(mod)
                     rows = persistentRows, log = mod.log,
                     price = m["src/stone.lua"].PRICE })
 
+  -- The fifth family, and the only one that does not go through the held-item
+  -- stamp at all: a fusion is recorded by which partner went in, and the
+  -- partner itself is an ordinary Pokemon in the PC.  Bound beside the
+  -- appliances because it derives its form the same way, and deliberately NOT
+  -- handed to src/stone.lua below -- moving a stamp has nothing to re-derive
+  -- here, and a fused Kyurem given a Z-Crystal must keep its partner.
+  local fusion = m["src/fusion.lua"]
+  local fusionRows = m["data/fusion.lua"]
+  local fuserIndices = m["data/fusers.lua"]
+  fusion.bind({ forms = m["src/forms.lua"], rows = fusionRows, log = mod.log,
+                price = m["src/stone.lua"].PRICE })
+
   m["src/stone.lua"].bind(eligibility, persistent)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
@@ -163,6 +176,9 @@ return function(mod)
   -- a way to take back off, because it is the only one that changes what the
   -- Pokemon is in the save.
   persistent.install(mod, persistentRows, applianceIndices)
+  -- Its own install for a stronger version of the appliances' reason: this item
+  -- does not stamp the Pokemon it is used on, it moves a second one into the PC.
+  fusion.install(mod, fusionRows, fuserIndices)
   -- Before the stones, so the items that make that shelf worth anything are at
   -- the top of it rather than under ninety-odd stones -- key items first, then
   -- the crystals that the last of them needs to do anything, then the five
@@ -172,6 +188,10 @@ return function(mod)
   m["src/shop.lua"].installAppliances(mod, applianceIndices)
   m["src/shop.lua"].install(mod, indices, megaset.stoneIds(megas))
   m["src/shop.lua"].installOrbs(mod, orbIndices)
+  -- Behind the orbs on the Indigo Plateau counter, which is this call's
+  -- position rather than anything it does: a deep registry concatenates patches
+  -- in the order they arrive.
+  m["src/shop.lua"].installFusionItems(mod, fuserIndices)
   anim.install(mod)
 
   -- The battle message a form change prints.  Handed to the two
@@ -287,7 +307,7 @@ return function(mod)
   local resolve = m["src/resolve.lua"]
   resolve.bind({ registry = registry, forms = m["src/forms.lua"],
                  eligibility = eligibility, megas = megas, log = mod.log,
-                 persistent = persistent })
+                 persistent = persistent, fusion = fusion })
 
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,
@@ -331,7 +351,7 @@ return function(mod)
   -- because what it recovers is exactly what a send-out would have applied.
   local adopt = m["src/adopt.lua"]
   adopt.bind({ state = state, primal = primal, conditional = conditional,
-               persistent = persistent, diag = diag })
+               persistent = persistent, fusion = fusion, diag = diag })
 
   -- The menu cell owns input/draw seams overlay.lua has no hook for
   -- (BattleState.update, BattleState.drawTextArea, WideBattle.draw), which
@@ -369,6 +389,12 @@ return function(mod)
     -- that its correctness does not rest on its position -- but a conditional
     -- row refuses a mon already wearing something else, and this is the order in
     -- which that refusal means what it says.
+    -- Ahead of the persistent handler for the reason that one leads the rest: a
+    -- fusion is the most baseline thing a Pokemon here can be wearing -- it was
+    -- true before the battle, will be true after it, and there is a second
+    -- Pokemon in the PC behind it.  Nothing breaks in the other order, since no
+    -- species is both a fusion base and an appliance user.
+    run("fusion.onBattleStarted", function() fusion.onBattleStarted(ev) end)
     run("persistent.onBattleStarted", function() persistent.onBattleStarted(ev) end)
     run("primal.onBattleStarted", function() primal.onBattleStarted(ev) end)
     run("conditional.onBattleStarted", function() conditional.onBattleStarted(ev) end)
@@ -389,6 +415,7 @@ return function(mod)
     -- form is simply true of it needs the stat and type override put back on
     -- every arrival, and it should be back before a conditional row asks what
     -- the mon is wearing.
+    run("fusion.onBattlerSwitched", function() fusion.onBattlerSwitched(ev) end)
     run("persistent.onBattlerSwitched", function() persistent.onBattlerSwitched(ev) end)
     run("primal.onBattlerSwitched", function() primal.onBattlerSwitched(ev) end)
     run("conditional.onBattlerSwitched", function() conditional.onBattlerSwitched(ev) end)

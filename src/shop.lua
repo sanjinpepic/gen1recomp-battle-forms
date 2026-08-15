@@ -88,4 +88,15 @@ function M.installOrbs(mod, indices)
   shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
 end
 
+-- The fusion items sell at that same lobby counter and behind the orbs, which
+-- main.lua arranges by calling this after M.installOrbs: a deep registry
+-- concatenates patches in the order they arrive.  Not on the Celadon stone
+-- floor, for the reason the orbs are not -- the six Pokemon they work on are
+-- endgame legendaries and the counter before the Elite Four is where this mod
+-- already sells for them.  Every fusion item registered is one sold: no option
+-- gates a pairing, so there is no subset to offer.
+function M.installFusionItems(mod, indices)
+  shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
+end
+
 return M

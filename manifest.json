@@ -1,7 +1,7 @@
 {
   "id": "battle_forms",
   "name": "Battle Forms",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -21,5 +21,5 @@
   "permissions": [
     "engine_internals"
   ],
-  "description": "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, and Rotom's five appliance forms, which last beyond the battle and are kept in the save."
+  "description": "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, Rotom's five appliance forms, and fusion for Kyurem, Necrozma and Calyrex, which joins two Pokemon into one and keeps the partner in the PC until they are separated again."
 }
