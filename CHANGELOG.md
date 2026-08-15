@@ -3,6 +3,42 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.24.0
+
+### Added
+
+- **The fusion partner boxed in the PC now carries a marker, in the WITHDRAW
+  and RELEASE lists and on the STATS screen reached from either.** Fusion
+  (0.20.0) puts the partner Pokemon into an ordinary PC box rather than
+  nesting it inside the survivor -- GenSave.lua's Game Boy `.sav` export
+  rebuilds a mon from fixed offsets with no hook for a nested one -- which
+  left the boxed partner looking like any other Pokemon a player could
+  release by accident, with no way back for the fusion it silently ended. An
+  `F` now prints beside its name wherever the engine draws it: right-aligned
+  in the box list, through the same `item.right` field the Pokedex ball
+  marker and the shop's price already use, and in a free two-tile gap on the
+  STATS screen's dex-number row. Both are engine draw-seam wraps, not save
+  writes -- a nickname was considered and rejected for writing to the save at
+  all -- and the two are installed as one unit: if either seam has changed
+  shape, neither is built, rather than a marker that appears in the list and
+  not the screen it opens into.
+
+### Fixed
+
+- **Thirteen of the eighteen Z-Move names overflowed the FIGHT menu.** The
+  classic layout draws a move's name with no truncation of its own, so a name
+  longer than thirteen characters ran into the move box's border; the
+  widescreen grid truncates with an ellipsis at twelve, which fit but made
+  half the roster unrecognisable. `data/zmoves.lua` now carries a `menu`
+  field beside each row's real `name` -- a short form of the same move,
+  measured against both budgets and pinned at the tighter one in
+  `tests/battle_forms_zmoves_test.lua` so a future rename cannot quietly
+  overflow again -- and a new `src/zmovemenu.lua` redraws the FIGHT menu's
+  name cell over top of whatever the engine just printed there, on both
+  layouts. The registered move record is untouched: `name` is still what a
+  save, the battle text row and Mimic see, and only the redraw ever reads
+  `menu`.
+
 ## 0.23.0
 
 ### Added

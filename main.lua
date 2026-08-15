@@ -87,7 +87,8 @@ return function(mod)
                   "src/ultraburst.lua",
                   "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
-                  "src/overlay.lua", "src/menu.lua",
+                  "src/overlay.lua", "src/menu.lua", "src/boxmark.lua",
+                  "src/zmovemenu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua", "data/maxmoves.lua",
@@ -428,6 +429,24 @@ return function(mod)
   local menu = m["src/menu.lua"]
   menu.bind({ overlay = overlay, diag = diag, adopt = adopt })
   menu.install(mod, state)
+
+  -- The boxed fusion partner's marker: two more engine wraps in the same
+  -- style, reaching the PC box lists and the STATS screen reached from them
+  -- rather than the battle menu the two above own.  Bound beside them for
+  -- the same reason -- diag is what any of these wraps has to report through.
+  local boxmark = m["src/boxmark.lua"]
+  boxmark.bind({ fusion = fusion, diag = diag })
+  boxmark.install(mod)
+
+  -- The Z-Move roster's own FIGHT-menu names, drawn in place of whatever
+  -- data/zmoves.lua's `name` field spells -- display-time only, so the
+  -- registered record (and everything that reads it: the battle text row,
+  -- Mimic, a save) still sees the move's real name.  Bound after zmoves.lua's
+  -- own install because the id -> short name map is built from the same
+  -- roster that call just registered.
+  local zmovemenu = m["src/zmovemenu.lua"]
+  zmovemenu.bind({ diag = diag })
+  zmovemenu.install(mod, zmoves.menuNames(zrows))
 
   -- Events:emit pcalls the LISTENER, not the calls inside it, so three
   -- handlers sharing one listener meant the first to throw silently cancelled

@@ -31,13 +31,24 @@
 --
 -- A NOTE ON THE NAMES, because it is the one place this data does not fit the
 -- screen.  A Gen 1 move name is twelve characters and the layouts are built for
--- it: the FIGHT menu gives a name thirteen before it reaches the box border and
--- the battle text row holds eighteen including "used " and "!".  Thirteen of
--- these eighteen names are longer than that -- NEVER-ENDING NIGHTMARE is
--- twenty-two -- so the widescreen layout truncates them with the engine's own
--- ellipsis and the classic one runs them into the border.  They are shipped as
--- the move data spells them anyway: a shortened Z-Move name would be a name this
--- project made up, which is the one thing worse than a name that does not fit.
+-- it: the classic FIGHT menu gives a name thirteen columns before it reaches
+-- the move box's own border (BattleState.lua's moveSelect draw: names at
+-- x=48, the box border at x=152) and the widescreen grid gives twelve before
+-- WideBattle.lua's fitName starts truncating it with an ellipsis (drawMoveGrid's
+-- own budget: 96px at the font's flat 8px advance).  Thirteen of these
+-- eighteen names are longer than that -- NEVER-ENDING NIGHTMARE is
+-- twenty-two -- so the classic layout ran them into the border and the wide
+-- one truncated them past recognition.
+--
+-- `menu` is the fix, and it is DISPLAY ONLY: src/zmoves.lua never registers
+-- it as anything, `name` above is still what src/zmoves.lua's M.install
+-- hands the engine and what a save, the battle text row and Mimic all still
+-- see.  Only src/zmovemenu.lua reads `menu`, and only to redraw the FIGHT
+-- menu's own two name cells over top of whatever `name` just drew there --
+-- the same display-time-not-data split National Dex keeps between a
+-- registered name and how a dex page casts it.  Every row carries one, even
+-- the two whose own `name` already fit, so the invariant every row's `menu`
+-- is checked against is one invariant rather than a rule with exceptions.
 return {
   -- Registration order, so the shelf of registered records and the shelf of
   -- crystals are both the same from one run to the next -- a keyed table
@@ -45,37 +56,52 @@ return {
   -- order the crystals' bag bytes were handed out in.
   types = {
     { type = "NORMAL",   crystal = "NORMALIUM_Z",
-      stem = "BREAKNECKBLITZ",       name = "BREAKNECK BLITZ" },
+      stem = "BREAKNECKBLITZ",       name = "BREAKNECK BLITZ",
+      menu = "SWIFT BLITZ" },
     { type = "FIGHTING", crystal = "FIGHTINIUM_Z",
-      stem = "ALLOUTPUMMELING",      name = "ALL-OUT PUMMELING" },
+      stem = "ALLOUTPUMMELING",      name = "ALL-OUT PUMMELING",
+      menu = "TOTAL PUMMEL" },
     { type = "FLYING",   crystal = "FLYINIUM_Z",
-      stem = "SUPERSONICSKYSTRIKE",  name = "SUPERSONIC SKYSTRIKE" },
+      stem = "SUPERSONICSKYSTRIKE",  name = "SUPERSONIC SKYSTRIKE",
+      menu = "SKYSTRIKE" },
     { type = "POISON",   crystal = "POISONIUM_Z",
-      stem = "ACIDDOWNPOUR",         name = "ACID DOWNPOUR" },
+      stem = "ACIDDOWNPOUR",         name = "ACID DOWNPOUR",
+      menu = "ACID SHOWER" },
     { type = "GROUND",   crystal = "GROUNDIUM_Z",
-      stem = "TECTONICRAGE",         name = "TECTONIC RAGE" },
+      stem = "TECTONICRAGE",         name = "TECTONIC RAGE",
+      menu = "EARTH RAGE" },
     { type = "ROCK",     crystal = "ROCKIUM_Z",
-      stem = "CONTINENTALCRUSH",     name = "CONTINENTAL CRUSH" },
+      stem = "CONTINENTALCRUSH",     name = "CONTINENTAL CRUSH",
+      menu = "STONE CRUSH" },
     { type = "BUG",      crystal = "BUGINIUM_Z",
-      stem = "SAVAGESPINOUT",        name = "SAVAGE SPIN-OUT" },
+      stem = "SAVAGESPINOUT",        name = "SAVAGE SPIN-OUT",
+      menu = "SPIN-OUT" },
     { type = "GHOST",    crystal = "GHOSTIUM_Z",
-      stem = "NEVERENDINGNIGHTMARE", name = "NEVER-ENDING NIGHTMARE" },
+      stem = "NEVERENDINGNIGHTMARE", name = "NEVER-ENDING NIGHTMARE",
+      menu = "NIGHTMARE" },
     { type = "FIRE",     crystal = "FIRIUM_Z",
-      stem = "INFERNOOVERDRIVE",     name = "INFERNO OVERDRIVE" },
+      stem = "INFERNOOVERDRIVE",     name = "INFERNO OVERDRIVE",
+      menu = "OVERDRIVE" },
     { type = "WATER",    crystal = "WATERIUM_Z",
-      stem = "HYDROVORTEX",          name = "HYDRO VORTEX" },
+      stem = "HYDROVORTEX",          name = "HYDRO VORTEX",
+      menu = "HYDRO VORTEX" },
     { type = "GRASS",    crystal = "GRASSIUM_Z",
-      stem = "BLOOMDOOM",            name = "BLOOM DOOM" },
+      stem = "BLOOMDOOM",            name = "BLOOM DOOM",
+      menu = "BLOOM DOOM" },
     { type = "ELECTRIC", crystal = "ELECTRIUM_Z",
-      stem = "GIGAVOLTHAVOC",        name = "GIGAVOLT HAVOC" },
+      stem = "GIGAVOLTHAVOC",        name = "GIGAVOLT HAVOC",
+      menu = "VOLT HAVOC" },
     -- The engine's id for the type is PSYCHIC_TYPE and its name is PSYCHIC;
     -- data/maxmoves.lua and src/tera.lua carry the same exception.
     { type = "PSYCHIC_TYPE", crystal = "PSYCHIUM_Z",
-      stem = "SHATTEREDPSYCHE",      name = "SHATTERED PSYCHE" },
+      stem = "SHATTEREDPSYCHE",      name = "SHATTERED PSYCHE",
+      menu = "PSYCHE BREAK" },
     { type = "ICE",      crystal = "ICIUM_Z",
-      stem = "SUBZEROSLAMMER",       name = "SUBZERO SLAMMER" },
+      stem = "SUBZEROSLAMMER",       name = "SUBZERO SLAMMER",
+      menu = "ICE SLAMMER" },
     { type = "DRAGON",   crystal = "DRAGONIUM_Z",
-      stem = "DEVASTATINGDRAKE",     name = "DEVASTATING DRAKE" },
+      stem = "DEVASTATINGDRAKE",     name = "DEVASTATING DRAKE",
+      menu = "GRAND DRAKE" },
     -- The last three exist only in a game where National Dex has registered a
     -- chart carrying them.  src/zmoves.lua asks the live chart before it
     -- registers any of these, because a move naming a type the merged chart has
@@ -83,11 +109,14 @@ return {
     -- -- and their crystals are registered either way, because an item a save
     -- carries has to stay nameable whatever the chart says.
     { type = "DARK",     crystal = "DARKINIUM_Z",
-      stem = "BLACKHOLEECLIPSE",     name = "BLACK HOLE ECLIPSE" },
+      stem = "BLACKHOLEECLIPSE",     name = "BLACK HOLE ECLIPSE",
+      menu = "DARK ECLIPSE" },
     { type = "STEEL",    crystal = "STEELIUM_Z",
-      stem = "CORKSCREWCRASH",       name = "CORKSCREW CRASH" },
+      stem = "CORKSCREWCRASH",       name = "CORKSCREW CRASH",
+      menu = "SPIRAL CRASH" },
     { type = "FAIRY",    crystal = "FAIRIUM_Z",
-      stem = "TWINKLETACKLE",        name = "TWINKLE TACKLE" },
+      stem = "TWINKLETACKLE",        name = "TWINKLE TACKLE",
+      menu = "STAR TACKLE" },
   },
 
   -- Read top to bottom; the last rung has no ceiling and takes everything above

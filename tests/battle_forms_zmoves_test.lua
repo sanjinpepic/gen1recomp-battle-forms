@@ -126,6 +126,59 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- The FIGHT menu's own names (`menu`): every row carries one, none of them
+-- overflows either layout's budget, and none of them is what M.install
+-- registers -- see data/zmoves.lua's own header for why `name` stays the
+-- move's real, possibly-overlong, spelling.
+--
+-- The two budgets are MEASURED off the engine sources this data's own header
+-- cites, not assumed: classic's moveSelect branch draws a name at x=48 with
+-- the move box's own border at x=152 (BattleState.lua), which is
+-- (152-48)/8 = 13 columns before it; widescreen's drawMoveGrid hands fitName
+-- a 96px budget (WideBattle.lua), which is 96/8 = 12 columns before its own
+-- ellipsis fires.  The tighter of the two is what a shipped name has to clear.
+-- ---------------------------------------------------------------------
+do
+  local CLASSIC_BUDGET = 13
+  local WIDE_BUDGET = 12
+
+  local longestMenu, longestLen = nil, 0
+  for _, row in ipairs(ROWS.types) do
+    T.check(type(row.menu) == "string" and row.menu ~= "",
+      row.type .. " carries a FIGHT-menu display name")
+    T.check(#row.menu <= WIDE_BUDGET,
+      ("%s (%d chars) fits the widescreen grid's %d-column budget"):format(
+        row.menu, #row.menu, WIDE_BUDGET))
+    T.check(#row.menu <= CLASSIC_BUDGET,
+      ("%s (%d chars) fits the classic FIGHT menu's %d-column budget"):format(
+        row.menu, #row.menu, CLASSIC_BUDGET))
+    if #row.menu > longestLen then longestMenu, longestLen = row.menu, #row.menu end
+  end
+  -- Pinned at the boundary itself: the longest name shipped sits exactly on
+  -- the tighter budget, so a future rename that adds even one more character
+  -- overflows widescreen and this assertion catches it rather than the
+  -- player.
+  T.eq(longestLen, WIDE_BUDGET,
+    "the longest shipped name (" .. tostring(longestMenu) .. ") sits "
+      .. "exactly on the tighter of the two budgets")
+
+  local names = ZMoves.menuNames(ROWS)
+  local mapped = 0
+  for _, row in ipairs(ROWS.types) do
+    for _, rung in ipairs(ROWS.ladder) do
+      mapped = mapped + 1
+      T.eq(names[ZMoves.idFor(row.stem, rung.power)], row.menu,
+        row.stem .. "'s every rung shares the type's one display name")
+    end
+  end
+  T.eq(mapped, #ROWS.types * #ROWS.ladder,
+    "every (type, rung) pair this file's roster can produce was checked")
+
+  T.eq(next(ZMoves.menuNames({ types = {}, ladder = ROWS.ladder })), nil,
+    "no types, no names -- the function reads the roster, not the ladder alone")
+end
+
+-- ---------------------------------------------------------------------
 -- The ladder.
 -- ---------------------------------------------------------------------
 do
@@ -189,6 +242,8 @@ do
   local havoc = mod.registered.moves[ZMoves.idFor(electric.stem, 175)]
   T.check(havoc ~= nil, "the Electric Z-Move registered")
   T.eq(havoc.name, electric.name, "under the move data's own name")
+  T.check(havoc.name ~= electric.menu,
+    "and not the FIGHT menu's shorter one -- M.install never reads `menu`")
   T.eq(havoc.type, "ELECTRIC", "and its own type")
   T.eq(havoc.power, 175, "at the rung its id names")
   T.eq(CATALOG.byCrystal[electric.crystal].type, "ELECTRIC",

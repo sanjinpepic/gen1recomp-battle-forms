@@ -107,6 +107,30 @@ function M.powerFor(rows, basePower)
   return nil
 end
 
+-- id -> the FIGHT menu's own short name for it, one entry per rung of every
+-- type the data carries a `menu` field for.  Every rung of a type shares that
+-- type's one display name -- the rung changes power, not what the move is
+-- called -- so this walks the same (type x rung) product M.install does
+-- rather than reading anything install() built, and answers the same way
+-- whether or not the running game's chart ever resolved the type: an id this
+-- game never registered simply never appears in a curMoves array for the
+-- lookup to find.
+--
+-- Never mixed into the registered record.  src/zmovemenu.lua is the only
+-- reader, and only at the two places the FIGHT menu draws a move's name --
+-- see data/zmoves.lua's own header for why `name` is not touched here.
+function M.menuNames(rows)
+  local out = {}
+  for _, row in ipairs(rows.types) do
+    if type(row.menu) == "string" and row.menu ~= "" then
+      for _, rung in ipairs(rows.ladder) do
+        out[M.idFor(row.stem, rung.power)] = row.menu
+      end
+    end
+  end
+  return out
+end
+
 -- The crystals, in the data's own order, for the two callers that register
 -- items and stock a shelf.  Both need an array: pairs() over the index table
 -- would reorder the shop between runs.
