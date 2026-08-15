@@ -92,7 +92,7 @@ return function(mod)
                   "data/gigantamax.lua", "data/maxmoves.lua",
                   "data/zmoves.lua", "data/crystals.lua",
                   "data/persistent.lua", "data/appliances.lua",
-                  "data/fusion.lua", "data/fusers.lua" }
+                  "data/fusion.lua", "data/fusers.lua", "data/heldforms.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -150,6 +150,13 @@ return function(mod)
   local persistent = m["src/persistent.lua"]
   local persistentRows = m["data/persistent.lua"]
   local applianceIndices = m["data/appliances.lua"]
+  -- Giratina, Palkia, Dialga, Zacian, Zamazenta and Shaymin's items -- a
+  -- second indices table because they sell on a different shelf, merged with
+  -- the appliances' below into the one table M.install actually needs: rows
+  -- above is the WHOLE pairing table, every species at once, so whichever
+  -- item any row names has to resolve to a byte somewhere in what install()
+  -- is handed.
+  local heldFormIndices = m["data/heldforms.lua"]
   persistent.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                     rows = persistentRows, log = mod.log,
                     price = m["src/stone.lua"].PRICE })
@@ -172,10 +179,15 @@ return function(mod)
   m["src/stone.lua"].installUnpaired(mod, zmoves.crystalIds(zrows),
                                      crystalIndices)
   -- Its own install rather than the stone one, for the single reason
-  -- src/persistent.lua gives: an appliance is the only item here a player needs
-  -- a way to take back off, because it is the only one that changes what the
-  -- Pokemon is in the save.
-  persistent.install(mod, persistentRows, applianceIndices)
+  -- src/persistent.lua gives: a persistent form is the only kind here a player
+  -- needs a way to take back off, because it is the only one that changes what
+  -- the Pokemon is in the save.  One call registers every row in the pairing
+  -- table, appliances and held-item forms alike, against the merged bytes --
+  -- M.install itself does not know or care which shelf an item ends up on.
+  local persistentIndices = {}
+  for itemId, index in pairs(applianceIndices) do persistentIndices[itemId] = index end
+  for itemId, index in pairs(heldFormIndices) do persistentIndices[itemId] = index end
+  persistent.install(mod, persistentRows, persistentIndices)
   -- Its own install for a stronger version of the appliances' reason: this item
   -- does not stamp the Pokemon it is used on, it moves a second one into the PC.
   fusion.install(mod, fusionRows, fuserIndices)
@@ -192,6 +204,9 @@ return function(mod)
   -- position rather than anything it does: a deep registry concatenates patches
   -- in the order they arrive.
   m["src/shop.lua"].installFusionItems(mod, fuserIndices)
+  -- Behind the fusion items on that same counter, for the same reason as
+  -- above -- call order is shelf order.
+  m["src/shop.lua"].installHeldForms(mod, heldFormIndices)
   anim.install(mod)
 
   -- The battle message a form change prints.  Handed to the two

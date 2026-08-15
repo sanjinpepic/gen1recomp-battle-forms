@@ -99,4 +99,15 @@ function M.installFusionItems(mod, indices)
   shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
 end
 
+-- The Griseous Orb and the rest of data/heldforms.lua sell at that same
+-- counter, behind the fusion items -- main.lua arranges that by calling this
+-- last: a deep registry concatenates patches in the order they arrive.  Not
+-- the Celadon stone floor, for the reason the orbs and the fusion items are
+-- not: every species this table names is an endgame legendary or mythical.
+-- Every item registered is an item sold: no option gates one of these
+-- pairings, so there is no subset to offer.
+function M.installHeldForms(mod, indices)
+  shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
+end
+
 return M

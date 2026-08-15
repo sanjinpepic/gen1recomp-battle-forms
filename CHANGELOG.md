@@ -3,6 +3,31 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.21.0
+
+### Added
+
+- **Six more persistent held-item forms, on the exact mechanism Rotom's
+  appliances proved.** The Griseous Orb, the Lustrous Globe, the Adamant
+  Crystal, the Rusted Sword, the Rusted Shield and the Gracidea are now bag
+  items sold at the Indigo Plateau lobby counter; using one on Giratina,
+  Palkia, Dialga, Zacian, Zamazenta or Shaymin stamps the item and derives the
+  matching form -- Origin Forme, Crowned Forme or Sky Forme -- the same way an
+  appliance derives Rotom's, and using the same item again takes it back off.
+  Nothing new was built to do this: src/persistent.lua's `rows` argument was
+  already the whole pairing table rather than Rotom's alone, so the six new
+  rows in data/persistent.lua and a second bag-byte table
+  (data/heldforms.lua, 227-232) were the entire change, merged into one
+  `M.install` call in main.lua the same way the appliances' bytes always were.
+  Arceus's 17 Plates and Silvally's 17 Memories were investigated and left
+  unwired: both have real held-item mechanics and a National Dex record for
+  every type, but neither species has a single entry in the built form-art
+  set, not even a base one, so every form between them would show as the
+  plain species with nothing to tell it apart. Genesect's four Drives have no
+  species record to name at all -- GENESECT_DOUSE/SHOCK/BURN/CHILL do not
+  exist in the National Dex data -- so there was no id a pairing could point
+  at.
+
 ## 0.20.0
 
 ### Added

@@ -133,8 +133,10 @@ T.eq(conditionalChecked, 8,
   "all eight conditional forms were checked against formart.lua")
 T.eq(gigantamaxChecked, 31,
   "all 31 wired Gigantamax forms were checked against formart.lua")
-T.eq(persistentChecked, 5,
-  "all five wired persistent forms were checked against formart.lua")
+T.eq(persistentChecked, 11,
+  "all eleven wired persistent forms were checked against formart.lua -- "
+    .. "Rotom's five appliances plus Giratina, Palkia, Dialga, Zacian, "
+    .. "Zamazenta and Shaymin")
 T.eq(fusionChecked, 6,
   "all six fusion result forms were checked against formart.lua")
 
@@ -155,6 +157,21 @@ do
       variant .. " has no form art entry of its own -- its Gigantamax art is "
       .. "filed under the base species, which is why the variant is not wired")
   end
+end
+
+-- Arceus and Silvally, pinned the same way: both are real held-item persistent
+-- forms with real National Dex records for all 17 types, and neither is wired
+-- in data/persistent.lua because formart.lua carries no entry for either
+-- species at all -- not even a base one, let alone a single one of the 17
+-- type forms.  If a later art build adds either, this fails and says the
+-- family can be wired.
+do
+  T.eq(formArt.ARCEUS, nil,
+    "ARCEUS has no formart.lua entry of any kind -- the reason none of its "
+      .. "17 Plate forms are wired; wire the family once this stops being true")
+  T.eq(formArt.SILVALLY, nil,
+    "SILVALLY has no formart.lua entry of any kind -- the reason none of its "
+      .. "17 Memory forms are wired; wire the family once this stops being true")
 end
 
 T.finish("battle_forms_art")

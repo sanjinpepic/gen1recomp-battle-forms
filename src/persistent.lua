@@ -191,21 +191,28 @@ function M.onBattlerSwitched(ev)
   M.apply(battle, ev.battler)
 end
 
--- The appliances, as bag items used on a Pokemon.
+-- Every row of `rows` -- appliances and held-item forms alike -- as bag items
+-- used on a Pokemon.
 --
 -- Registered through an install of this module's own rather than src/stone.lua's
--- because of the second branch below and nothing else: an appliance is the only
--- one of these items a player needs a way to UNDO.  A stone, an orb and a
+-- because of the second branch below and nothing else: a persistent form is the
+-- only one of these items a player needs a way to UNDO.  A stone, an orb and a
 -- crystal are all pure additions -- the Pokemon can do something it could not do
 -- before and loses nothing -- so overwriting one with another is the whole of
 -- the choice.  This one changes what the Pokemon IS, in the save, until
 -- something changes it back, and shipping a write with no way back would leave a
--- player who tried an appliance once holding a Rotom they could not restore.
+-- player who tried one once holding a Pokemon they could not restore.
 --
--- Using the appliance a Rotom is already in takes it back off, which is the
--- closest honest reading of the real games' own arrangement: there the room's
--- appliances offer the base form in the same list they offer the five, and one
--- item slot is the only thing this game has to say that with.
+-- Using the item a Pokemon is already carrying takes it back off, which is the
+-- closest honest reading of the real games' own arrangement: a Rotom's room
+-- offers its base form in the same list it offers the five, and one item slot
+-- is the only thing this game has to say that with.
+--
+-- Callers hand this the WHOLE pairing table -- main.lua passes the entire
+-- data/persistent.lua, not a slice for one family -- so `indices` has to
+-- resolve every item any row names, whichever of the caller's several bag-byte
+-- tables it was merged from; this function does not know or need to know which
+-- shelf an item ends up on.
 --
 -- An id with no bag index is refused out loud for the reason every other family
 -- here refuses one: a Gen 1 save cannot hold an item with no byte, so
@@ -220,9 +227,9 @@ function M.install(mod, rows, indices)
   for itemId in pairs(items) do
     local index = indices and indices[itemId]
     if not index then
-      mod.log:error("%s has no bag index -- add it to data/appliances.lua; "
-        .. "until then the item cannot exist in a save and no Pokemon can be "
-        .. "given one", itemId)
+      mod.log:error("%s has no bag index -- add it to its indices table "
+        .. "(data/appliances.lua or data/heldforms.lua); until then the item "
+        .. "cannot exist in a save and no Pokemon can be given one", itemId)
     else
       mod.content.items:register(itemId, {
         id = itemId,
@@ -245,14 +252,18 @@ function M.install(mod, rows, indices)
           if not deps.eligibility.formFor(rows, mon.species, itemId) then
             return "failed", { "It won't have\nany effect." }
           end
+          -- Generic on purpose: this one closure now serves both Rotom's
+          -- appliances and every held-item form beside them, and the item's
+          -- own name is already what the player just picked from the bag menu
+          -- to use it, so it does not need repeating here.
           if deps.eligibility.stoneOf(mon) == itemId then
             mon[deps.eligibility.STAMP] = nil
             M.mark(ctx.data, mon)
-            return "kept", { "It left the\nappliance." }
+            return "kept", { "It let go of\nthe item." }
           end
           mon[deps.eligibility.STAMP] = itemId
           M.mark(ctx.data, mon)
-          return "kept", { "It possessed\nthe appliance!" }
+          return "kept", { "It's now holding\nthe item!" }
         end,
       })
     end

@@ -1,7 +1,7 @@
 -- Sharing metadata.  Read by tooling and the manager's detail pane; never by
 -- the loader's merge, so nothing here can break a load.
 return {
-  summary = "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, Rotom's five appliance forms, and fusion for Kyurem, Necrozma and Calyrex, which joins two Pokemon into one and keeps the partner in the PC until they are separated again.",
+  summary = "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, persistent held-item forms for Rotom, Giratina, Palkia, Dialga, Zacian, Zamazenta and Shaymin, and fusion for Kyurem, Necrozma and Calyrex, which joins two Pokemon into one and keeps the partner in the PC until they are separated again.",
   author = "sanjinpepic",
   contact = "https://github.com/sanjinpepic",
   tags = { "gameplay", "battle" },
@@ -46,6 +46,7 @@ return {
       "two strings are written and nothing else: which partner went in, on the survivor, and which Pokemon it is inside, on the partner -- the form is derived from the first of those, and neither half has its species, stat block, HP or move list touched",
       "a battle already under way is picked up the moment the mod is enabled, so turning it on mid-fight from the mod manager brings the MEGA cell and primal reversion with it instead of doing nothing until the next battle",
       "DEBUG TRACE, off by default, which records into mod storage why the menu cell and primal reversion did or did not happen -- for reporting a bug, not for playing with",
+      "six more persistent held-item forms, on the same mechanism as Rotom's appliances: the Griseous Orb turns Giratina into its Origin Forme, the Lustrous Globe and the Adamant Crystal do the same for Palkia and Dialga, the Rusted Sword and the Rusted Shield turn Zacian and Zamazenta Crowned, and the Gracidea puts Shaymin in Sky Forme -- all six are bag items sold at the Indigo Plateau lobby counter, used on a Pokemon the way a mega stone is, and using the same item again takes the form back off",
     },
     known = {
       "abilities are unaffected -- nothing here makes an ability do anything, and no ability animations ship yet",
@@ -56,10 +57,12 @@ return {
       "primal reversion has no trainer key item, matching the real games, where the Red and Blue Orbs are the whole requirement -- so a Groudon or Kyogre reverts with an empty bag behind it",
       "Mega Rayquaza counts as official here but its stone does not exist: the real games trigger that one off knowing Dragon Ascent, and the Rayquazite sold here is this mod's own invention, because a stone is the only trigger implemented",
       "turning MEGA EVOLUTIONS down to OFFICIAL leaves any other stone already in the bag exactly where it is, inert -- a stone is never unregistered, because an item a save carries has to stay nameable",
-      "every form here except Rotom's lasts the battle and is never written to the save; the appliance form is the one exception and is derived from the item on the Pokemon rather than remembered, so the battle-end sweep writes whatever that item vouches for and deletes everything else",
-      "an appliance form changes the Pokemon's picture and, in battle, its types and stats -- but the party menu and the summary screen still read the name, the types and the stat numbers off the base species, because those come from the stat block and nothing outside battle recomputes it",
-      "a Pokemon holds one of these items at a time, so a Rotom carrying an appliance is a Rotom not carrying a Z-Crystal; giving it one takes the appliance form off, which is the other way back to a plain Rotom",
-      "Giratina's Origin Forme and Shaymin's Sky Forme have the art and the records for this and are deliberately not wired: one hangs off a held item and the other off a time of day, and Gen 1 has neither -- wiring them would mean inventing the trigger rather than modelling it",
+      "every form here except the persistent ones lasts the battle and is never written to the save; Rotom's appliances and the six held-item forms beside them are the exception and are derived from the item on the Pokemon rather than remembered, so the battle-end sweep writes whatever that item vouches for and deletes everything else",
+      "a persistent form changes the Pokemon's picture and, in battle, its types and stats -- but the party menu and the summary screen still read the name, the types and the stat numbers off the base species, because those come from the stat block and nothing outside battle recomputes it",
+      "a Pokemon holds one of these items at a time, so a Giratina carrying the Griseous Orb is a Giratina not carrying a Z-Crystal; giving it one takes Origin Forme off, which is the other way back to a plain Giratina, exactly as it is for Rotom and an appliance",
+      "Shaymin's Sky Forme also wants daytime in the real games, which Gen 1 has no time-of-day system to ask about -- it is wired on the Gracidea alone rather than left out, the same liberty every other item-gated mechanic here already takes to fit this engine",
+      "Arceus (17 Plates) and Silvally (17 Memories) are not wired despite having real held-item mechanics and a National Dex record for every type: neither species has a single entry in the built form-art set, not even a base one, so every one of the 34 forms between them would show as the plain species with nothing to tell it apart",
+      "Genesect's four Drives are not wired at all -- no GENESECT_DOUSE/SHOCK/BURN/CHILL record exists in the National Dex data, so there is no form id a pairing could even name",
       "regional forms, cosmetic forms and Ultra Burst are not implemented",
       "a fused pair exported to a Game Boy .sav comes back as two plain Pokemon -- the base in the party, the partner in the box it was put in -- because the cartridge mon struct has no room for either of the two strings a fusion writes; nothing is lost, and the way back is to fuse them again",
       "the partner is visible in the PC while it is fused, and it can be withdrawn or released like any other boxed Pokemon: withdrawing it leaves the player holding both halves at once, and releasing it means a later separation returns nothing and says so",

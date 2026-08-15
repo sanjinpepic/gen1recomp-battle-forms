@@ -26,7 +26,20 @@ local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local rows = dofile(MOD .. "/data/persistent.lua")
 local applianceIndices = dofile(MOD .. "/data/appliances.lua")
+local heldFormIndices = dofile(MOD .. "/data/heldforms.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
+
+-- This suite exercises the mechanism through Rotom alone -- the other six
+-- rows data/persistent.lua now carries (Giratina, Palkia, Dialga, Zacian,
+-- Zamazenta, Shaymin) are one item and one form each and have their own
+-- suite, tests/battle_forms_heldforms_test.lua.  M.install still has to be
+-- handed the WHOLE pairing table the way main.lua hands it one, though --
+-- every row's item has to resolve to a byte in whatever indices table
+-- install() gets, or its own "no bag index" refusal fires for rows this file
+-- never asked about.
+local indices = {}
+for itemId, index in pairs(applianceIndices) do indices[itemId] = index end
+for itemId, index in pairs(heldFormIndices) do indices[itemId] = index end
 
 -- Alakazam and its mega ride along so the battle-scoped half of the mod can be
 -- exercised on the SAME sweep as the persistent half.  A sweep that keeps
@@ -138,7 +151,7 @@ local function fakeMod()
 end
 
 local installed = fakeMod()
-Persistent.install(installed, rows, applianceIndices)
+Persistent.install(installed, rows, indices)
 
 do
   T.eq(#installed.errors, 0, "a complete index table installs without complaint")
@@ -156,13 +169,16 @@ do
 end
 
 do
+  -- Scoped to just the appliances, the way this check always was -- the point
+  -- is the refusal count and message, not the size of the whole pairing table.
   local mod = fakeMod()
-  Persistent.install(mod, rows, { WASHING_MACHINE = 219 })
+  Persistent.install(mod, { ROTOM = rows.ROTOM }, { WASHING_MACHINE = 219 })
   T.check(mod.items.WASHING_MACHINE ~= nil, "the indexed one registers")
   T.eq(mod.items.MICROWAVE_OVEN, nil, "an unindexed one does not")
   T.eq(#mod.errors, 4, "and each refusal is reported")
-  T.check(mod.errors[1]:find("data/appliances.lua", 1, true) ~= nil,
-    "naming the file to fix it in")
+  T.check(mod.errors[1]:find("data/appliances.lua", 1, true) ~= nil
+    and mod.errors[1]:find("data/heldforms.lua", 1, true) ~= nil,
+    "naming both files an item's byte could belong in")
 end
 
 local washer = installed.effects.WASHING_MACHINE.use

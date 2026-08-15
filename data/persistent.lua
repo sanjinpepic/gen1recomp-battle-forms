@@ -20,20 +20,46 @@
 -- Forms.becomeForm misses silently.  That exact mistake shipped in 0.2.1;
 -- tests/battle_forms_formids_test.lua is why it cannot ship again.
 --
--- Rotom alone, and deliberately.  Three families in the National Dex data are
--- persistent forms of this kind -- Rotom's appliances, Giratina's Origin Forme
--- and Shaymin's Sky Forme -- and only the first is item-driven end to end: the
--- other two hang off a held item and a time of day that this game has no way to
--- ask about, so wiring them would mean inventing the trigger rather than
--- modelling it.  Rotom is also the one that proves the mechanism rather than a
--- special case of it, because it has five forms and a base to come back to
--- where the others have one form and a toggle.
+-- Every species here is gated on a held item ALONE, the way the pairing table
+-- itself can express and nothing more.  That is exactly right for Giratina --
+-- Origin Forme is the Griseous Orb and nothing else, no location and no time
+-- of day sits in front of it -- and a deliberate simplification for Shaymin,
+-- whose Sky Forme in the real games also wants daytime.  This game has no
+-- time-of-day system for any mechanic to read (Gen 1 never had one), so
+-- Shaymin is wired on the Gracidea alone rather than left out: every other
+-- item-gated mechanic in this mod already takes the same kind of liberty to
+-- fit a Gen 1 engine (Rotom's appliances are bag items used on a Pokemon
+-- rather than overworld furniture; a mega's "trainer capability" is a Key
+-- Stone rather than a bracelet), and a Sky Forme reachable by item alone is
+-- closer to what the real games do than a Sky Forme not reachable at all.
 --
--- All five have front AND back art under ROTOM.forms.[SUFFIX]; the art suite
--- fails if that ever stops being true.  A form with only a front picture is
--- invisible on the player's own side of the battle, which is worse here than
--- anywhere else in this mod -- a battle form a player cannot see lasts one
--- fight, and this one lasts until they change it back.
+-- Palkia and Dialga carry Legends: Arceus items that boost stats without
+-- changing species in THAT game -- Origin Forme there is a fixed capture, not
+-- a toggle -- but the National Dex data models ORIGIN as a form of the base
+-- species with its own record and its own art, the same shape Giratina's is,
+-- so it is wired the same way: the item that names the Pokemon in the
+-- collective imagination is the item that triggers the form here, exactly as
+-- the Griseous Orb does for Giratina.  Zacian and Zamazenta are the plainest
+-- of the six -- Crowned Forme in the real games IS a held-item toggle, no
+-- caveat needed.
+--
+-- Rotom is still the one that proves the mechanism rather than being a special
+-- case of it, because it has five forms and a base to come back to where every
+-- other row here has one form and a toggle.  Arceus (17 Plates) and Silvally
+-- (17 Memories) are the two item-driven families this table does NOT wire:
+-- both have real held-item mechanics and real National Dex records for every
+-- type, but neither has a single entry in dev/data/sprites/generated/formart.lua
+-- -- not even a base-species one -- so wiring either would show every one of
+-- eighteen forms as the plain species with nothing to tell them apart.
+-- Genesect's four Drives are not wired for a different reason: no
+-- GENESECT_DOUSE/SHOCK/BURN/CHILL record exists in national.lua at all, so
+-- there is no form id a pairing here could even name.
+--
+-- Every wired form has front AND back art under [BASE].forms.[SUFFIX]; the
+-- art suite fails if that ever stops being true.  A form with only a front
+-- picture is invisible on the player's own side of the battle, which is worse
+-- here than anywhere else in this mod -- a battle form a player cannot see
+-- lasts one fight, and this one lasts until they change it back.
 return {
   ROTOM = {
     MICROWAVE_OVEN  = "ROTOM_HEAT",
@@ -41,5 +67,23 @@ return {
     REFRIGERATOR    = "ROTOM_FROST",
     ELECTRIC_FAN    = "ROTOM_FAN",
     LAWN_MOWER      = "ROTOM_MOW",
+  },
+  GIRATINA = {
+    GRISEOUS_ORB = "GIRATINA_ORIGIN",
+  },
+  PALKIA = {
+    LUSTROUS_GLOBE = "PALKIA_ORIGIN",
+  },
+  DIALGA = {
+    ADAMANT_CRYSTAL = "DIALGA_ORIGIN",
+  },
+  ZACIAN = {
+    RUSTED_SWORD = "ZACIAN_CROWNED",
+  },
+  ZAMAZENTA = {
+    RUSTED_SHIELD = "ZAMAZENTA_CROWNED",
+  },
+  SHAYMIN = {
+    GRACIDEA = "SHAYMIN_SKY",
   },
 }

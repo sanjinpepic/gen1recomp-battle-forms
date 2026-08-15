@@ -136,13 +136,41 @@ do
   local wired = 0
   for _ in pairs(rotom) do wired = wired + 1 end
   T.eq(wired, count, "and pairs nothing else -- five appliances, five forms")
+end
+
+-- The six held-item persistent forms wired in 0.21.0, named outright for the
+-- same reason the appliances are: a pairing quietly dropped here would strip
+-- that form off every Pokemon already wearing it in a player's save the next
+-- time a battle ended.
+do
+  local expected = {
+    { "GIRATINA",  "GRISEOUS_ORB",    "GIRATINA_ORIGIN" },
+    { "PALKIA",    "LUSTROUS_GLOBE",  "PALKIA_ORIGIN" },
+    { "DIALGA",    "ADAMANT_CRYSTAL", "DIALGA_ORIGIN" },
+    { "ZACIAN",    "RUSTED_SWORD",    "ZACIAN_CROWNED" },
+    { "ZAMAZENTA", "RUSTED_SHIELD",   "ZAMAZENTA_CROWNED" },
+    { "SHAYMIN",   "GRACIDEA",        "SHAYMIN_SKY" },
+  }
+  for _, row in ipairs(expected) do
+    local species, item, formId = row[1], row[2], row[3]
+    T.eq(persistent[species] and persistent[species][item], formId,
+      "data/persistent.lua still pairs " .. species .. "'s " .. item
+        .. " with " .. formId)
+    local wired = 0
+    for _ in pairs(persistent[species] or {}) do wired = wired + 1 end
+    T.eq(wired, 1, species .. " pairs nothing else -- one item, one form")
+  end
 
   local species = {}
   for key in pairs(persistent) do species[#species + 1] = key end
-  T.eq(table.concat(species, ","), "ROTOM",
-    "data/persistent.lua wires exactly the one species it says it does")
-  T.check(isRecordKey("ROTOM"), "ROTOM is a record KEY in national.lua (a "
-    .. "persistent row keyed on a species that does not exist can never fire)")
+  table.sort(species)
+  T.eq(table.concat(species, ","),
+    "DIALGA,GIRATINA,PALKIA,ROTOM,SHAYMIN,ZACIAN,ZAMAZENTA",
+    "data/persistent.lua wires exactly the seven species it says it does")
+  for _, key in ipairs(species) do
+    T.check(isRecordKey(key), key .. " is a record KEY in national.lua (a "
+      .. "persistent row keyed on a species that does not exist can never fire)")
+  end
 end
 
 -- The six pairings named outright rather than counted, for the reason the
