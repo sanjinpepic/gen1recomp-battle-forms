@@ -80,7 +80,8 @@ return function(mod)
   local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
                   "src/stone.lua", "src/keyitems.lua", "src/shop.lua",
                   "src/arm.lua",
-                  "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
+                  "src/transforms.lua", "src/mega.lua", "src/dragonascent.lua",
+                  "src/dynamax.lua",
                   "src/substitute.lua", "src/maxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
                   "src/resolve.lua",
@@ -211,6 +212,19 @@ return function(mod)
   local ultraRows = m["data/ultraburst.lua"]
   local ultraCrystalIndices = m["data/ultracrystal.lua"]
 
+  -- Mega Rayquaza's real trigger: the effect that makes Dragon Ascent a real
+  -- move, patched onto national_dex's own DRAGONASCENT record, and the one
+  -- exemption that lets Rayquaza reach the MEGA cell without either of the
+  -- two items every other mega still needs.  Installed unconditionally, the
+  -- way every other effect and roster in this file is -- an id nothing
+  -- points at is a harmless dead entry, never a reason to fail the load.
+  -- `zcrystals` is built from the two indices tables above rather than
+  -- data/megas.lua's own set, because a Z-Crystal is what the trigger
+  -- refuses Rayquaza for and neither of those tables is a mega stone.
+  local dragonascent = m["src/dragonascent.lua"]
+  local zcrystals = dragonascent.crystalSet(crystalIndices, ultraCrystalIndices)
+  dragonascent.install(mod)
+
   m["src/stone.lua"].bind(eligibility, persistent)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
@@ -311,7 +325,7 @@ return function(mod)
   local registered, why = registry:register(m["src/mega.lua"].entry({
     forms = m["src/forms.lua"], eligibility = eligibility, megas = megas,
     keyitems = keyitems, animId = anim.ID, announce = announce,
-    log = mod.log }))
+    log = mod.log, dragonascent = dragonascent, zcrystals = zcrystals }))
   if not registered then
     mod.log:error("battle_forms: mega evolution was refused a place on the "
       .. "battle menu (%s) -- no stone can be armed until that is fixed",
@@ -431,7 +445,8 @@ return function(mod)
   local resolve = m["src/resolve.lua"]
   resolve.bind({ registry = registry, forms = m["src/forms.lua"],
                  eligibility = eligibility, megas = megas, log = mod.log,
-                 persistent = persistent, fusion = fusion })
+                 persistent = persistent, fusion = fusion,
+                 dragonascent = dragonascent, zcrystals = zcrystals })
 
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,

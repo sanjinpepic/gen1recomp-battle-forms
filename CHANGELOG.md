@@ -3,6 +3,30 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.29.0
+
+### Added
+
+- **Mega Rayquaza now has its real trigger.** Dragon Ascent is a modelled
+  move now -- 120-power Flying, physical, and it lowers the user's own
+  Defense and Special Defense one stage after it lands -- registered through
+  the same move-effect seam Max Guard already uses. A Rayquaza that knows it
+  reaches the MEGA cell with no Key Stone and no mega stone at all, refused
+  only by a held Z-Crystal, exactly as the real games rule it; every other
+  mega still needs both items. National Dex's own DRAGONASCENT record and
+  Rayquaza's learnset are patched from here rather than registered fresh,
+  since both already exist -- the move's power, accuracy, type and PP are
+  untouched, and the level-1 learnset row is appended alongside REST, FLY and
+  HYPER BEAM rather than replacing them. Teaching the move lives here instead
+  of behind National Dex's own MOVES=ALL option, because that option is off
+  by default and would have left the mega unreachable out of the box, and
+  because National Dex cannot honestly call the move modelled on the
+  strength of an effect that lives in a mod it does not depend on.
+  RAYQUAZITE still works, since Rayquaza is not yet placed in any encounter,
+  gift or trade anywhere in the game -- it stays as a transitional trigger
+  and will be withdrawn once one exists; its bag byte (172) is never reused
+  regardless, matching the rule every stone in this mod follows.
+
 ## 0.28.0
 
 ### Fixed

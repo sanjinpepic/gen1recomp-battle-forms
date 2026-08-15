@@ -55,7 +55,16 @@ function M.onBattlerSwitched(ev)
   -- path's job then, and neither is complaining that it cannot.
   if not deps.megas[mon.species] then return end
 
-  local formId = deps.eligibility.formForMon(deps.megas, mon)
+  -- Rayquaza's own trigger stamps no stone at all, so the ordinary
+  -- stone-based lookup below would find nothing for a Mega Rayquaza that
+  -- got there through Dragon Ascent and report it as no longer eligible --
+  -- reverting nothing, but also never reapplying the stat/type override, so
+  -- it would come back from the bench with the mega's picture and species
+  -- and its BASE stats. Asked first, the same order src/mega.lua checks in.
+  local formId = (deps.dragonascent
+      and deps.dragonascent.formFor(deps.megas, deps.eligibility,
+        deps.zcrystals, mon))
+    or deps.eligibility.formForMon(deps.megas, mon)
   if not formId then
     -- The stone was removed, or the mega table changed, between the mon
     -- transforming and this switch-in -- vanishingly unlikely in a single

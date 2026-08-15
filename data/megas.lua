@@ -31,10 +31,19 @@
 -- otherwise land in whichever set the default happened to be, and be wrong
 -- without anyone hearing about it.
 --
--- One official row is not honest about its trigger.  Mega Rayquaza has no
--- stone in the real games -- it megas by knowing Dragon Ascent -- and
--- RAYQUAZITE is this mod's invention, because a stone is the only trigger
--- implemented here.  The mega is official; that item is not.
+-- One official row still carries a trigger the real games do not have.
+-- Mega Rayquaza has no stone in the mainline games -- it megas by knowing
+-- Dragon Ascent -- and RAYQUAZITE was this mod's invention from the days
+-- when a stone was the only trigger implemented here.  0.29.0 added the real
+-- one (src/dragonascent.lua): a Rayquaza that knows Dragon Ascent reaches
+-- the MEGA cell with no Key Stone and no stone at all, refused only by a
+-- held Z-Crystal, per the Gen 7 rule.  RAYQUAZITE still works and this row
+-- still needs its officialness marker -- Rayquaza is not placed in any
+-- encounter, gift or trade yet, so the stone is the only carrier the mega
+-- has until one exists -- but it is transitional and will be withdrawn once
+-- it is not.  Byte 172 stays reserved either way; data/stones.lua's own rule
+-- is that a stone's byte is never renumbered, because reusing one silently
+-- turns a stone already in a player's bag into a different item.
 local function official(form) return { form = form, official = true } end
 local function extended(form) return { form = form, official = false } end
 

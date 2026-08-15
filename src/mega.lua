@@ -15,6 +15,11 @@
 -- and deliberately so -- a gate that may be left out of the deps table is a
 -- gate that is silently absent, which is precisely the state this file was in
 -- before it had one.
+--
+-- deps.dragonascent and deps.zcrystals are optional the same way deps.log is:
+-- a build where src/dragonascent.lua failed to load degrades to exactly the
+-- two-tier gate every mega has always used, rather than taking mega evolution
+-- down entirely over the one species that gets a second trigger.
 local M = {}
 
 M.ID = "mega"
@@ -34,14 +39,30 @@ function M.entry(deps)
     -- wrong id in data/megas.lua, or national_dex data that never loaded -- and
     -- offering the cell then would arm a change Forms.becomeForm can only
     -- refuse.  The record must exist before the menu promises it.
+    --
+    -- Rayquaza's own trigger is asked FIRST and answers the whole question on
+    -- its own when it fires: no Key Stone, no mega stone, refused only by a
+    -- held Z-Crystal (src/dragonascent.lua).  It is scoped to exactly one
+    -- species by construction -- M.formFor checks mon.species itself -- so
+    -- asking it first costs every other mega nothing: for anything that is
+    -- not an eligible Rayquaza it answers nil and the two-tier gate below
+    -- runs exactly as it always has.
     available = function(battle)
+      local mon = battle.player and battle.player.mon
+      local pokemon = battle.data and battle.data.pokemon
+
+      local exemptForm = deps.dragonascent
+        and deps.dragonascent.formFor(deps.megas, deps.eligibility,
+          deps.zcrystals, mon)
+      if exemptForm then
+        return pokemon ~= nil and pokemon[exemptForm] ~= nil
+      end
+
       if not deps.keyitems.held(battle, deps.keyitems.KEY_STONE) then
         return false
       end
-      local mon = battle.player and battle.player.mon
       local formId = deps.eligibility.formForMon(deps.megas, mon)
       if not formId then return false end
-      local pokemon = battle.data and battle.data.pokemon
       return pokemon ~= nil and pokemon[formId] ~= nil
     end,
 
@@ -51,7 +72,10 @@ function M.entry(deps)
     activate = function(battle)
       local battler = battle.player
       local mon = battler and battler.mon
-      local formId = deps.eligibility.formForMon(deps.megas, mon)
+      local formId = (deps.dragonascent
+          and deps.dragonascent.formFor(deps.megas, deps.eligibility,
+            deps.zcrystals, mon))
+        or deps.eligibility.formForMon(deps.megas, mon)
       if not formId then return false end
 
       local ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
