@@ -144,10 +144,11 @@ T.eq(conditionalChecked, 8,
   "all eight conditional forms were checked against formart.lua")
 T.eq(gigantamaxChecked, 31,
   "all 31 wired Gigantamax forms were checked against formart.lua")
-T.eq(persistentChecked, 11,
-  "all eleven wired persistent forms were checked against formart.lua -- "
-    .. "Rotom's five appliances plus Giratina, Palkia, Dialga, Zacian, "
-    .. "Zamazenta and Shaymin")
+T.eq(persistentChecked, 45,
+  "all 45 wired persistent forms were checked against formart.lua -- "
+    .. "Rotom's five appliances, Giratina, Palkia, Dialga, Zacian, Zamazenta "
+    .. "and Shaymin's one each, and Arceus's seventeen Plates plus "
+    .. "Silvally's seventeen Memories")
 T.eq(fusionChecked, 6,
   "all six fusion result forms were checked against formart.lua")
 T.eq(ultraburstChecked, 1,
@@ -172,19 +173,30 @@ do
   end
 end
 
--- Arceus and Silvally, pinned the same way: both are real held-item persistent
--- forms with real National Dex records for all 17 types, and neither is wired
--- in data/persistent.lua because formart.lua carries no entry for either
--- species at all -- not even a base one, let alone a single one of the 17
--- type forms.  If a later art build adds either, this fails and says the
--- family can be wired.
+-- Arceus and Silvally, pinned the other way now: both are wired in
+-- data/persistent.lua (17 Plates, 17 Memories) because formart.lua carries a
+-- full front-and-back entry for all 34 type forms of both.  The general sweep
+-- above already checked every one of those 34 through the `persistent` table
+-- (persistentChecked == 45 covers all nine persistent species together); this
+-- is the narrower, named check that a later art rebuild dropping either
+-- species back to nothing fails loudly here rather than merely shrinking a
+-- count somewhere else.
 do
-  T.eq(formArt.ARCEUS, nil,
-    "ARCEUS has no formart.lua entry of any kind -- the reason none of its "
-      .. "17 Plate forms are wired; wire the family once this stops being true")
-  T.eq(formArt.SILVALLY, nil,
-    "SILVALLY has no formart.lua entry of any kind -- the reason none of its "
-      .. "17 Memory forms are wired; wire the family once this stops being true")
+  local TYPES = { "BUG", "DARK", "DRAGON", "ELECTRIC", "FAIRY", "FIGHTING",
+                  "FIRE", "FLYING", "GHOST", "GRASS", "GROUND", "ICE",
+                  "POISON", "PSYCHIC", "ROCK", "STEEL", "WATER" }
+  for _, base in ipairs({ "ARCEUS", "SILVALLY" }) do
+    local forms = formArt[base] and formArt[base].forms
+    T.check(forms ~= nil, base .. " has a formart.lua entry")
+    for _, suffix in ipairs(TYPES) do
+      local entry = forms and forms[suffix]
+      T.check(entry ~= nil, base .. ".forms." .. suffix .. " has an entry")
+      T.check(entry and entry.front ~= nil, base .. ".forms." .. suffix .. " has FRONT art")
+      T.check(entry and entry.back ~= nil, base .. ".forms." .. suffix .. " has BACK art")
+    end
+    T.check((forms and forms.NORMAL) == nil,
+      base .. " wires no NORMAL form -- the base Pokemon holds no Plate/Memory")
+  end
 end
 
 T.finish("battle_forms_art")

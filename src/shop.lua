@@ -20,12 +20,27 @@ local M = {}
 -- everything indexed.  Stable shelf order (by assigned bag index) rather than
 -- whatever pairs() happens to yield, so the mart menu does not reshuffle
 -- between runs.
+--
+-- `indices[id]` is `false` for data/plates.lua and data/memories.lua's 34
+-- items -- deliberately byteless, see those files -- and `false < number` is
+-- a Lua error, not a comparison, so a numeric sort cannot be handed those
+-- entries as-is.  They sort after every real byte instead, alphabetically by
+-- id among themselves for a stable order across builds: there is no bag byte
+-- to order them by, and alphabetical is the only ordering that does not
+-- accidentally imply one.
 local function shelf(mod, map, clerk, indices, offered)
   local ids = {}
   for itemId in pairs(indices) do
     if not offered or offered[itemId] then ids[#ids + 1] = itemId end
   end
-  table.sort(ids, function(a, b) return indices[a] < indices[b] end)
+  table.sort(ids, function(a, b)
+    local ia, ib = indices[a], indices[b]
+    if ia == false or ib == false then
+      if ia == ib then return a < b end
+      return ia ~= false
+    end
+    return ia < ib
+  end)
 
   mod.content.text_pointers:patch(map, { [clerk] = { mart = ids } })
 end
@@ -107,6 +122,25 @@ end
 -- Every item registered is an item sold: no option gates one of these
 -- pairings, so there is no subset to offer.
 function M.installHeldForms(mod, indices)
+  shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
+end
+
+-- Arceus's seventeen Plates, on that same counter and behind the other held
+-- forms -- main.lua arranges that by calling this after M.installHeldForms.
+-- Every entry in data/plates.lua is `false` (no bag byte, see that file), so
+-- this shelf is the first to actually exercise shelf()'s byteless sort path
+-- rather than merely tolerating it.  Every plate registered is a plate sold:
+-- no option gates one of these pairings, so there is no subset to offer.
+function M.installPlates(mod, indices)
+  shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
+end
+
+-- Silvally's seventeen Memories, behind the Plates on that same counter --
+-- main.lua calls this last, so the lobby shelf reads orbs, fusion items, the
+-- six other held forms, the Plates, then the Memories, in the order main.lua
+-- calls the six installers that stock it.  Same byteless shape as the
+-- Plates, for the same reason (data/memories.lua).
+function M.installMemories(mod, indices)
   shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
 end
 

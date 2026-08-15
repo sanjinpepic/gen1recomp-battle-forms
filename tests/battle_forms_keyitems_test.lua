@@ -32,6 +32,8 @@ local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 local fuserIndices = dofile(MOD .. "/data/fusers.lua")
 local heldFormIndices = dofile(MOD .. "/data/heldforms.lua")
 local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
+local plateIndices = dofile(MOD .. "/data/plates.lua")
+local memoryIndices = dofile(MOD .. "/data/memories.lua")
 
 -- ------- the two ids and their bag bytes -----------------------------
 
@@ -58,9 +60,15 @@ for itemId in pairs(keyIndices) do
   T.check(named[itemId], itemId .. " is indexed and is also a named key item")
 end
 
--- One bag, eight tables.  A byte handed out twice would make one item
+-- One bag, ten tables.  A byte handed out twice would make one item
 -- indistinguishable from another in a save, which is unrecoverable rather
--- than merely wrong.
+-- than merely wrong.  data/plates.lua and data/memories.lua are excluded from
+-- this particular loop, not skipped by it: every one of their 34 entries is
+-- `false`, and `false` is not a byte, it is the two files' own sentinel for
+-- "no byte, on purpose" (see data/plates.lua's header for why) -- feeding
+-- them through `seen[index]` would make the SECOND `false` entry this loop
+-- ever sees fail as a false collision against the first, which is not the
+-- bug this loop exists to catch.  They get their own, narrower check below.
 local seen = {}
 for _, source in ipairs({ stoneIndices, orbIndices, keyIndices,
                           crystalIndices, applianceIndices, fuserIndices,
@@ -81,6 +89,29 @@ end
 -- rather than reusing a byte from any of the other seven tables.
 T.eq(ultraCrystalIndices.ULTRANECROZIUM_Z, 233,
   "Ultranecrozium Z continues where data/heldforms.lua stopped")
+
+-- data/plates.lua and data/memories.lua: every one of the 34 items is
+-- `false`, deliberately and exactly, never nil (an omission, still a hard
+-- error at src/persistent.lua's install()) and never a real number (which
+-- would either collide with a byte already handed out above, or -- worse, if
+-- the number were past 255 -- silently truncate through GenSave.lua's
+-- `bit.band(v, 0xFF)` into a byte that WAS already handed out, corrupting an
+-- unrelated item's export rather than merely failing to add a new one).  234
+-- is also asserted as the byte still available at the point the shortfall was
+-- found: 22 free (234-255), 34 needed, which is the fact that sent both
+-- families byteless rather than partly-byteless.
+for _, pair in ipairs({ { "data/plates.lua", plateIndices },
+                        { "data/memories.lua", memoryIndices } }) do
+  local file, indices = pair[1], pair[2]
+  local count = 0
+  for itemId, index in pairs(indices) do
+    T.eq(index, false, itemId .. " (" .. file .. ") is byteless, not merely absent")
+    count = count + 1
+  end
+  T.eq(count, 17, file .. " wires exactly its seventeen items")
+end
+T.eq(seen[234], nil, "byte 234 is still free -- 234-255 is 22 bytes, and "
+  .. "the 34 Plates and Memories deliberately do not use any of them")
 
 -- ------- registration, which nothing may gate ------------------------
 

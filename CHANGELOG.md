@@ -3,6 +3,36 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.23.0
+
+### Added
+
+- **Arceus's seventeen Plates and Silvally's seventeen Memories, the two
+  families 0.21.0 investigated and left unwired for want of art.** The sprite
+  mod's form-art index was rebuilt against the two type-named animated dumps
+  it already had on disk and now carries a full front-and-back entry for
+  every one of the 34 forms, so this mod's own gate on that -- "wire it if it
+  has art" -- opens for both at once. Every Plate and every Memory pairs with
+  its type the exact way Rotom's appliances pair with an appliance: one item,
+  stamped on the Pokemon, one form derived from the stamp, and using the same
+  item again takes it back off. Both are sold at the Indigo Plateau lobby
+  counter, behind the six other held-item forms.
+- **Neither family carries a bag byte, which is new.** Gen 1 stores an item
+  as a single byte, 0-255; every earlier table in this mod packs 98-233 with
+  no gap at all, which leaves 22 bytes free and the two new families need 34
+  between them. Splitting the shortfall -- some Plates and Memories with a
+  real byte, the rest without -- had no principled line to draw it on, so all
+  34 are registered with none: they buy, stamp and hold their form on every
+  save this mod supports exactly like any other held item, but none of them
+  survives an export to a Game Boy `.sav` cartridge, where each is silently
+  dropped from the bag the way an unrecognised item already is.
+  `src/persistent.lua`'s install() now tells that difference apart
+  explicitly -- an item's indices-table entry answering `false` registers it
+  byteless and on purpose; an entry that is simply absent is still the same
+  hard refusal it always was -- and `src/shop.lua`'s shelf sort, which used
+  to assume every entry was a number, now sorts a byteless item after every
+  real byte and alphabetically among its own kind.
+
 ## 0.22.0
 
 ### Added

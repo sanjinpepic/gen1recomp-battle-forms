@@ -27,19 +27,24 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local rows = dofile(MOD .. "/data/persistent.lua")
 local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 local heldFormIndices = dofile(MOD .. "/data/heldforms.lua")
+local plateIndices = dofile(MOD .. "/data/plates.lua")
+local memoryIndices = dofile(MOD .. "/data/memories.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
--- This suite exercises the mechanism through Rotom alone -- the other six
--- rows data/persistent.lua now carries (Giratina, Palkia, Dialga, Zacian,
--- Zamazenta, Shaymin) are one item and one form each and have their own
--- suite, tests/battle_forms_heldforms_test.lua.  M.install still has to be
--- handed the WHOLE pairing table the way main.lua hands it one, though --
--- every row's item has to resolve to a byte in whatever indices table
--- install() gets, or its own "no bag index" refusal fires for rows this file
--- never asked about.
+-- This suite exercises the mechanism through Rotom alone -- the other rows
+-- data/persistent.lua now carries (Giratina, Palkia, Dialga, Zacian,
+-- Zamazenta, Shaymin, Arceus, Silvally) are one or more items and have their
+-- own suites, tests/battle_forms_heldforms_test.lua and
+-- tests/battle_forms_plates_test.lua.  M.install still has to be handed the
+-- WHOLE pairing table the way main.lua hands it one, though -- every row's
+-- item has to resolve to an entry (a byte, or Arceus/Silvally's `false`) in
+-- whatever indices table install() gets, or its own "no bag index" refusal
+-- fires for rows this file never asked about.
 local indices = {}
 for itemId, index in pairs(applianceIndices) do indices[itemId] = index end
 for itemId, index in pairs(heldFormIndices) do indices[itemId] = index end
+for itemId, index in pairs(plateIndices) do indices[itemId] = index end
+for itemId, index in pairs(memoryIndices) do indices[itemId] = index end
 
 -- Alakazam and its mega ride along so the battle-scoped half of the mod can be
 -- exercised on the SAME sweep as the persistent half.  A sweep that keeps

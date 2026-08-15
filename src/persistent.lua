@@ -214,10 +214,19 @@ end
 -- tables it was merged from; this function does not know or need to know which
 -- shelf an item ends up on.
 --
--- An id with no bag index is refused out loud for the reason every other family
--- here refuses one: a Gen 1 save cannot hold an item with no byte, so
--- registering it would ship something a player could pick up and then silently
--- lose.
+-- An id with NO ENTRY AT ALL in `indices` is refused out loud for the reason
+-- every other family here refuses one: a Gen 1 save cannot hold an item with
+-- no byte, so registering it would ship something a player could pick up and
+-- then silently lose.  That is `index == nil`, checked explicitly rather than
+-- with a truthiness test, because `false` is a real, different answer here --
+-- see data/plates.lua and data/memories.lua -- and `not false` is `true` in
+-- Lua, which would have refused all 34 of those on this exact line.  `false`
+-- means the table was consulted and answered "no byte, on purpose": the item
+-- still registers, still buys, still stamps, and simply carries no `index`
+-- field for src/save_convert/GenSave.lua's cartridge crosswalk to find, the
+-- same shape a TM or an HM already registers with there.  Only a genuinely
+-- ABSENT key -- a row in `rows` naming an item no indices table mentions at
+-- all -- is the mistake this refusal exists to catch.
 function M.install(mod, rows, indices)
   local items = {}
   for _, byItem in pairs(rows) do
@@ -226,16 +235,17 @@ function M.install(mod, rows, indices)
 
   for itemId in pairs(items) do
     local index = indices and indices[itemId]
-    if not index then
+    if index == nil then
       mod.log:error("%s has no bag index -- add it to its indices table "
-        .. "(data/appliances.lua or data/heldforms.lua); until then the item "
-        .. "cannot exist in a save and no Pokemon can be given one", itemId)
+        .. "(data/appliances.lua, data/heldforms.lua, data/plates.lua or "
+        .. "data/memories.lua); until then the item cannot exist in a save "
+        .. "and no Pokemon can be given one", itemId)
     else
       mod.content.items:register(itemId, {
         id = itemId,
         name = itemId:gsub("_", " "),
         price = deps.price,
-        index = index,
+        index = index ~= false and index or nil,
         effect = itemId,
         needsTarget = true,
       })

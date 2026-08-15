@@ -94,7 +94,8 @@ return function(mod)
                   "data/zmoves.lua", "data/crystals.lua",
                   "data/persistent.lua", "data/appliances.lua",
                   "data/fusion.lua", "data/fusers.lua", "data/heldforms.lua",
-                  "data/ultraburst.lua", "data/ultracrystal.lua" }
+                  "data/ultraburst.lua", "data/ultracrystal.lua",
+                  "data/plates.lua", "data/memories.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -159,6 +160,15 @@ return function(mod)
   -- item any row names has to resolve to a byte somewhere in what install()
   -- is handed.
   local heldFormIndices = m["data/heldforms.lua"]
+  -- Arceus's Plates and Silvally's Memories, the two biggest families here at
+  -- 17 rows each and the only ones whose indices table answers `false`
+  -- rather than a byte -- see data/plates.lua's header for why the shared
+  -- byte space could not hold all 34.  Merged into the same persistentIndices
+  -- table below exactly like the appliances and the other six: M.install
+  -- does not need to know, and does not ask, which of its callers' several
+  -- indices tables gave it a real byte and which gave it `false`.
+  local plateIndices = m["data/plates.lua"]
+  local memoryIndices = m["data/memories.lua"]
   persistent.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                     rows = persistentRows, log = mod.log,
                     price = m["src/stone.lua"].PRICE })
@@ -198,6 +208,8 @@ return function(mod)
   local persistentIndices = {}
   for itemId, index in pairs(applianceIndices) do persistentIndices[itemId] = index end
   for itemId, index in pairs(heldFormIndices) do persistentIndices[itemId] = index end
+  for itemId, index in pairs(plateIndices) do persistentIndices[itemId] = index end
+  for itemId, index in pairs(memoryIndices) do persistentIndices[itemId] = index end
   persistent.install(mod, persistentRows, persistentIndices)
   -- Its own install for a stronger version of the appliances' reason: this item
   -- does not stamp the Pokemon it is used on, it moves a second one into the PC.
@@ -223,6 +235,13 @@ return function(mod)
   -- Behind the fusion items on that same counter, for the same reason as
   -- above -- call order is shelf order.
   m["src/shop.lua"].installHeldForms(mod, heldFormIndices)
+  -- The Plates, then the Memories, behind the other six held forms on that
+  -- same counter -- call order is shelf order, as everywhere else on this
+  -- shelf.  Both tables are entirely `false` (data/plates.lua,
+  -- data/memories.lua), so this is where shop.lua's byteless sort path
+  -- actually runs rather than merely being reachable.
+  m["src/shop.lua"].installPlates(mod, plateIndices)
+  m["src/shop.lua"].installMemories(mod, memoryIndices)
   anim.install(mod)
 
   -- The battle message a form change prints.  Handed to the two

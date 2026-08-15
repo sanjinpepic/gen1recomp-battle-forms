@@ -26,11 +26,21 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local rows = dofile(MOD .. "/data/persistent.lua")
 local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 local heldFormIndices = dofile(MOD .. "/data/heldforms.lua")
+-- `rows` is the WHOLE of data/persistent.lua, Arceus and Silvally included --
+-- see tests/battle_forms_plates_test.lua for their own suite -- so the merged
+-- `indices` below has to resolve every item those two families name as well,
+-- or the "complete merged index table installs without complaint" check a
+-- few lines down would see 34 items with no entry and fail for a reason that
+-- has nothing to do with this file's own six.
+local plateIndices = dofile(MOD .. "/data/plates.lua")
+local memoryIndices = dofile(MOD .. "/data/memories.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 local indices = {}
 for itemId, index in pairs(applianceIndices) do indices[itemId] = index end
 for itemId, index in pairs(heldFormIndices) do indices[itemId] = index end
+for itemId, index in pairs(plateIndices) do indices[itemId] = index end
+for itemId, index in pairs(memoryIndices) do indices[itemId] = index end
 
 -- Alakazam and its mega ride along on the sweep check below for the same
 -- reason they do in the other suite: a sweep that keeps everything is as

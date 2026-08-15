@@ -183,12 +183,70 @@ do
   for key in pairs(persistent) do species[#species + 1] = key end
   table.sort(species)
   T.eq(table.concat(species, ","),
-    "DIALGA,GIRATINA,PALKIA,ROTOM,SHAYMIN,ZACIAN,ZAMAZENTA",
-    "data/persistent.lua wires exactly the seven species it says it does")
+    "ARCEUS,DIALGA,GIRATINA,PALKIA,ROTOM,SHAYMIN,SILVALLY,ZACIAN,ZAMAZENTA",
+    "data/persistent.lua wires exactly the nine species it says it does")
   for _, key in ipairs(species) do
     T.check(isRecordKey(key), key .. " is a record KEY in national.lua (a "
       .. "persistent row keyed on a species that does not exist can never fire)")
   end
+end
+
+-- Arceus's seventeen Plates and Silvally's seventeen Memories, named outright
+-- for the same reason the six held-item forms above are: a pairing quietly
+-- dropped would only make the sweep above one shorter, and here it would also
+-- strip that form off every Arceus or Silvally already wearing it in a
+-- player's save the next time a battle ended.  See
+-- tests/battle_forms_plates_test.lua for the mechanism itself (registration,
+-- the byteless bag entry, using and un-using the item); this is only the id
+-- table, the same way the six rows above are only the id table in this file.
+do
+  local expected = {
+    { "ARCEUS", "FIST_PLATE",   "ARCEUS_FIGHTING" },
+    { "ARCEUS", "SKY_PLATE",    "ARCEUS_FLYING" },
+    { "ARCEUS", "TOXIC_PLATE",  "ARCEUS_POISON" },
+    { "ARCEUS", "EARTH_PLATE",  "ARCEUS_GROUND" },
+    { "ARCEUS", "STONE_PLATE",  "ARCEUS_ROCK" },
+    { "ARCEUS", "INSECT_PLATE", "ARCEUS_BUG" },
+    { "ARCEUS", "SPOOKY_PLATE", "ARCEUS_GHOST" },
+    { "ARCEUS", "IRON_PLATE",   "ARCEUS_STEEL" },
+    { "ARCEUS", "FLAME_PLATE",  "ARCEUS_FIRE" },
+    { "ARCEUS", "SPLASH_PLATE", "ARCEUS_WATER" },
+    { "ARCEUS", "MEADOW_PLATE", "ARCEUS_GRASS" },
+    { "ARCEUS", "ZAP_PLATE",    "ARCEUS_ELECTRIC" },
+    { "ARCEUS", "MIND_PLATE",   "ARCEUS_PSYCHIC" },
+    { "ARCEUS", "ICICLE_PLATE", "ARCEUS_ICE" },
+    { "ARCEUS", "DRACO_PLATE",  "ARCEUS_DRAGON" },
+    { "ARCEUS", "DREAD_PLATE",  "ARCEUS_DARK" },
+    { "ARCEUS", "PIXIE_PLATE",  "ARCEUS_FAIRY" },
+    { "SILVALLY", "FIGHTING_MEMORY", "SILVALLY_FIGHTING" },
+    { "SILVALLY", "FLYING_MEMORY",   "SILVALLY_FLYING" },
+    { "SILVALLY", "POISON_MEMORY",   "SILVALLY_POISON" },
+    { "SILVALLY", "GROUND_MEMORY",   "SILVALLY_GROUND" },
+    { "SILVALLY", "ROCK_MEMORY",     "SILVALLY_ROCK" },
+    { "SILVALLY", "BUG_MEMORY",      "SILVALLY_BUG" },
+    { "SILVALLY", "GHOST_MEMORY",    "SILVALLY_GHOST" },
+    { "SILVALLY", "STEEL_MEMORY",    "SILVALLY_STEEL" },
+    { "SILVALLY", "FIRE_MEMORY",     "SILVALLY_FIRE" },
+    { "SILVALLY", "WATER_MEMORY",    "SILVALLY_WATER" },
+    { "SILVALLY", "GRASS_MEMORY",    "SILVALLY_GRASS" },
+    { "SILVALLY", "ELECTRIC_MEMORY", "SILVALLY_ELECTRIC" },
+    { "SILVALLY", "PSYCHIC_MEMORY",  "SILVALLY_PSYCHIC" },
+    { "SILVALLY", "ICE_MEMORY",      "SILVALLY_ICE" },
+    { "SILVALLY", "DRAGON_MEMORY",   "SILVALLY_DRAGON" },
+    { "SILVALLY", "DARK_MEMORY",     "SILVALLY_DARK" },
+    { "SILVALLY", "FAIRY_MEMORY",    "SILVALLY_FAIRY" },
+  }
+  for _, row in ipairs(expected) do
+    local species, item, formId = row[1], row[2], row[3]
+    T.eq(persistent[species] and persistent[species][item], formId,
+      "data/persistent.lua still pairs " .. species .. "'s " .. item
+        .. " with " .. formId)
+  end
+  local arceusCount, silvallyCount = 0, 0
+  for _ in pairs(persistent.ARCEUS or {}) do arceusCount = arceusCount + 1 end
+  for _ in pairs(persistent.SILVALLY or {}) do silvallyCount = silvallyCount + 1 end
+  T.eq(arceusCount, 17, "Arceus wires exactly its seventeen Plates")
+  T.eq(silvallyCount, 17, "Silvally wires exactly its seventeen Memories")
 end
 
 -- The six pairings named outright rather than counted, for the reason the

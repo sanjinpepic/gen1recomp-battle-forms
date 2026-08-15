@@ -46,20 +46,27 @@
 -- Rotom is still the one that proves the mechanism rather than being a special
 -- case of it, because it has five forms and a base to come back to where every
 -- other row here has one form and a toggle.  Arceus (17 Plates) and Silvally
--- (17 Memories) are the two item-driven families this table does NOT wire:
--- both have real held-item mechanics and real National Dex records for every
--- type, but neither has a single entry in dev/data/sprites/generated/formart.lua
--- -- not even a base-species one -- so wiring either would show every one of
--- eighteen forms as the plain species with nothing to tell them apart.
--- Genesect's four Drives are not wired for a different reason: no
--- GENESECT_DOUSE/SHOCK/BURN/CHILL record exists in national.lua at all, so
--- there is no form id a pairing here could even name.
+-- (17 Memories) are the two largest families of all, wired the same way as
+-- everything above once the form-art index actually carried their art -- see
+-- data/plates.lua and data/memories.lua for the one thing that IS different
+-- about them: neither family's items carry a bag byte, because the shared
+-- single-byte item space ran out 12 items short of the 34 the two families
+-- need between them.  Genesect's four Drives are still not wired, for a
+-- different reason than either: no GENESECT_DOUSE/SHOCK/BURN/CHILL record
+-- exists in national.lua at all, so there is no form id a pairing here could
+-- even name.
 --
 -- Every wired form has front AND back art under [BASE].forms.[SUFFIX]; the
 -- art suite fails if that ever stops being true.  A form with only a front
 -- picture is invisible on the player's own side of the battle, which is worse
 -- here than anywhere else in this mod -- a battle form a player cannot see
 -- lasts one fight, and this one lasts until they change it back.
+--
+-- Neither Arceus nor Silvally wires a NORMAL/base row: the base Pokemon holds
+-- no Plate and no Memory in the real games either, National Dex registers no
+-- ARCEUS_NORMAL or SILVALLY_NORMAL record to point one at, and the seventeen
+-- types below are already the whole of what a Plate or a Memory changes a
+-- Pokemon into.
 return {
   ROTOM = {
     MICROWAVE_OVEN  = "ROTOM_HEAT",
@@ -85,5 +92,43 @@ return {
   },
   SHAYMIN = {
     GRACIDEA = "SHAYMIN_SKY",
+  },
+  ARCEUS = {
+    FIST_PLATE   = "ARCEUS_FIGHTING",
+    SKY_PLATE    = "ARCEUS_FLYING",
+    TOXIC_PLATE  = "ARCEUS_POISON",
+    EARTH_PLATE  = "ARCEUS_GROUND",
+    STONE_PLATE  = "ARCEUS_ROCK",
+    INSECT_PLATE = "ARCEUS_BUG",
+    SPOOKY_PLATE = "ARCEUS_GHOST",
+    IRON_PLATE   = "ARCEUS_STEEL",
+    FLAME_PLATE  = "ARCEUS_FIRE",
+    SPLASH_PLATE = "ARCEUS_WATER",
+    MEADOW_PLATE = "ARCEUS_GRASS",
+    ZAP_PLATE    = "ARCEUS_ELECTRIC",
+    MIND_PLATE   = "ARCEUS_PSYCHIC",
+    ICICLE_PLATE = "ARCEUS_ICE",
+    DRACO_PLATE  = "ARCEUS_DRAGON",
+    DREAD_PLATE  = "ARCEUS_DARK",
+    PIXIE_PLATE  = "ARCEUS_FAIRY",
+  },
+  SILVALLY = {
+    FIGHTING_MEMORY = "SILVALLY_FIGHTING",
+    FLYING_MEMORY   = "SILVALLY_FLYING",
+    POISON_MEMORY   = "SILVALLY_POISON",
+    GROUND_MEMORY   = "SILVALLY_GROUND",
+    ROCK_MEMORY     = "SILVALLY_ROCK",
+    BUG_MEMORY      = "SILVALLY_BUG",
+    GHOST_MEMORY    = "SILVALLY_GHOST",
+    STEEL_MEMORY    = "SILVALLY_STEEL",
+    FIRE_MEMORY     = "SILVALLY_FIRE",
+    WATER_MEMORY    = "SILVALLY_WATER",
+    GRASS_MEMORY    = "SILVALLY_GRASS",
+    ELECTRIC_MEMORY = "SILVALLY_ELECTRIC",
+    PSYCHIC_MEMORY  = "SILVALLY_PSYCHIC",
+    ICE_MEMORY      = "SILVALLY_ICE",
+    DRAGON_MEMORY   = "SILVALLY_DRAGON",
+    DARK_MEMORY     = "SILVALLY_DARK",
+    FAIRY_MEMORY    = "SILVALLY_FAIRY",
   },
 }
