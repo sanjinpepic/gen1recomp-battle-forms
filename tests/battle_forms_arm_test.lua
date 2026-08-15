@@ -82,4 +82,97 @@ T.eq(one:selected(), nil, "the selection is dropped when the battle ends")
 
 T.eq(state:toggle(nil), false, "arming nothing is refused rather than crashed on")
 
+-- ---------------------------------------------------------------------
+-- The arm/disarm dispatch, which is how a move substitution reaches the FIGHT
+-- menu on the turn it was armed instead of the turn after.  Driven here with a
+-- fake registry rather than with the real Dynamax and Z-Move, because what is
+-- being pinned is the ORDER of the two calls and which writes make them: the
+-- mechanics' own suites pin what they do when called.
+-- ---------------------------------------------------------------------
+do
+  local log = {}
+  local function entry(id)
+    return { id = id,
+             arm = function(battle) log[#log + 1] = id .. ":arm:" ..
+                                                    tostring(battle and battle.tag) end,
+             disarm = function() log[#log + 1] = id .. ":disarm" end }
+  end
+  local entries = { alpha = entry("alpha"), beta = entry("beta"),
+                    -- A mechanic with nothing to put on early -- mega evolution
+                    -- and Terastallization are both this -- must be armable
+                    -- without either hook being invented for it.
+                    plain = { id = "plain" } }
+  Arm.bind({ registry = { get = function(_, id) return entries[id] end } })
+
+  local live = { tag = "live", player = { mon = { species = "PIKACHU" } } }
+  local hooked = Arm.new()
+  hooked:onBattleStarted({ battle = live })
+
+  hooked:toggle("alpha")
+  T.eq(table.concat(log, " "), "alpha:arm:live",
+    "arming calls the entry's arm with the live battle")
+
+  log = {}
+  hooked:toggle("alpha")
+  T.eq(table.concat(log, " "), "alpha:disarm",
+    "and a second press takes it back off")
+
+  -- Cycling while armed is the sharp case: LEFT/RIGHT move the selection, the
+  -- selection is always what is armed, so what was armed must come off.
+  log = {}
+  hooked:toggle("alpha")
+  hooked:select("beta")
+  T.eq(table.concat(log, " "), "alpha:arm:live alpha:disarm",
+    "cycling away from an armed transformation disarms it")
+  T.eq(hooked:isArmed(), false, "leaving nothing armed to put anything on")
+
+  -- Arming the other one directly is the same crossing in one press, and the
+  -- old one has to come off BEFORE the new one goes on: both substitute the
+  -- same array, and the wrong order would restore over the new one.
+  log = {}
+  hooked:toggle("alpha")
+  hooked:toggle("beta")
+  T.eq(table.concat(log, " "), "alpha:arm:live alpha:disarm beta:arm:live",
+    "arming a second one takes the first off before putting the second on")
+
+  -- Spending is the one write that does NOT disarm: the transformation
+  -- activated, and what it put on is now its own to unwind on its own clock.
+  log = {}
+  hooked:consume("beta")
+  T.eq(#log, 0, "spending a transformation disarms nothing")
+  T.eq(hooked:isArmed(), false, "though the flag is cleared all the same")
+
+  -- A battle ending unwinds an armed-but-never-fired substitution: the battler
+  -- holding it belongs to a battle that is over.
+  log = {}
+  hooked:toggle("alpha")
+  hooked:onBattleEnded({ battle = live })
+  T.eq(table.concat(log, " "), "alpha:arm:live alpha:disarm",
+    "and a battle ending takes off whatever was still armed")
+
+  log = {}
+  hooked:onBattleStarted({ battle = live })
+  hooked:toggle("plain")
+  hooked:toggle("plain")
+  hooked:select("alpha")
+  T.eq(#log, 0, "an entry with no hooks arms and disarms without them")
+
+  -- An id the registry has never heard of is a stale flag, not a crash.
+  log = {}
+  hooked:toggle("nosuchthing")
+  T.eq(hooked:armed(), "nosuchthing", "an unknown id still arms the flag")
+  T.eq(#log, 0, "and reaches no hook")
+end
+
+-- Unbound, this file is what it was before any of that: the dispatch is the
+-- only thing that wants a registry, and the mod's own suites run without one.
+do
+  local Bare = dofile(MOD .. "/src/arm.lua")
+  local loose = Bare.new()
+  loose:onBattleStarted({ battle = battle })
+  T.eq(loose:toggle("mega"), true, "arming works with no registry bound")
+  loose:select("dynamax")
+  T.eq(loose:isArmed(), false, "and so does selecting away from it")
+end
+
 T.finish("battle_forms_arm")

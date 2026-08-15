@@ -6,6 +6,14 @@
 -- Max Move is -- the caller hands over a function that answers, per slot, what
 -- that slot should become.
 --
+-- Nor does it know WHEN.  Both consumers apply at the same moment -- when the
+-- player arms the menu cell, which is a step ahead of the FIGHT menu and
+-- therefore the last point at which a swap can still change the move the turn's
+-- action is captured from -- but that is dispatched from the armed flag in
+-- src/arm.lua, where the reasoning lives, and not decided here.  What this file
+-- owes that arrangement is only that restore() be safe to call blind, since a
+-- disarm now runs on the same paths a teardown does.
+--
 -- WHY NOTHING IS WRITTEN INTO A MOVE SLOT, which is the decision worth reading.
 --
 -- makeBattler seeds `curMoves` from the party Pokemon BY REFERENCE

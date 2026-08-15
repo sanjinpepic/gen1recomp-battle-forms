@@ -3,6 +3,23 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.18.0
+
+### Changed
+
+- **Max Moves and Z-Moves are selectable on the turn they are armed.** Both
+  mechanics swapped the battler's move list at the start of the turn, which the
+  engine raises only after both actions are already chosen and holds a direct
+  reference to the move slot the FIGHT menu handed over -- so the new moves
+  arrived a turn late, costing a Dynamax one of its three turns and giving a
+  player every chance to spend the battle's one transformation on a Z-Move that
+  was never selectable. The swap now happens when the cell is armed instead,
+  which is a step ahead of the FIGHT menu on the command menu, and every reader
+  of the move list takes it fresh as it runs. Disarming puts the moveset back:
+  pressing A a second time, or cycling to another transformation with LEFT and
+  RIGHT, leaves the Pokemon holding exactly the moves it started with. The
+  forms, the stats and the three-turn clock still land where they always did.
+
 ## 0.17.0
 
 ### Added

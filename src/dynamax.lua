@@ -57,14 +57,15 @@
 -- paths, and the substitution is torn down through the same finish() every one
 -- of them already went through.
 --
--- One departure worth stating: the move a player picked on the turn they
--- Dynamaxed is the move they picked.  The activation lands at turn_started,
--- which the engine raises AFTER both actions are chosen (BattleState.lua:
--- 2463-2469) -- that placement is deliberate and is what keeps a mega from
--- costing a turn -- and the action it raises with is the move slot the FIGHT
--- menu handed over.  Substituting the array cannot reach a choice already made,
--- so the first turn of a Dynamax runs the base move and the two after it are
--- Max Moves.
+-- The two halves happen at different moments, which is the thing to hold on to
+-- when reading `activate` below and finding no substitution in it.  The state,
+-- the clock and the Gigantamax shape land at battle.turn_started, the placement
+-- that keeps a mega from costing a turn.  The MOVES are swapped a step earlier,
+-- when the player arms the cell, because the array has to be standing before
+-- the FIGHT menu is opened or the turn's action is captured out of the old one
+-- -- src/arm.lua dispatches that and says why at length.  So all three turns of
+-- a Dynamax are Max Move turns, including the one it was armed on, and a
+-- Dynamax armed and then cycled away from takes its Max Moves back off with it.
 local M = {}
 
 M.ID = "dynamax"
@@ -150,6 +151,27 @@ function M.entry(state)
       return mon ~= nil and mon.species ~= nil
     end,
 
+    -- The Max Moves, put on the moment the cell is armed rather than when the
+    -- Dynamax activates: the FIGHT menu the player is about to open reads
+    -- `curMoves` as it draws, so this is the last moment a swap is still ahead
+    -- of the action being chosen.  Answers whether anything was substituted,
+    -- which is nothing to act on here -- a moveset with no Max Move for any of
+    -- its types Dynamaxes plainly, exactly as it did before.
+    arm = function(battle)
+      if not battle or not (deps.substitute and deps.maxMoves) then
+        return false
+      end
+      return deps.substitute.apply(state.moves, battle.player,
+                                   deps.maxMoves(battle.data))
+    end,
+
+    -- Disarming is the array coming straight back.  Nothing else of a Dynamax
+    -- exists yet at this point -- no counter, no form, no mon reference -- so
+    -- there is nothing else to undo.
+    disarm = function()
+      if deps.substitute then deps.substitute.restore(state.moves) end
+    end,
+
     -- Always answers true: the state is the mechanic, and it is set here
     -- whether or not a Gigantamax shape could be found to go with it.  A
     -- species with no G-Max record, or one whose record will not resolve,
@@ -196,15 +218,10 @@ function M.entry(state)
         end
       end
 
-      -- After the form change, because a Gigantamax form may retype the mon and
-      -- a Max Move follows the base move's type rather than the Pokemon's --
-      -- but the order still matters for the one thing it decides, which is that
-      -- a refused Gigantamax cannot leave the moveset half substituted.
-      if deps.substitute and deps.maxMoves then
-        deps.substitute.apply(state.moves, battler,
-                              deps.maxMoves(battle.data))
-      end
-
+      -- No moveset work here on purpose: the Max Moves went on when the cell
+      -- was armed and are already standing.  A Gigantamax that retypes the mon
+      -- does not disturb them either way, because a Max Move follows the base
+      -- move's type rather than the Pokemon's.
       if deps.announce then
         if state.form then
           deps.announce.gigantamax(battle, battler)

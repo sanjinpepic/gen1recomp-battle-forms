@@ -35,16 +35,19 @@
 --
 -- WHEN IT GOES ON AND WHEN IT COMES OFF, which is the decision worth reading.
 --
--- The activation lands at battle.turn_started, which the engine raises AFTER
--- both actions are chosen (BattleState.lua:2463-2469) -- the placement that
--- keeps a mega from costing a turn.  Substituting the array cannot reach a
--- choice already made, so the move picked on the turn the player armed runs as
--- itself and the Z-Move is there to pick from the turn after.  That is the
--- departure Dynamax already documents, and here it is load-bearing: a
--- substitution that also came off at the end of that turn would be a Z-Move
--- that could never be selected at all.
+-- It goes on when the player ARMS the cell, not when the transformation
+-- activates.  The activation lands at battle.turn_started, which the engine
+-- raises AFTER both actions are chosen (BattleState.lua:2463-2469) and with the
+-- move slot the FIGHT menu already handed over, so a substitution made there
+-- cannot reach the choice it would have to replace -- which for one release
+-- meant a Z-Move the player could not pick until the turn after they armed it,
+-- and a plausible way to spend the battle's one transformation on nothing at
+-- all.  Arming happens on the COMMAND menu, a step ahead of the move list being
+-- drawn; src/arm.lua dispatches it and sets out the engine reads that make it
+-- safe.  What still happens at turn_started is the announcement and the spending
+-- of the trainer's one transformation, which is where those belong.
 --
--- So it comes off when it is USED and not before.  battle.move_used names the
+-- It comes off when it is USED and not before.  battle.move_used names the
 -- move record the battler actually ran (BattleState.lua:3631, after the PP write
 -- and before the effect), which is the only seam that can tell a Z-Move being
 -- spent from any other move in the same list being spent; the unwind itself
@@ -53,9 +56,14 @@
 -- clock to run out, and a player who armed a Z-Move and then spent four turns
 -- on something else still has it.
 --
--- It also unwinds on switching out, on fainting and at both ends of the battle
--- -- the same four paths Dynamax unwinds on and for the same reason, which is
--- that the battler holding the substituted array must not outlive them.
+-- It also unwinds on DISARMING -- a second A on the cell, or cycling away from
+-- it with LEFT/RIGHT -- which is the path that only exists because arming is
+-- when it goes on, and without which a player who armed a Z-Move and changed
+-- their mind would take an unasked-for moveset into the turn.
+--
+-- And on switching out, on fainting and at both ends of the battle -- the same
+-- four paths Dynamax unwinds on and for the same reason, which is that the
+-- battler holding the substituted array must not outlive them.
 -- Switching out ENDS it rather than following the Pokemon: the crystal belongs
 -- to the mon that left, the mon arriving may be carrying a different one or
 -- none, and re-deriving that on a send-out would be a second activation the
@@ -278,14 +286,15 @@ function M.entry(state, catalog)
       return M.wouldConvert(catalog, battle.data, battler, crystal)
     end,
 
-    -- Answers whether the battle's one transformation was actually spent.  It
-    -- is spent only if something was substituted: a refusal must not cost the
-    -- player the option they armed in good faith.
-    activate = function(battle)
-      local battler = battle.player
+    -- The whole of the mechanic, done at the moment the cell is armed so that
+    -- the FIGHT menu the player is about to open already lists the Z-Move --
+    -- the menu reads `curMoves` as it draws, so this is the last moment a swap
+    -- is still ahead of the action being chosen.
+    arm = function(battle)
+      if not deps.substitute then return false end
+      local battler = battle and battle.player
       local mon = battler and battler.mon
-      if not mon then return false end
-      local crystal = deps.eligibility.stoneOf(mon)
+      local crystal = mon and deps.eligibility.stoneOf(mon)
       if not crystal then return false end
 
       -- The ids are collected from the picker's own answers rather than read
@@ -302,6 +311,24 @@ function M.entry(state, catalog)
       if not applied then return false end
 
       state.mon, state.spent, state.ids = mon, false, ids
+      return true
+    end,
+
+    -- Everything arming set, in one call, because that is what forget() is.
+    disarm = function() forget(state) end,
+
+    -- By here the moves are already substituted, so this says the sentence and
+    -- answers whether the battle's one transformation was actually spent.  It
+    -- is spent only if the substitution is standing and belongs to the Pokemon
+    -- still in front: a refusal must not cost the player the option they armed
+    -- in good faith, and a mon that left the field between arming and the turn
+    -- resolving took its Z-Move with it.
+    activate = function(battle)
+      if not deps.substitute or not deps.substitute.active(state.moves) then
+        return false
+      end
+      local battler = battle and battle.player
+      if not battler or battler.mon ~= state.mon then return false end
       if deps.announce then deps.announce.zPower(battle, battler) end
       return true
     end,

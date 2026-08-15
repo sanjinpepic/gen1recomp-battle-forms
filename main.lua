@@ -178,6 +178,12 @@ return function(mod)
   -- entry rather than a special case: what makes it the only one today is that
   -- it is the only one registered.
   local registry = m["src/transforms.lua"].new()
+  -- The arm state reaches the registry for one job: a mechanic that substitutes
+  -- moves does it when the player arms the cell rather than when it activates,
+  -- and the armed flag is the only place that knows about every way of arming
+  -- and every way of disarming.  Bound here rather than at construction because
+  -- the state is built before there is a registry to hand it.
+  m["src/arm.lua"].bind({ registry = registry })
   local registered, why = registry:register(m["src/mega.lua"].entry({
     forms = m["src/forms.lua"], eligibility = eligibility, megas = megas,
     keyitems = keyitems, animId = anim.ID, announce = announce,

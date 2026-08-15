@@ -58,6 +58,25 @@ do
   T.check(why:find("already", 1, true) ~= nil, "and says the id was taken")
   T.eq(reg:count(), 1, "the registry is unchanged by a refusal")
   T.eq(reg:get("x"), complete, "and the entry that held the id still holds it")
+
+  -- arm and disarm are optional, and optional TOGETHER.  A mechanic that swaps
+  -- the moveset when the player arms it has to swap it back when they change
+  -- their mind, and an entry offering only one half would leave the moves it put
+  -- on standing behind a cell showing something else.
+  local function pair(arm, disarm)
+    return { id = "p" .. tostring(arm) .. tostring(disarm), label = "P",
+             available = function() return true end,
+             activate = function() return true end,
+             arm = arm, disarm = disarm }
+  end
+  local noop = function() end
+  T.eq(reg:register(pair(noop, nil)), false, "arm without disarm is refused")
+  T.eq(reg:register(pair(nil, noop)), false, "and disarm without arm")
+  local half, halfWhy = reg:register(pair(noop, "not a function"))
+  T.eq(half, false, "and a disarm that is not callable")
+  T.check(halfWhy:find("arm", 1, true) ~= nil, "the refusal names the pair")
+  T.eq(reg:register(pair(noop, noop)), true, "both together register")
+  T.eq(reg:register(pair(nil, nil)), true, "and so does neither")
 end
 
 -- ---------------------------------------------------------------------

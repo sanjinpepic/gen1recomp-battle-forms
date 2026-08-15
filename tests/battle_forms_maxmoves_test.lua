@@ -406,6 +406,46 @@ local function assertSaveUntouched(before, mon, when)
   end
 end
 
+-- The order the game does these in, so no block below can pass by activating
+-- something the player never armed.
+local function dynamax(entry, battle)
+  entry.arm(battle)
+  return entry.activate(battle)
+end
+
+-- The order the two halves happen in, which is the whole of 0.18.0: the moves
+-- are swapped when the cell is ARMED, a step ahead of the FIGHT menu, and the
+-- state and the shape land later at turn_started.  Pinned before anything else
+-- reads a substituted array, because every block below depends on it.
+do
+  local state = Dynamax.new()
+  local entry = Dynamax.entry(state)
+  local battle = makeBattle("PIDGEY")
+  local battler = battle.player
+
+  T.eq(type(entry.arm), "function", "the entry says what arming it does")
+  T.eq(type(entry.disarm), "function", "and how to take that back off")
+
+  T.eq(entry.arm(battle), true, "arming substitutes")
+  T.check(battler.curMoves ~= battler.mon.moves,
+    "so the FIGHT menu opened on this turn already lists Max Moves")
+  T.eq(battler.curMoves[1].id, MaxMoves.idFor("MAXFLARE", 90),
+    "with EMBER reading as MAX FLARE before a single turn has started")
+  T.eq(state.mon, nil, "with no Dynamax state yet -- nothing has activated")
+  T.eq(state.turns, 0, "and no clock running")
+
+  T.eq(entry.disarm(), nil, "disarming answers nothing in particular")
+  T.eq(battler.curMoves, battler.mon.moves,
+    "and gives the Pokemon's own array straight back")
+
+  -- Activating substitutes nothing on its own now: by the time it runs the
+  -- moves are either already swapped or were never going to be.
+  T.eq(entry.activate(battle), true, "activating still answers that it happened")
+  T.eq(battler.curMoves, battler.mon.moves,
+    "but it is the arming that swaps the moves, not the activation")
+  T.eq(state.turns, 3, "while the clock is the activation's")
+end
+
 -- The moveset a Dynamaxed battler shows, and the proof the battle reads it.
 --
 -- PIDGEY rather than CHARIZARD, because this is the block that compares the
@@ -422,7 +462,8 @@ do
   T.eq(battler.curMoves, mon.moves,
     "precondition: the battler is holding the Pokemon's own array")
 
-  T.eq(entry.activate(battle), true, "the Dynamax happened")
+  T.eq(entry.arm(battle), true, "the cell was armed")
+  T.eq(entry.activate(battle), true, "and the Dynamax happened")
   T.check(battler.curMoves ~= mon.moves,
     "and the battler is no longer holding the Pokemon's array")
   T.eq(battler.curMoves[1].id, MaxMoves.idFor("MAXFLARE", 90),
@@ -472,7 +513,7 @@ do
   local battle = makeBattle("CHARIZARD")
   local battler = battle.player
 
-  entry.activate(battle)
+  dynamax(entry, battle)
   T.eq(battler.mon.form, "GMAX", "the Gigantamax shape went on")
   T.eq(battler.curMoves[1].id, MaxMoves.idFor("MAXFLARE", 90),
     "and its Fire move is the ordinary MAX FLARE")
@@ -480,7 +521,7 @@ do
   local plain = Dynamax.new()
   local plainEntry = Dynamax.entry(plain)
   local other = makeBattle("PIDGEY")
-  plainEntry.activate(other)
+  dynamax(plainEntry, other)
   T.eq(other.player.mon.form, nil, "a species with no Gigantamax takes none")
   T.eq(other.player.curMoves[1].id, battler.curMoves[1].id,
     "and gets exactly the same Max Move for the same base move")
@@ -495,7 +536,7 @@ do
   local outgoing = battle.player
   local mon = outgoing.mon
   local before = saveSnapshot(mon)
-  entry.activate(battle)
+  dynamax(entry, battle)
   T.check(outgoing.curMoves ~= mon.moves, "substituted")
 
   local incoming = { isPlayer = true, mon = newMon("PIDGEY"), name = "PIDGE" }
@@ -518,7 +559,7 @@ do
   local battler = battle.player
   local mon = battler.mon
   local before = saveSnapshot(mon)
-  entry.activate(battle)
+  dynamax(entry, battle)
 
   mon.hp = 0
   Dynamax.onFainted(state, { battle = battle, battler = battler })
@@ -539,7 +580,7 @@ do
   local battler = battle.player
   local mon = battler.mon
   local before = saveSnapshot(mon)
-  entry.activate(battle)
+  dynamax(entry, battle)
 
   Resolve.onBattleEnded({ battle = battle })
   Dynamax.onBattleEnded(state)
@@ -558,7 +599,7 @@ do
   local battle = makeBattle("CHARIZARD")
   local battler = battle.player
   local mon = battler.mon
-  entry.activate(battle)
+  dynamax(entry, battle)
   Dynamax.onBattleStarted(state)
   T.eq(battler.curMoves, mon.moves, "a new battle starts with nothing substituted")
   T.eq(state.moves.battler, nil, "and holding no battler")
@@ -573,7 +614,8 @@ do
   local entry = Dynamax.entry(state)
   local battle = makeBattle("CHARIZARD")
   local battler = battle.player
-  T.eq(entry.activate(battle), true, "the Dynamax still happens")
+  T.eq(entry.arm(battle), false, "there is nothing to substitute")
+  T.eq(entry.activate(battle), true, "but the Dynamax still happens")
   T.eq(battler.curMoves, battler.mon.moves, "with the moveset untouched")
   T.eq(state.turns, 3, "and a real three-turn state")
   Dynamax.onTurnEnded(state, { battle = battle })

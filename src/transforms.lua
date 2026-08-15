@@ -7,6 +7,9 @@
 -- Every mechanic of this kind needs the same four things and differs only in
 -- what it puts in them: an id, a label for the one menu cell there is room
 -- for, a predicate for whether it is on offer right now, and an activation.
+-- Two more are optional and belong to the mechanics that change the move list
+-- rather than the Pokemon -- see the pair check below and src/arm.lua for what
+-- drives them.
 --
 -- Being in this registry is also what puts a mechanic under the trainer's one
 -- manual transformation per battle: the limit is one across everything
@@ -45,6 +48,17 @@ function Registry:register(entry)
   end
   if type(entry.activate) ~= "function" then
     return false, "activate must be a function"
+  end
+  -- A fifth and sixth thing, optional and optional TOGETHER: what a mechanic
+  -- does the moment the player arms it, and what undoes that.  The two
+  -- move-substituting mechanics swap the battler's move array here so that the
+  -- FIGHT menu they are about to open already lists the new moves, and half of
+  -- that pair is a moveset left substituted behind a cell showing something
+  -- else -- which is exactly what cycling away from an armed Dynamax would do.
+  if entry.arm ~= nil or entry.disarm ~= nil then
+    if type(entry.arm) ~= "function" or type(entry.disarm) ~= "function" then
+      return false, "arm and disarm must both be functions, or both be absent"
+    end
   end
   if self.index[entry.id] then
     return false, "id " .. entry.id .. " is already registered"

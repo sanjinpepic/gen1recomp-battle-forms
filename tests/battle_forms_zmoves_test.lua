@@ -49,7 +49,7 @@ end
 local function stubMod(chart)
   local warned = {}
   local buckets = { moves = {}, battle_anims = {}, items = {},
-                    item_effects = {} }
+                    item_effects = {}, move_effects = {} }
   local order = {}
   local content = {}
   for name, bucket in pairs(buckets) do
@@ -372,6 +372,53 @@ do
     "nor is one for a type this game's chart never registered")
 end
 
+-- The order the game does these in: the player arms the cell on the command
+-- menu, and the turn that follows announces it and spends the trainer's one
+-- transformation.  Written once so no block below can pass by activating
+-- something that was never armed.
+local function armed(entry, battle)
+  entry.arm(battle)
+  return entry.activate(battle)
+end
+
+-- ------- arming is when the moves change ------------------------------
+--
+-- The whole of 0.18.0 for this mechanic: the substitution goes on while the
+-- cursor is still on the command menu, so the FIGHT menu the player opens on
+-- that same turn already lists the Z-Move.  Before this the swap waited for
+-- battle.turn_started, which the engine raises with the action already chosen,
+-- and the Z-Move was pickable only from the turn after -- a plausible way to
+-- spend the battle's one transformation on nothing at all.
+do
+  local state = ZMoves.new()
+  local entry = ZMoves.entry(state, CATALOG)
+  local mon = newMon(ELECTRIUM)
+  local battle = makeBattle(mon)
+  local battler = battle.player
+
+  T.eq(type(entry.arm), "function", "the entry says what arming it does")
+  T.eq(type(entry.disarm), "function", "and how to take that back off")
+
+  T.eq(entry.arm(battle), true, "arming answers that it happened")
+  T.eq(battler.curMoves[1].id, ZMoves.idFor("GIGAVOLTHAVOC", 175),
+    "and the Z-Move is selectable before a single turn has started")
+  T.eq(#battle.said, 0, "with nothing said yet -- that is the activation's")
+
+  -- Changing their mind must cost nothing: a second A on the cell, or cycling
+  -- away from it, is a disarm and the moveset comes straight back.
+  entry.disarm()
+  T.eq(battler.curMoves, mon.moves, "disarming gives the Pokemon's array back")
+  T.eq(state.mon, nil, "and holds no mon reference afterwards")
+  T.eq(entry.activate(battle), false,
+    "so the turn that follows has nothing to spend")
+
+  -- And arming again after that works exactly as the first time did.
+  T.eq(entry.arm(battle), true, "re-arming arms")
+  T.eq(entry.activate(battle), true, "and this time the turn spends it")
+  T.eq(battle.said[2], "with its Z-Power!",
+    "with the announcement made by the activation and not by the arming")
+end
+
 -- ------- arming, and what the battler shows afterwards -----------------
 do
   local state = ZMoves.new()
@@ -381,7 +428,7 @@ do
   local battler = battle.player
   local before = saveSnapshot(mon)
 
-  T.eq(entry.activate(battle), true, "arming answers that it happened")
+  T.eq(armed(entry, battle), true, "arming answers that it happened")
   T.check(battler.curMoves ~= mon.moves,
     "the battler is holding an array the battle owns")
   T.eq(battler.curMoves[1].id, ZMoves.idFor("GIGAVOLTHAVOC", 175),
@@ -436,7 +483,7 @@ do
   local entry = ZMoves.entry(state, CATALOG)
   local mon = newMon(ELECTRIUM)
   local battle = makeBattle(mon)
-  entry.activate(battle)
+  armed(entry, battle)
 
   ZMoves.onMoveUsed(state, { user = { mon = newMon(ELECTRIUM) },
                              move = { id = ZMoves.idFor("GIGAVOLTHAVOC", 175) } })
@@ -463,7 +510,7 @@ for _, case in ipairs({
   local battle = makeBattle(mon)
   local before = saveSnapshot(mon)
 
-  T.eq(entry.activate(battle), true, "armed before " .. case[1])
+  T.eq(armed(entry, battle), true, "armed before " .. case[1])
   case[2](state, battle, mon)
   T.eq(battle.player.curMoves, mon.moves,
     case[1] .. " puts the Pokemon's own array back")
@@ -478,7 +525,7 @@ do
   local entry = ZMoves.entry(state, CATALOG)
   local mon = newMon(ELECTRIUM)
   local battle = makeBattle(mon)
-  entry.activate(battle)
+  armed(entry, battle)
   ZMoves.onBattlerSwitched(state, { battle = battle,
                                     previous = { mon = newMon(ELECTRIUM) } })
   T.check(battle.player.curMoves ~= mon.moves,
@@ -514,6 +561,9 @@ do
   Overlay.bind({ registry = registry })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
                  megas = megas })
+  -- The wiring main.lua does, and the whole reason the arm state knows the
+  -- registry: arming has to reach the entry that substitutes.
+  Arm.bind({ registry = registry })
 
   local arm = Arm.new()
   local mon = newMon(ELECTRIUM)
@@ -525,6 +575,14 @@ do
   T.eq(offered[1].id, ZMoves.ID, "and it is the entry this file registered")
 
   T.eq(arm:toggle(ZMoves.ID), true, "arming the cell marks it")
+  T.eq(battle.player.curMoves[1].id, ZMoves.idFor("GIGAVOLTHAVOC", 175),
+    "and the moves are already substituted, on the turn it was armed")
+
+  -- A second A on the cell is a disarm, and it takes the moveset back off.
+  T.eq(arm:toggle(ZMoves.ID), false, "pressing A again disarms")
+  T.eq(battle.player.curMoves, mon.moves, "and the moveset comes straight back")
+  arm:toggle(ZMoves.ID)
+
   Resolve.onTurnStarted(arm, { battle = battle })
   T.eq(arm:used(ZMoves.ID), true, "resolving spends the Z-Move")
   T.eq(arm:usedAny(), true, "and the trainer's one transformation with it")
@@ -536,9 +594,112 @@ do
   local bare = makeBattle(newMon(nil))
   refused:onBattleStarted({ battle = bare })
   refused:toggle(ZMoves.ID)
+  T.eq(bare.player.curMoves, bare.player.mon.moves,
+    "a crystal-less Pokemon has nothing to substitute")
   Resolve.onTurnStarted(refused, { battle = bare })
   T.eq(refused:used(ZMoves.ID), false, "a refused activation spends nothing")
   T.eq(refused:usedAny(), false, "and leaves the battle's transformation intact")
+
+end
+
+-- Spending a transformation clears the armed flag WITHOUT disarming, which is
+-- the one write in src/arm.lua that does not dispatch: the Z-Move is standing in
+-- the moveset and is meant to stay there until it is used.  Getting this wrong
+-- would unwind the substitution the same instant the announcement said the
+-- Z-Power had gone up.
+do
+  local registry = Transforms.new()
+  local state = ZMoves.new()
+  registry:register(ZMoves.entry(state, CATALOG))
+  Overlay.bind({ registry = registry })
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                 megas = {} })
+  Arm.bind({ registry = registry })
+
+  local arm = Arm.new()
+  local mon = newMon(ELECTRIUM)
+  local battle = makeBattle(mon)
+  arm:onBattleStarted({ battle = battle })
+  arm:toggle(ZMoves.ID)
+  Resolve.onTurnStarted(arm, { battle = battle })
+  T.eq(arm:used(ZMoves.ID), true, "the transformation was spent")
+  T.eq(arm:isArmed(), false, "so the flag is no longer armed")
+  T.eq(battle.player.curMoves[1].id, ZMoves.idFor("GIGAVOLTHAVOC", 175),
+    "but the Z-Move is still in the moveset, waiting to be picked")
+
+  -- And it ends where it always did: on the turn one of its moves is used.
+  ZMoves.onMoveUsed(state, { user = battle.player,
+                             move = { id = ZMoves.idFor("GIGAVOLTHAVOC", 175) } })
+  ZMoves.onTurnEnded(state)
+  T.eq(battle.player.curMoves, mon.moves, "and comes off when it is spent")
+end
+
+-- ---------------------------------------------------------------------
+-- Cycling while armed, which is the sharp case: the cell hosts more than one
+-- mechanic that substitutes moves, and moving between them must never leave the
+-- one the player moved away from standing underneath the other's label.
+-- ---------------------------------------------------------------------
+do
+  local Dynamax = dofile(MOD .. "/src/dynamax.lua")
+  local MaxMoves = dofile(MOD .. "/src/maxmoves.lua")
+  MaxMoves.bind({ anim = Anim, announce = Announce, substitute = Substitute,
+                  guard = MaxMoves.newGuard() })
+  local maxMod = stubMod(chartOf(RED_TYPES))
+  local maxCatalog = MaxMoves.install(maxMod, MAXROWS)
+  -- The Max Move records go into the same merged move table the battle reads,
+  -- because that is what the running game has: `available` asks whether the
+  -- crystal converts anything in the moveset IN FRONT OF IT, and while a Dynamax
+  -- is armed that moveset is Max Moves.  A fixture that could not resolve them
+  -- would take the Z-Move off the cell and quietly skip the cycle below.
+  for id, record in pairs(maxMod.registered.moves) do DATA.moves[id] = record end
+  Dynamax.bind({ forms = Forms, gigantamax = {}, keyitems = KeyItems,
+                 announce = Announce, substitute = Substitute,
+                 maxMoves = function(data)
+                   return MaxMoves.picker(maxCatalog, data)
+                 end })
+
+  local registry = Transforms.new()
+  local dynaState, zState = Dynamax.new(), ZMoves.new()
+  T.eq(registry:register(Dynamax.entry(dynaState)), true, "Dynamax registers")
+  T.eq(registry:register(ZMoves.entry(zState, CATALOG)), true,
+    "and the Z-Move beside it")
+  Overlay.bind({ registry = registry })
+  Arm.bind({ registry = registry })
+
+  local arm = Arm.new()
+  local mon = newMon(ELECTRIUM)
+  local battle = makeBattle(mon)
+  battle.game.save.inventory[KeyItems.DYNAMAX_BAND] = 1
+  arm:onBattleStarted({ battle = battle })
+  local battler = battle.player
+  T.eq(#Overlay.offered(arm), 2, "both are on offer, so the cell cycles")
+
+  local maxId = MaxMoves.idFor("MAXLIGHTNING", 140)
+  arm:toggle(Dynamax.ID)
+  T.eq(battler.curMoves[1].id, maxId, "arming Dynamax substitutes Max Moves")
+
+  -- LEFT/RIGHT move the selection, and the selection is always what is armed,
+  -- so cycling disarms what it moved away from.
+  Overlay.cycle(arm, 1)
+  T.eq(arm:selected(), ZMoves.ID, "cycling moves the cell to the Z-Move")
+  T.eq(arm:isArmed(), false, "which leaves nothing armed")
+  T.eq(battler.curMoves, mon.moves,
+    "and the Max Moves went with it rather than standing under Z-MOVE")
+
+  -- The same crossing made in one press: arming the other one directly.
+  arm:toggle(Dynamax.ID)
+  T.eq(battler.curMoves[1].id, maxId, "Dynamax armed again")
+  arm:toggle(ZMoves.ID)
+  T.eq(battler.curMoves[1].id, ZMoves.idFor("GIGAVOLTHAVOC", 175),
+    "arming the Z-Move over it substitutes the Z-Move")
+  T.eq(dynaState.moves.applied, nil, "with the Max Moves taken back off")
+  T.eq(#battler.curMoves, #mon.moves, "and one array, not two laid over each other")
+
+  -- A battle ending unwinds an armed-but-never-fired substitution, because the
+  -- battler holding it must not outlive the battle that built it.
+  arm:onBattleEnded({ battle = battle })
+  T.eq(battler.curMoves, mon.moves, "the battle ending gives the array back")
+  T.eq(zState.moves.battler, nil, "and holds no battler afterwards")
 end
 
 -- ---------------------------------------------------------------------
