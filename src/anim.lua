@@ -77,4 +77,16 @@ function M.maxGuardSeq()
   }
 end
 
+-- TERA BLAST, registered once per type it may become (src/tera.lua).  Lighter
+-- than a Z-Move's own sequence on purpose: it is an ordinary ATTACK that
+-- happens to change type rather than a once-per-battle finisher, so it gets
+-- the flash without the long hold or the shake.
+function M.teraBlastSeq()
+  return {
+    { effect = "SE_LIGHT_SCREEN_PALETTE" },
+    { effect = "SE_FLASH_MON_PIC", sound = "HYPER_BEAM" },
+    { effect = "SE_RESET_SCREEN_PALETTE" },
+  }
+end
+
 return M

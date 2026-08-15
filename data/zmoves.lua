@@ -20,14 +20,18 @@
 -- ranges rather than as the discrete base powers they list, the same way
 -- data/maxmoves.lua is.
 --
--- WHAT IS LEFT OUT.  The species-specific Z-Moves -- the ones behind a crystal
--- only one Pokemon can hold.  Every one of them keys off a base move Gen 1 does
--- not have, so wiring them would mean inventing both the trigger and the
--- Pokemon it belongs to, and the crystal would be unusable in this game even
--- once bought.  Z-status moves are left out for a related reason: a status move
--- under a crystal does not become a move in the real games, it adds an effect to
--- the one already there, and there is no record shape here that says so.  A
--- status move therefore keeps itself, which is visible and honest.
+-- WHAT USED TO BE LEFT OUT, and no longer is.  This file once refused the
+-- species-specific Z-Moves outright on the grounds that every one of them
+-- keyed off a base move Gen 1 did not have.  That premise stopped being true
+-- once National Dex 0.15.0 registered all 833 modern moves -- fourteen of
+-- them are now built in data/speciesz.lua and src/speciesz.lua, sharing this
+-- same Z-MOVE cell as a second catalog.  A status move under a crystal also
+-- used to keep itself and nothing more; it still keeps itself -- the field
+-- below still refuses to substitute one, on purpose -- but src/zmoves.lua now
+-- adds the one bonus this engine can build without inventing a ruling: a
+-- status move that already raises the user's own stat raises every other
+-- stat by one stage as well.  See src/zmoves.lua's own Z-STATUS section for
+-- why only that shape and not the real games' full bonus table.
 --
 -- A NOTE ON THE NAMES, because it is the one place this data does not fit the
 -- screen.  A Gen 1 move name is twelve characters and the layouts are built for

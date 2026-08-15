@@ -3,6 +3,55 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.27.0
+
+### Added
+
+- **Tera Blast.** A Pokemon that knows it (National Dex already registers
+  the move -- Normal, 80 power, special, 100 accuracy) plays it as an
+  ordinary Normal-type attack until it terastallizes; while terastallized,
+  arming the TERA cell substitutes that one slot for a variant carrying the
+  chosen Tera type, the same move-substitution mechanism Max Moves and
+  Z-Moves already use, and not a form or a second type-override system. The
+  substitution goes on at arm time, before the FIGHT menu is drawn, and --
+  unlike a Z-Move -- follows the Pokemon back in on every switch, because
+  Terastallization itself does. Category stays Special explicitly on every
+  variant, matching the real games and National Dex's own record, rather
+  than falling through to Gen 1's type-based split the way the Max Moves and
+  the type Z-Moves do.
+- **Fourteen species-specific Z-Moves**, each behind its own crystal
+  restricted to one species (or a small family of forms of it) and one named
+  base move: Catastropika, Stoked Sparksurfer, Pulverizing Pancake, Genesis
+  Supernova, Sinister Arrow Raid, Malicious Moonsault, Oceanic Operetta,
+  Splintered Stormshards, Let's Snuggle Forever, Clangorous Soulblaze,
+  Searing Sunraze Smash, Menacing Moonraze Maelstrom, Soul-Stealing 7-Star
+  Strike and 10,000,000 Volt Thunderbolt (gated on Pikachu's eight cosmetic
+  cap forms, matching the real games, rather than loosened to cover an
+  ordinary Pikachu). These were refused outright in 0.17-ish on the grounds
+  that every one of them keyed off a base move Gen 1 did not have; that
+  stopped being true once National Dex 0.15.0 registered all 833 modern
+  moves, and checking the data again rather than trusting the old refusal is
+  what found this. Two of the real games' roster are still left out on
+  purpose and for a different reason than the byte ceiling: Guardian of
+  Alola computes its damage from the target's current HP rather than a fixed
+  power, and Extreme Evoboost replaces its base move with a pure stat boost
+  and deals no damage at all -- both a different shape from the fourteen
+  this build covers, not a smaller version of it. All fourteen crystals sell
+  on the Celadon shelf behind Ultranecrozium Z and share the Z-MOVE cell and
+  the trainer's once-per-battle lock with the eighteen type Z-Moves.
+- **Z-status effects.** A status move that already raises the user's own
+  stat, used under a Z-Crystal of its own type, keeps its own effect exactly
+  and additionally raises every other stat by one stage -- the one shape of
+  the real games' Z-status bonus table this engine can build without
+  inventing a ruling for the rest of it (sleep-inducing, paralysis-inducing
+  and the other category-based bonuses are not modelled, and a status move
+  outside this one shape still keeps only itself, as it always has). The
+  bonus prints after the rest of the turn's own text rather than immediately
+  behind the move's own "X's STAT rose!" line, because Gen 1's status-move
+  pipeline has no hook between an effect resolving and the next one running,
+  and it is applied at the same battle.turn_ended seam the substitution
+  mechanism already unwinds through.
+
 ## 0.26.0
 
 ### Changed

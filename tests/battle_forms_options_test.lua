@@ -30,6 +30,13 @@ for _ in pairs(crystalIndices) do crystalCount = crystalCount + 1 end
 local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
 local ultraCrystalCount = 0
 for _ in pairs(ultraCrystalIndices) do ultraCrystalCount = ultraCrystalCount + 1 end
+-- The fourteen species crystals sell on that same shelf too, immediately
+-- behind Ultranecrozium Z -- counted for the same reason the other two are.
+local speciesZCrystalIndices = dofile(MOD .. "/data/speciescrystals.lua")
+local speciesZCrystalCount = 0
+for _ in pairs(speciesZCrystalIndices) do
+  speciesZCrystalCount = speciesZCrystalCount + 1
+end
 -- The appliances share that shelf too, and are counted for the same reason.
 local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 local applianceCount = 0
@@ -148,10 +155,10 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   for _, id in ipairs(mart) do sold[id] = true end
   T.eq(#mart,
     #FLOOR_STOCK + #KeyItems.ITEMS + crystalCount + ultraCrystalCount
-      + applianceCount + (case.all and 96 or 48),
+      + speciesZCrystalCount + applianceCount + (case.all and 96 or 48),
     "the Celadon shelf holds the floor's own stock, every key item, every "
-      .. "crystal, Ultranecrozium Z, every appliance and "
-      .. (case.all and "every" or "only the official")
+      .. "crystal, Ultranecrozium Z, every species crystal, every appliance "
+      .. "and " .. (case.all and "every" or "only the official")
       .. " stone with the option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
     T.check(sold[id], "the floor's own stock survives with the option "
@@ -159,6 +166,9 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   end
   T.check(sold.ULTRANECROZIUM_Z,
     "Ultranecrozium Z is sold on the Celadon shelf with the option "
+      .. case.label)
+  T.check(sold.PIKASHUNIUM_Z,
+    "a species Z-Crystal is sold on the Celadon shelf with the option "
       .. case.label)
   T.check(sold.VENUSAURITE,
     "an official stone is sold with the option " .. case.label)

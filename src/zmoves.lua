@@ -261,6 +261,108 @@ function M.wouldConvert(catalog, data, battler, crystal)
   return false
 end
 
+-- ---------------------------------------------------------------------
+-- Z-STATUS: the bonus a status move keeps ON TOP OF its own effect when it
+-- is the crystal's own type, rather than becoming a Z-Move.
+--
+-- M.fieldsFor already refuses to substitute a status move -- "the slot keeps
+-- itself and nothing is invented" -- and that stands: nothing below changes
+-- what a status move's own effect does or ever touches curMoves for one.
+-- What follows is additive, layered on afterwards, and only for the one
+-- shape of the real games' own bonus table this engine can build without
+-- guessing: a status move that already raises one of the user's own stats.
+--
+-- WHY ONLY THAT SHAPE.  The real games hand every OTHER status move a bonus
+-- picked off a fixed category table -- sleep-inducing moves get +1 Sp. Atk,
+-- paralysis-inducing moves get +1 Speed, and so on through several more
+-- categories with their own exceptions.  Reproducing that table case by case
+-- would be this file inventing rulings for moves Gen 1 already has full
+-- mechanical control over, with no source in this codebase to check any one
+-- of them against.  A move that already raises the user's own stat needs no
+-- such table: the real rule is simply "raise everything else too", which is
+-- one rule, not a lookup, and it is what SELF_RAISE_STAT below encodes.
+-- Every other status move keeps exactly what M.fieldsFor already gives it --
+-- itself, unmodified -- which is honest rather than a guess dressed as one.
+local SELF_RAISE_STAT = {
+  ATTACK_UP1_EFFECT = "attack", ATTACK_UP2_EFFECT = "attack",
+  DEFENSE_UP1_EFFECT = "defense", DEFENSE_UP2_EFFECT = "defense",
+  SPEED_UP2_EFFECT = "speed",
+  SPECIAL_UP1_EFFECT = "special", SPECIAL_UP2_EFFECT = "special",
+  EVASION_UP1_EFFECT = "evasion",
+}
+
+-- Gen 1's six stat stages (src/battle/MoveEffects.lua's own STAT_LABEL keys).
+-- HP has no stage and is never in this list.
+local ALL_STATS = { "attack", "defense", "speed", "special", "accuracy", "evasion" }
+
+-- The stat a status move of `moveId` already raises on its user, under a
+-- crystal of `typeId` -- or nil, which covers everything that is not that
+-- one shape: a move the registry cannot resolve, a move of another type, a
+-- move that deals damage (power > 0, so it is M.fieldsFor's business and not
+-- this one's), and a status move whose effect is not a self stat-raise.
+function M.statusBonusStat(data, moveId, typeId)
+  if not typeId then return nil end
+  local def = data and data.moves and data.moves[moveId]
+  if type(def) ~= "table" or def.type ~= typeId then return nil end
+  if (tonumber(def.power) or 0) > 0 then return nil end
+  return SELF_RAISE_STAT[def.effect]
+end
+
+-- Whether this battler carries a status move the crystal's type would bonus
+-- -- asked by `available` alongside M.wouldConvert, for the same reason: a
+-- Pokemon whose only move of the crystal's type is a self-raise status move
+-- (no damaging move to substitute at all) still has something for the cell
+-- to do, and the menu must not stay silent about it.
+function M.wouldStatusBonus(catalog, data, battler, crystal)
+  local entry = catalog.byCrystal[crystal]
+  local typeId = entry and entry.type
+  if not typeId then return false end
+  for _, slot in ipairs(battler and battler.curMoves or {}) do
+    if type(slot) == "table" and M.statusBonusStat(data, slot.id, typeId) then
+      return true
+    end
+  end
+  return false
+end
+
+-- The engine's own stat-stage math, reached the way src/zmovemenu.lua
+-- reaches BattleState -- required defensively, because a mod's own file is
+-- not guaranteed the shape it was built against forever.  Cached after the
+-- first call; require() itself is cheap once loaded, but a build with no
+-- engine underneath it (the unit suite drives this file with none) should
+-- not pay for a failing require on every turn a status bonus might apply.
+local moveEffectsModule, moveEffectsTried = nil, false
+local function moveEffects()
+  if not moveEffectsTried then
+    moveEffectsTried = true
+    local ok, found = pcall(require, "src.battle.MoveEffects")
+    if ok and type(found) == "table" and type(found.changeStage) == "function" then
+      moveEffectsModule = found
+    end
+  end
+  return moveEffectsModule
+end
+
+-- Raises every stage but the one the move's own effect just raised, printing
+-- the engine's own "X's STAT rose!" line for each -- the same text a Swords
+-- Dance or an Agility already prints for its own stat, so the bonus reads as
+-- more of the same rather than as this mod's own invention.  Silent and safe
+-- on anything missing: no battle, no battler, or a build with no engine
+-- MoveEffects to reach leaves the move's own effect as the whole of what
+-- happened, which is the honest degradation and not a crash.
+local function applyStatusBonus(bonus)
+  if not bonus or not bonus.battle or not bonus.battler then return end
+  local effects = moveEffects()
+  if not effects then return end
+  for _, stat in ipairs(ALL_STATS) do
+    if stat ~= bonus.stat then
+      for _, msg in ipairs(effects.changeStage(bonus.battle, bonus.battler, stat, 1, false) or {}) do
+        bonus.battle:sayNext(msg)
+      end
+    end
+  end
+end
+
 -- One record, like Dynamax's and Terastallization's and for the same reasons:
 -- only the player's side can reach the menu cell and the trainer gets one
 -- activation a battle, so there is never a second Z-Move to track, and one
@@ -271,20 +373,59 @@ end
 -- including the ones that run when nothing was ever substituted.  `ids` is the
 -- set of registered ids this activation put on, which is what tells a Z-Move
 -- being used from any other move in the same list being used.
+--
+-- `statusType` is the crystal's own type, kept for the whole activation
+-- rather than only while arming, because the Pokemon may use an UNCONVERTED
+-- status move of that type on any later turn, not only the one it was
+-- armed on -- an armed Z-Move simply stands, section 9's own rule.
+-- `statusBonus` is set only once such a move is actually used, and only
+-- until the turn ends, which is where it is spent.
 function M.new()
-  return { mon = nil, ids = nil, spent = false,
+  return { mon = nil, ids = nil, spent = false, statusType = nil, statusBonus = nil,
            moves = deps and deps.substitute and deps.substitute.new() or nil }
 end
 
 local function forget(state)
   state.mon, state.ids, state.spent = nil, nil, false
+  state.statusType, state.statusBonus = nil, nil
   if deps.substitute then deps.substitute.restore(state.moves) end
 end
 
 M.onBattleStarted = forget
 M.onBattleEnded = forget
 
-function M.entry(state, catalog)
+-- `speciesCatalog` is src/speciesz.lua's own -- optional, the way
+-- src/tera.lua's TERA BLAST catalog is: a build with no species rows bound
+-- gets ordinary type-only Z-Moves, exactly what this cell has always been.
+-- The two catalogs share this one cell rather than getting one each because
+-- that is what the real games do -- a Z-Ring and any Z-Crystal, type or
+-- species, work through the same interface -- and because the trainer's
+-- once-per-battle lock and PP-spending discipline only need to exist once.
+local function wouldConvertAny(catalog, speciesCatalog, data, mon, battler, crystal)
+  if M.wouldConvert(catalog, data, battler, crystal) then return true end
+  if M.wouldStatusBonus(catalog, data, battler, crystal) then return true end
+  if speciesCatalog and deps.speciesz then
+    return deps.speciesz.wouldConvert(speciesCatalog, data, mon, battler, crystal)
+  end
+  return false
+end
+
+-- The merged per-slot function: the type catalog answers first, since it is
+-- the cheaper, more common case, and the species catalog is only ever asked
+-- about a slot the type catalog passed over -- a slot can never match both,
+-- since a species Z-Move's own type is read off the very move it replaces
+-- (src/speciesz.lua's install), so if the type catalog already converted it
+-- the id it produced belongs to a different crystal than the one in hand.
+local function pickerAny(catalog, speciesCatalog, data, mon, crystal)
+  local typePicker = M.picker(catalog, data, crystal)
+  local speciesPicker = speciesCatalog and deps.speciesz
+    and deps.speciesz.picker(speciesCatalog, data, mon, crystal) or nil
+  return function(slot)
+    return typePicker(slot) or (speciesPicker and speciesPicker(slot))
+  end
+end
+
+function M.entry(state, catalog, speciesCatalog)
   return {
     id = M.ID,
     -- Seven characters is the whole budget the classic layout leaves a label
@@ -307,7 +448,7 @@ function M.entry(state, catalog)
       if not mon or not mon.species then return false end
       local crystal = deps.eligibility.stoneOf(mon)
       if not crystal then return false end
-      return M.wouldConvert(catalog, battle.data, battler, crystal)
+      return wouldConvertAny(catalog, speciesCatalog, battle.data, mon, battler, crystal)
     end,
 
     -- The whole of the mechanic, done at the moment the cell is armed so that
@@ -325,32 +466,45 @@ function M.entry(state, catalog)
       -- back off the finished array, so a slot the picker passed over cannot
       -- later be mistaken for a Z-Move being spent -- which would end the
       -- substitution on a move that was never part of it.
-      local picker = M.picker(catalog, battle.data, crystal)
+      local picker = pickerAny(catalog, speciesCatalog, battle.data, mon, crystal)
       local ids = {}
       local applied = deps.substitute.apply(state.moves, battler, function(slot)
         local fields = picker(slot)
         if fields then ids[fields.id] = true end
         return fields
       end)
-      if not applied then return false end
 
-      state.mon, state.spent, state.ids = mon, false, ids
+      -- A crystal whose ONLY match is a self-raise status move substitutes
+      -- nothing at all -- M.fieldsFor leaves a status move exactly as it is,
+      -- on purpose -- so `applied` alone would refuse arming here, and the
+      -- cell would have promised something `available` already checked for.
+      -- The type is kept either way applying succeeded or not, because the
+      -- Pokemon may use an unconverted status move of it on a LATER turn too.
+      local typeEntry = catalog.byCrystal[crystal]
+      local statusType = typeEntry and typeEntry.type
+      if not applied and not (statusType
+          and M.wouldStatusBonus(catalog, battle.data, battler, crystal)) then
+        return false
+      end
+
+      state.mon, state.spent, state.ids, state.statusType = mon, false, ids, statusType
       return true
     end,
 
     -- Everything arming set, in one call, because that is what forget() is.
     disarm = function() forget(state) end,
 
-    -- By here the moves are already substituted, so this says the sentence and
-    -- answers whether the battle's one transformation was actually spent.  It
-    -- is spent only if the substitution is standing and belongs to the Pokemon
-    -- still in front: a refusal must not cost the player the option they armed
-    -- in good faith, and a mon that left the field between arming and the turn
-    -- resolving took its Z-Move with it.
+    -- By here the moves are already substituted -- or, for a crystal whose
+    -- only match is a self-raise status move, deliberately left alone -- so
+    -- this says the sentence and answers whether the battle's one
+    -- transformation was actually spent.  `state.mon` is the signal rather
+    -- than `deps.substitute.active`, because a status-only activation never
+    -- makes the substitution active at all: arm() still succeeded and still
+    -- set state.mon, and that is what a refusal here must not cost the
+    -- player who armed in good faith.  A mon that left the field between
+    -- arming and the turn resolving took its Z-Power with it either way.
     activate = function(battle)
-      if not deps.substitute or not deps.substitute.active(state.moves) then
-        return false
-      end
+      if not state.mon then return false end
       local battler = battle and battle.player
       if not battler or battler.mon ~= state.mon then return false end
       if deps.announce then deps.announce.zPower(battle, battler) end
@@ -367,20 +521,49 @@ end
 -- Marks rather than unwinds.  The effect, the damage and everything else the
 -- turn does with this move all run after this event, and pulling the array out
 -- from under them would be this mod reaching into the middle of a move.
+--
+-- ALSO marks the Z-status bonus, the second and last thing this event can
+-- spend the activation on: a move NOT among the substituted ids, used while
+-- `statusType` names a type, is checked against M.statusBonusStat the same
+-- way M.wouldStatusBonus already previewed it might be.  The two branches
+-- are mutually exclusive by construction -- a substituted slot's id is never
+-- also a status move's own id -- so at most one of them ever marks anything
+-- in a turn, matching "one move, once" for either kind of bonus this cell
+-- can spend on a status move.
 function M.onMoveUsed(state, ev)
-  if not state.mon or state.spent or not state.ids then return end
+  if not state.mon or state.spent then return end
   local user = ev and ev.user
   if not user or user.mon ~= state.mon then return end
   local id = ev.move and ev.move.id
-  if not id or not state.ids[id] then return end
+  if not id then return end
+
+  if state.ids and state.ids[id] then
+    state.spent = true
+    return
+  end
+
+  if not state.statusType then return end
+  local battle = ev.battle
+  local stat = M.statusBonusStat(battle and battle.data, id, state.statusType)
+  if not stat then return end
+  state.statusBonus = { battler = user, battle = battle, stat = stat }
   state.spent = true
 end
 
 -- One move, once: the turn a Z-Move was used on is the last turn it exists for.
 -- battle.turn_ended is the seam src/dynamax.lua counts on and for the same
 -- reason -- it fires even on the turn a battle is decided.
+--
+-- The status bonus applies HERE rather than at M.onMoveUsed, because that
+-- event fires before the move's own effect resolves (BattleState.lua:3631,
+-- before the PP write's sibling call into the status pipeline) and Gen 1's
+-- status-move pipeline has no hook after it -- see applyStatusBonus's own
+-- header.  The bonus therefore prints after the rest of the turn's text
+-- rather than immediately following the move's own "X's STAT rose!" line,
+-- which is a later line, not a wrong one.
 function M.onTurnEnded(state)
   if not state.spent then return end
+  applyStatusBonus(state.statusBonus)
   forget(state)
 end
 

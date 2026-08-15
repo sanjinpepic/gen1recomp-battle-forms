@@ -82,7 +82,8 @@ return function(mod)
                   "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
                   "src/substitute.lua", "src/maxmoves.lua",
-                  "src/tera.lua", "src/zmoves.lua", "src/resolve.lua",
+                  "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
+                  "src/resolve.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
                   "src/ultraburst.lua",
                   "src/conditional.lua", "src/diag.lua",
@@ -92,7 +93,8 @@ return function(mod)
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua", "data/maxmoves.lua",
-                  "data/zmoves.lua", "data/crystals.lua",
+                  "data/zmoves.lua", "data/crystals.lua", "data/terablast.lua",
+                  "data/speciesz.lua", "data/speciescrystals.lua",
                   "data/persistent.lua", "data/appliances.lua",
                   "data/fusion.lua", "data/fusers.lua", "data/heldforms.lua",
                   "data/ultraburst.lua", "data/ultracrystal.lua",
@@ -146,6 +148,14 @@ return function(mod)
   local zrows = m["data/zmoves.lua"]
   local crystalIndices = m["data/crystals.lua"]
   local zmoves = m["src/zmoves.lua"]
+
+  -- The species-specific Z-Moves: a second catalog for that same crystal
+  -- stamp, keyed on one species (or a small family of forms) rather than on
+  -- a type -- so it goes through the PAIRED install below, the way
+  -- Ultranecrozium Z does, and not the type crystals' unpaired one.
+  local speciesZRows = m["data/speciesz.lua"]
+  local speciesZCrystalIndices = m["data/speciescrystals.lua"]
+  local speciesz = m["src/speciesz.lua"]
 
   -- The fourth family through that stamp, and the first whose form outlives the
   -- battle.  Bound before the stones are installed and handed to them, because
@@ -204,6 +214,11 @@ return function(mod)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
   m["src/stone.lua"].install(mod, ultraRows, ultraRows, ultraCrystalIndices)
+  -- No option gates a species Z-Crystal either, so `all` and `active` are
+  -- the same pairing table, the way Ultranecrozium Z's are.
+  local speciesZPairings = speciesz.pairings(speciesZRows)
+  m["src/stone.lua"].install(mod, speciesZPairings, speciesZPairings,
+                              speciesZCrystalIndices)
   m["src/stone.lua"].installUnpaired(mod, zmoves.crystalIds(zrows),
                                      crystalIndices)
   -- Its own install rather than the stone one, for the single reason
@@ -233,6 +248,11 @@ return function(mod)
   -- looking for a Z-Crystal should find all nineteen shelved together rather
   -- than hunting a nineteenth one down among the mega stones.
   m["src/shop.lua"].installCrystals(mod, ultraCrystalIndices)
+  -- The fourteen species crystals, immediately behind Ultranecrozium Z: a
+  -- deep registry concatenates patches in the order they arrive, so the
+  -- Celadon shelf reads key items, the eighteen type crystals, Ultranecrozium
+  -- Z, then these -- every Z-Crystal this mod sells in one run of the list.
+  m["src/shop.lua"].installCrystals(mod, speciesZCrystalIndices)
   m["src/shop.lua"].installAppliances(mod, applianceIndices)
   m["src/shop.lua"].install(mod, indices, megaset.stoneIds(megas))
   m["src/shop.lua"].installOrbs(mod, orbIndices)
@@ -342,9 +362,15 @@ return function(mod)
   -- captured here would only take effect on the next boot.
   local tera = m["src/tera.lua"]
   tera.bind({ keyitems = keyitems, announce = announce, log = mod.log,
+              substitute = m["src/substitute.lua"], anim = anim,
               chosen = function() return mod.options:get("tera_type") end })
+  -- TERA BLAST's own roster: one record per type the running game's chart
+  -- can resolve, registered unconditionally like the Max Moves and the
+  -- Z-Moves, because a battle can hold a move id and a move id with no
+  -- record behind it is a battle that cannot be drawn or saved.
+  local teraBlastCatalog = tera.install(mod, m["data/terablast.lua"])
   local teraState = tera.new()
-  local teraOk, teraWhy = registry:register(tera.entry(teraState))
+  local teraOk, teraWhy = registry:register(tera.entry(teraState, teraBlastCatalog))
   if not teraOk then
     mod.log:error("battle_forms: Terastallization was refused a place on the "
       .. "battle menu (%s) -- the cell keeps the transformations that did "
@@ -357,12 +383,21 @@ return function(mod)
   -- Moves, and this arrives as another picker rather than as a change there.
   -- Registered after the roster it substitutes in, and bound to the same
   -- eligibility stamp the mega stones use, because a Pokemon holds one item.
+  -- speciesz is bound to the substitute mechanism and its own log line, and
+  -- to nothing else -- it never checks the Z-Ring, the trainer's spent flag
+  -- or the eligibility stamp itself, all of which src/zmoves.lua's entry
+  -- already owns for the type catalog and now asks of this one too.
+  speciesz.bind({ substitute = m["src/substitute.lua"], anim = anim,
+                   log = mod.log })
+  local speciesZCatalog = speciesz.install(mod, speciesZRows)
+
   zmoves.bind({ substitute = m["src/substitute.lua"], keyitems = keyitems,
                 eligibility = eligibility, announce = announce, anim = anim,
-                log = mod.log })
+                speciesz = speciesz, log = mod.log })
   local zCatalog = zmoves.install(mod, zrows)
   local zState = zmoves.new()
-  local zOk, zWhy = registry:register(zmoves.entry(zState, zCatalog))
+  local zOk, zWhy = registry:register(
+    zmoves.entry(zState, zCatalog, speciesZCatalog))
   if not zOk then
     mod.log:error("battle_forms: Z-Moves were refused a place on the battle "
       .. "menu (%s) -- the cell keeps the transformations that did register",
@@ -463,10 +498,16 @@ return function(mod)
   -- registered record (and everything that reads it: the battle text row,
   -- Mimic, a save) still sees the move's real name.  Bound after zmoves.lua's
   -- own install because the id -> short name map is built from the same
-  -- roster that call just registered.
+  -- roster that call just registered.  Merged with data/speciesz.lua's own
+  -- names, which need the identical redraw for the identical reason -- most
+  -- of the fourteen real names are as long as the eighteen type Z-Moves'.
   local zmovemenu = m["src/zmovemenu.lua"]
   zmovemenu.bind({ diag = diag })
-  zmovemenu.install(mod, zmoves.menuNames(zrows))
+  local zMenuNames = zmoves.menuNames(zrows)
+  for id, short in pairs(speciesz.menuNames(speciesZRows)) do
+    zMenuNames[id] = short
+  end
+  zmovemenu.install(mod, zMenuNames)
 
   -- Events:emit pcalls the LISTENER, not the calls inside it, so three
   -- handlers sharing one listener meant the first to throw silently cancelled

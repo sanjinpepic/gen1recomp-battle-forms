@@ -15,6 +15,7 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local T = require("tests.modkit")
 local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local ZMoves = dofile(MOD .. "/src/zmoves.lua")
+local SpeciesZ = dofile(MOD .. "/src/speciesz.lua")
 local Substitute = dofile(MOD .. "/src/substitute.lua")
 local Stone = dofile(MOD .. "/src/stone.lua")
 local Shop = dofile(MOD .. "/src/shop.lua")
@@ -285,6 +286,7 @@ local DATA = { moves = {
   THUNDERWAVE  = { id = "THUNDERWAVE", type = "ELECTRIC", power = 0, pp = 20 },
   EMBER        = { id = "EMBER", type = "FIRE", power = 40, pp = 25 },
   GROWL        = { id = "GROWL", type = "NORMAL", power = 0, pp = 40 },
+  VOLTTACKLE   = { id = "VOLTTACKLE", type = "ELECTRIC", power = 120, pp = 15 },
 } }
 
 local ELECTRIUM, FIRIUM, FAIRIUM
@@ -836,6 +838,90 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- ---------------------------------------------------------------------
+-- The species catalog sharing this same cell (src/speciesz.lua).  The type
+-- catalog above never sees a species-restricted crystal or a species-only
+-- move, so this proves the MERGE in M.entry rather than either catalog on
+-- its own -- src/speciesz.lua's and src/zmoves.lua's own unit suites already
+-- cover each half in isolation.
+-- ---------------------------------------------------------------------
+do
+  SpeciesZ.bind({ substitute = Substitute, anim = Anim, log = nil })
+  -- Rebound with speciesz included: every earlier section in this file bound
+  -- ZMoves without it, on purpose, so those sections prove the type catalog
+  -- works with no species catalog bound at all.
+  ZMoves.bind({ substitute = Substitute, keyitems = KeyItems, eligibility = E,
+                announce = Announce, anim = Anim, speciesz = SpeciesZ, log = nil })
+  local speciesRows = {
+    { crystal = "PIKASHUNIUM_Z", species = { "PIKACHU" }, move = "VOLTTACKLE",
+      stem = "CATASTROPIKA", name = "CATASTROPIKA", menu = "CATASTROPIKA",
+      power = 210 },
+  }
+  local speciesMod = { content = {
+    moves = { get = function(_, id) return DATA.moves[id] end,
+              register = function() end },
+    battle_anims = { register = function() end },
+  } }
+  local speciesCatalog = SpeciesZ.install(speciesMod, speciesRows)
+
+  local function speciesMon()
+    local moves = {
+      { id = "VOLTTACKLE", pp = 15 }, { id = "EMBER", pp = 25 },
+    }
+    local mon = { species = "PIKACHU", hp = 100, moves = moves,
+                  [E.STAMP] = "PIKASHUNIUM_Z" }
+    return mon
+  end
+
+  -- Available: a species crystal the type catalog has never heard of still
+  -- lights the cell, because M.entry asks both catalogs.
+  local mon = speciesMon()
+  local entry = ZMoves.entry(ZMoves.new(), CATALOG, speciesCatalog)
+  T.eq(entry.available(makeBattle(mon)), true,
+    "a species crystal makes the cell available even though the type "
+      .. "catalog has no row for it")
+
+  -- Arm: the named move substitutes to the species record, and the OTHER
+  -- slot -- which the type catalog would also have left alone, since EMBER
+  -- is Fire against an Electric crystal -- is untouched either way.
+  local battle = makeBattle(mon)
+  T.eq(entry.arm(battle), true, "arming succeeds")
+  T.eq(battle.player.curMoves[1].id, SpeciesZ.idFor("CATASTROPIKA"),
+    "the named move becomes the species Z-Move")
+  T.eq(battle.player.curMoves[2].id, "EMBER",
+    "and the other slot is left exactly as it was")
+  T.eq(mon.moves[1].id, "VOLTTACKLE",
+    "the party Pokemon's own move array is never touched by the substitution")
+
+  -- A Pokemon carrying the crystal but NOT the named move -- or the wrong
+  -- species carrying it at all -- gets nothing to convert and no cell.
+  entry.disarm()
+  local noMove = speciesMon()
+  noMove.moves[1].id = "TACKLE"
+  T.eq(entry.available(makeBattle(noMove)), false,
+    "the crystal is carried but the one move it needs is not known")
+
+  local wrongSpecies = speciesMon()
+  wrongSpecies.species = "RAICHU"
+  T.eq(entry.available(makeBattle(wrongSpecies)), false,
+    "and neither does the right move on the wrong species")
+
+  -- The once-per-battle lock and the teardown paths are src/arm.lua's and
+  -- this file's own state, neither of which knows or cares which catalog
+  -- produced the substitution -- proven once here rather than duplicating
+  -- every teardown test above for a second catalog that shares the same code.
+  local usedState = ZMoves.new()
+  local usedEntry = ZMoves.entry(usedState, CATALOG, speciesCatalog)
+  local usedBattle = makeBattle(speciesMon())
+  usedEntry.arm(usedBattle)
+  ZMoves.onMoveUsed(usedState, {
+    user = usedBattle.player, move = { id = SpeciesZ.idFor("CATASTROPIKA") } })
+  T.eq(usedState.spent, true, "using the species Z-Move spends it like any other")
+  ZMoves.onTurnEnded(usedState)
+  T.eq(usedBattle.player.curMoves[1].id, "VOLTTACKLE",
+    "and the turn ending puts the real move back")
+end
+
 -- Through the real loader.
 --
 -- Everything above registers into a stub, which proves what this mod ASKS for
