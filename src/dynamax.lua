@@ -10,9 +10,12 @@
 -- change goes through the same primitive everything else uses; there is no
 -- second way to put a form on a mon.
 --
--- WHY THIS DOES NOT TOUCH HP, which is the decision worth reading.
+-- WHY THIS DOES NOT WRITE HP, which is the decision worth reading even
+-- though 0.26.0 stopped leaving the multiplier out entirely -- see
+-- src/hpscale.lua for how it gets applied without writing anything.
 --
--- Dynamax multiplies HP in the real games.  It cannot do that safely here.
+-- Dynamax multiplies HP in the real games.  It cannot do that by WRITING
+-- max or current HP here, ever, on any path.
 --
 -- There is no battler-scoped max HP to move.  makeBattler seeds `curStats`
 -- from `mon.stats` BY REFERENCE (BattleState.lua:513, and BattleCheckpoint
@@ -44,9 +47,17 @@
 -- the original on the mon to survive a crash would put the recovery record in
 -- the save too, which is the same hazard wearing a hat.
 --
--- So the HP multiplier is left out and the rest is not.  Three turns, ending
--- on a switch and on a faint, one per battle per trainer, and the Gigantamax
--- shape where there is art for it are all battle-visible and all safe.
+-- So max and current HP are never written, on any path, full stop.  Three
+-- turns, ending on a switch and on a faint, one per battle per trainer, and
+-- the Gigantamax shape where there is art for it are all battle-visible and
+-- all safe -- and so, since 0.26.0, is the multiplier itself: src/hpscale.lua
+-- halves incoming damage against `state.mon` instead of doubling its HP,
+-- which is the same survivability by the algebra its own header works
+-- through, and repaints the player's own HP readout to match after the real
+-- one has already drawn.  It reads `state.mon` for identity and owns one
+-- field on this table, `state.carry`, cleared alongside turns/form/mon on
+-- every one of the four teardown paths below -- this file never computes a
+-- multiplier itself, only carries the record that other module reads.
 --
 -- MAX MOVES, which arrived after the rest of this and through a mechanism of
 -- their own.  A Dynamaxed Pokemon's moves are substituted rather than rewritten:
@@ -87,8 +98,11 @@ function M.bind(modules) deps = modules end
 -- `moves` is the substitution's own record and is created here rather than on
 -- activation so that every teardown path can hand it to restore() blind,
 -- including the ones that run when nothing was ever substituted.
+-- `carry` is src/hpscale.lua's field, not this file's -- see the header note
+-- above.  Zeroed here and everywhere else `turns`/`form` are, so a caller
+-- never has to know it exists to keep it correct.
 function M.new()
-  return { mon = nil, turns = 0, form = nil,
+  return { mon = nil, turns = 0, form = nil, carry = 0,
            moves = deps and deps.substitute and deps.substitute.new() or nil }
 end
 
@@ -104,7 +118,7 @@ end
 -- so clearing the marker is the whole of the work.
 local function finish(state, battle, battler)
   local mon, form = state.mon, state.form
-  state.mon, state.turns, state.form = nil, 0, nil
+  state.mon, state.turns, state.form, state.carry = nil, 0, nil, 0
   -- Before the form work and unconditionally.  The substitution holds the
   -- battler it covered, so it needs neither the `battler` argument -- which is
   -- nil on the switch-out path -- nor a live mon to put the original move array
@@ -184,6 +198,11 @@ function M.entry(state)
       state.mon = mon
       state.turns = M.TURNS
       state.form = nil
+      -- Always zeroed on a fresh activation, even though every teardown path
+      -- already leaves it at zero: the invariant ("no carry without a live
+      -- Dynamax") should hold by construction here, not merely by every
+      -- other function's discipline.
+      state.carry = 0
 
       local formId = deps.gigantamax[mon.species]
       -- Refuses to dress a mon already wearing another transformation's form,
@@ -287,7 +306,7 @@ end
 -- to take off -- but the mon REFERENCE is still here, and holding it past the
 -- battle is the leak src/arm.lua drops its own battle to avoid.
 local function forget(state)
-  state.mon, state.turns, state.form = nil, 0, nil
+  state.mon, state.turns, state.form, state.carry = nil, 0, nil, 0
   -- The substitution is not swept by anything the way a form is, so it is
   -- unwound here as well as in finish().  The battler it is holding is a second
   -- reference that must not outlive the battle either.

@@ -3,6 +3,27 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.26.0
+
+### Changed
+
+- **Dynamax finally multiplies effective HP.** It shipped without this since
+  0.11-ish because there is nowhere safe to write a doubled HP: max and
+  current HP are both save data with no battle-only copy to move instead, and
+  a single missed unwind on either field would be a permanent, undetectable
+  change to a Pokemon's stats. HP itself is still never touched -- instead,
+  incoming damage against the Dynamaxed Pokemon is halved before it lands,
+  which is mathematically the same thing: doubling max and current HP and
+  taking a hit of D leaves the same fraction of the bar as halving D against
+  the untouched HP does. The halving carries a remainder across hits rather
+  than flooring each one independently, which is what makes the survival
+  count exactly match what doubled HP would have produced rather than merely
+  approximating it. OHKO moves now fail outright against a Dynamaxed target,
+  matching the real games, since they set their fixed 65535 damage directly
+  and never go through the seam the halving hooks; Super Fang needed no
+  change, because it already halves the target's current HP directly rather
+  than dealing a fixed amount.
+
 ## 0.25.0
 
 ### Added

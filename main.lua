@@ -88,7 +88,7 @@ return function(mod)
                   "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua", "src/boxmark.lua",
-                  "src/zmovemenu.lua",
+                  "src/zmovemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua", "data/maxmoves.lua",
@@ -325,6 +325,14 @@ return function(mod)
       .. "menu (%s) -- the cell falls back to mega evolution alone",
       tostring(dynaWhy))
   end
+  -- The HP multiplier Dynamax cannot write: halves incoming damage against
+  -- dynamaxState.mon instead, through battle.damage, and repaints the
+  -- player's own HP readout to match through battle.overlay.  Installed
+  -- unconditionally rather than only when dynaOk, because the registry
+  -- refusal above only withholds the menu CELL -- an adopted mid-battle
+  -- Dynamax or a future caller of dynamaxState directly would otherwise find
+  -- the multiplier missing for a reason that has nothing to do with it.
+  m["src/hpscale.lua"].install(mod, dynamaxState)
 
   -- The third entry, and the first that is not a form change at all: it
   -- overrides the battler's types and marks nothing, so it is handed neither
