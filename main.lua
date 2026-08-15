@@ -89,6 +89,7 @@ return function(mod)
                   "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua", "src/boxmark.lua",
+                  "src/formview.lua",
                   "src/zmovemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
@@ -492,6 +493,18 @@ return function(mod)
   local boxmark = m["src/boxmark.lua"]
   boxmark.bind({ fusion = fusion, diag = diag })
   boxmark.install(mod)
+
+  -- The same STATS screen, a third reason to reach it: a persistent form or
+  -- a fusion changes a Pokemon's types and stats on the battler
+  -- (src/forms.lua's becomeForm), and this draws the identical numbers over
+  -- the base species' own wherever the STATS screen shows them, so the
+  -- party menu and the box screens stop reading a Fire-typed Arceus as
+  -- NORMAL.  Bound with both pairing modules for the same reason
+  -- src/resolve.lua's own party sweep needs both: nothing else can still be
+  -- standing on mon.form once a battle is over.
+  local formview = m["src/formview.lua"]
+  formview.bind({ fusion = fusion, persistent = persistent, diag = diag })
+  formview.install(mod)
 
   -- The Z-Move roster's own FIGHT-menu names, drawn in place of whatever
   -- data/zmoves.lua's `name` field spells -- display-time only, so the

@@ -3,6 +3,41 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.28.0
+
+### Fixed
+
+- **The party menu and the STATS screen now show a formed Pokemon's real
+  types and stats.** An Arceus holding a Flame Plate was genuinely Fire-type
+  in battle -- `src/forms.lua`'s `becomeForm` already overrides the
+  battler's `curTypes` and `curStats` from the form record -- but the STATS
+  screen reads `data.pokemon[mon.species]` directly, and `mon.species` is
+  deliberately never re-keyed by a form change, so it kept showing NORMAL
+  and the base stat block regardless. `src/formview.lua`, a new draw-time
+  wrap on `src/ui/SummaryMenu.lua`'s `draw` built the same way
+  `src/boxmark.lua` and `src/hpscale.lua` already reach past the engine's
+  own draw calls, now recomputes the form's types and stats from the same
+  National Dex record `becomeForm` itself reads and paints them over the
+  vanilla ones after the real draw has already run. Nothing is cached onto
+  the Pokemon and nothing is written to it at all -- every value is
+  recomputed on every draw, so a level-up between visits to the screen can
+  never leave a stale number behind. HP and the name stay untouched on
+  purpose: a form keeps the base form's HP in the real games, and the name
+  is read off the unchanged species record, which was already correct. The
+  party list itself draws no types or stats to begin with (only a nickname,
+  a level and an HP bar), so the one wrap on the STATS screen is everywhere
+  this needed fixing.
+
+### Changed
+
+- **Fusing two Pokemon no longer prints a "went into the PC!" textbox.** The
+  partner still goes to the PC -- that has not changed and is not going to
+  -- but the player no longer has to read a message to know it: 0.24.0
+  already marks the boxed partner with an F in the WITHDRAW and RELEASE
+  lists and on its own STATS screen (`src/boxmark.lua`), which stays on
+  screen every time the PC is opened rather than only in a line printed
+  once and then gone.
+
 ## 0.27.0
 
 ### Added

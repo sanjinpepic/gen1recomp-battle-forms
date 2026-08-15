@@ -251,7 +251,15 @@ do
   T.eq(kyurem[Fusion.STAMP], "RESHIRAM", "the Kyurem records which partner")
   T.eq(kyurem.form, "WHITE", "and carries the marker out of battle, in the save")
   T.eq(reshiram[Fusion.HELD], "KYUREM", "and the partner records what it is in")
-  T.check(msgs and #msgs == 2, "two message pages, one per Pokemon")
+  -- One message page, not two: the "went into the PC!" line was cut, since
+  -- src/boxmark.lua already marks the boxed partner with an F on screen
+  -- (the WITHDRAW/RELEASE lists and its own STATS screen), so the player
+  -- has a durable, always-visible answer to "where did it go" rather than a
+  -- textbox they had to have read once.
+  T.check(msgs and #msgs == 1, "one message page -- the fusion itself, not "
+    .. "where the partner went")
+  T.check(msgs[1]:find("PC", 1, true) == nil,
+    "and it says nothing about the PC")
 
   T.eq(kyurem.species, "KYUREM", "the species was never touched")
   T.eq(kyurem.stats.special, 130, "nor the stat block, which is still the base's")

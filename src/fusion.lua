@@ -289,8 +289,13 @@ local function fuse(ctx, mon, byPartner)
   partner[M.HELD] = mon.species
   mon[M.STAMP] = partner.species
   M.mark(data, mon)
-  return "kept", { nameOf(data, mon) .. "\nwas fused!",
-                   nameOf(data, partner) .. " went\ninto the PC!" }
+  -- One page, not two.  The partner still goes to the PC -- that has not
+  -- changed and is not going to -- but the player no longer has to read a
+  -- textbox to learn it: src/boxmark.lua marks the boxed partner with an F
+  -- in the WITHDRAW and RELEASE lists and on its own STATS screen, which is
+  -- durable and on screen every time the PC is opened, where a message
+  -- printed once here is gone the moment the player presses past it.
+  return "kept", { nameOf(data, mon) .. "\nwas fused!" }
 end
 
 local function findHeld(save, species, baseSpecies)
