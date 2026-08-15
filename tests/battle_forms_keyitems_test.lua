@@ -34,6 +34,7 @@ local heldFormIndices = dofile(MOD .. "/data/heldforms.lua")
 local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
 local plateIndices = dofile(MOD .. "/data/plates.lua")
 local memoryIndices = dofile(MOD .. "/data/memories.lua")
+local driveIndices = dofile(MOD .. "/data/drives.lua")
 
 -- ------- the two ids and their bag bytes -----------------------------
 
@@ -60,7 +61,7 @@ for itemId in pairs(keyIndices) do
   T.check(named[itemId], itemId .. " is indexed and is also a named key item")
 end
 
--- One bag, ten tables.  A byte handed out twice would make one item
+-- One bag, eleven tables.  A byte handed out twice would make one item
 -- indistinguishable from another in a save, which is unrecoverable rather
 -- than merely wrong.  data/plates.lua and data/memories.lua are excluded from
 -- this particular loop, not skipped by it: every one of their 34 entries is
@@ -69,10 +70,12 @@ end
 -- them through `seen[index]` would make the SECOND `false` entry this loop
 -- ever sees fail as a false collision against the first, which is not the
 -- bug this loop exists to catch.  They get their own, narrower check below.
+-- data/drives.lua carries real bytes like every table in this loop's list, so
+-- it belongs here rather than beside the Plates and Memories.
 local seen = {}
 for _, source in ipairs({ stoneIndices, orbIndices, keyIndices,
                           crystalIndices, applianceIndices, fuserIndices,
-                          heldFormIndices, ultraCrystalIndices }) do
+                          heldFormIndices, ultraCrystalIndices, driveIndices }) do
   for itemId, index in pairs(source) do
     T.check(seen[index] == nil,
       itemId .. "'s bag byte " .. tostring(index) .. " is not already "
@@ -110,8 +113,18 @@ for _, pair in ipairs({ { "data/plates.lua", plateIndices },
   end
   T.eq(count, 17, file .. " wires exactly its seventeen items")
 end
-T.eq(seen[234], nil, "byte 234 is still free -- 234-255 is 22 bytes, and "
-  .. "the 34 Plates and Memories deliberately do not use any of them")
+-- data/drives.lua: the family that DID fit in 234-255 with room to spare --
+-- four items against the 22 free, so unlike the Plates and Memories these get
+-- real bytes, continuing immediately past Ultranecrozium Z's 233 rather than
+-- reusing one.
+for _, itemId in ipairs({ "DOUSE_DRIVE", "SHOCK_DRIVE", "BURN_DRIVE", "CHILL_DRIVE" }) do
+  T.check(driveIndices[itemId] ~= nil and driveIndices[itemId] ~= false,
+    itemId .. " has a real bag byte, not the byteless sentinel")
+  T.check(driveIndices[itemId] > 233,
+    itemId .. " continues past Ultranecrozium Z rather than reusing a byte")
+end
+T.eq(seen[238], nil, "byte 238 is still free -- the Drives used exactly "
+  .. "234-237 of the 22 bytes 234-255 left open, eighteen still spare")
 
 -- ------- registration, which nothing may gate ------------------------
 

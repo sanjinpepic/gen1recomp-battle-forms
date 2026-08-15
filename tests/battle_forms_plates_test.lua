@@ -29,18 +29,21 @@ local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 local heldFormIndices = dofile(MOD .. "/data/heldforms.lua")
 local plateIndices = dofile(MOD .. "/data/plates.lua")
 local memoryIndices = dofile(MOD .. "/data/memories.lua")
+local driveIndices = dofile(MOD .. "/data/drives.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
--- `rows` is the WHOLE of data/persistent.lua, Rotom and the other six held
--- forms included -- see tests/battle_forms_heldforms_test.lua for their own
--- suite -- so the merged `indices` below has to resolve every item those
--- families name too, exactly as that suite's own merge has to reach back the
--- other way into these two files.
+-- `rows` is the WHOLE of data/persistent.lua, Rotom, the other six held forms
+-- and Genesect's four Drives included -- see tests/battle_forms_heldforms_test.lua
+-- and tests/battle_forms_drives_test.lua for their own suites -- so the merged
+-- `indices` below has to resolve every item those families name too, exactly
+-- as those suites' own merges have to reach back the other way into this
+-- file's two.
 local indices = {}
 for itemId, index in pairs(applianceIndices) do indices[itemId] = index end
 for itemId, index in pairs(heldFormIndices) do indices[itemId] = index end
 for itemId, index in pairs(plateIndices) do indices[itemId] = index end
 for itemId, index in pairs(memoryIndices) do indices[itemId] = index end
+for itemId, index in pairs(driveIndices) do indices[itemId] = index end
 
 -- A handful of the 34 forms carry the battle-behavior checks; the data-table
 -- section below names all 34 pairings outright, the way every other family's

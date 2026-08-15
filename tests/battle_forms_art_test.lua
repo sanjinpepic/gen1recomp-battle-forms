@@ -144,11 +144,11 @@ T.eq(conditionalChecked, 8,
   "all eight conditional forms were checked against formart.lua")
 T.eq(gigantamaxChecked, 31,
   "all 31 wired Gigantamax forms were checked against formart.lua")
-T.eq(persistentChecked, 45,
-  "all 45 wired persistent forms were checked against formart.lua -- "
+T.eq(persistentChecked, 49,
+  "all 49 wired persistent forms were checked against formart.lua -- "
     .. "Rotom's five appliances, Giratina, Palkia, Dialga, Zacian, Zamazenta "
-    .. "and Shaymin's one each, and Arceus's seventeen Plates plus "
-    .. "Silvally's seventeen Memories")
+    .. "and Shaymin's one each, Arceus's seventeen Plates plus Silvally's "
+    .. "seventeen Memories, and Genesect's four Drives")
 T.eq(fusionChecked, 6,
   "all six fusion result forms were checked against formart.lua")
 T.eq(ultraburstChecked, 1,
@@ -177,7 +177,7 @@ end
 -- data/persistent.lua (17 Plates, 17 Memories) because formart.lua carries a
 -- full front-and-back entry for all 34 type forms of both.  The general sweep
 -- above already checked every one of those 34 through the `persistent` table
--- (persistentChecked == 45 covers all nine persistent species together); this
+-- (persistentChecked == 49 covers all ten persistent species together); this
 -- is the narrower, named check that a later art rebuild dropping either
 -- species back to nothing fails loudly here rather than merely shrinking a
 -- count somewhere else.
@@ -196,6 +196,21 @@ do
     end
     T.check((forms and forms.NORMAL) == nil,
       base .. " wires no NORMAL form -- the base Pokemon holds no Plate/Memory")
+  end
+end
+
+-- Genesect, the same narrower named check for the same reason: the general
+-- sweep above already covers its four Drives through the `persistent` table,
+-- and this pins that a later art rebuild losing GENESECT's formart.lua entry
+-- fails loudly here rather than merely shrinking persistentChecked.
+do
+  local forms = formArt.GENESECT and formArt.GENESECT.forms
+  T.check(forms ~= nil, "GENESECT has a formart.lua entry")
+  for _, suffix in ipairs({ "DOUSE", "SHOCK", "BURN", "CHILL" }) do
+    local entry = forms and forms[suffix]
+    T.check(entry ~= nil, "GENESECT.forms." .. suffix .. " has an entry")
+    T.check(entry and entry.front ~= nil, "GENESECT.forms." .. suffix .. " has FRONT art")
+    T.check(entry and entry.back ~= nil, "GENESECT.forms." .. suffix .. " has BACK art")
   end
 end
 

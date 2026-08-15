@@ -96,7 +96,7 @@ return function(mod)
                   "data/persistent.lua", "data/appliances.lua",
                   "data/fusion.lua", "data/fusers.lua", "data/heldforms.lua",
                   "data/ultraburst.lua", "data/ultracrystal.lua",
-                  "data/plates.lua", "data/memories.lua" }
+                  "data/plates.lua", "data/memories.lua", "data/drives.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -170,6 +170,12 @@ return function(mod)
   -- indices tables gave it a real byte and which gave it `false`.
   local plateIndices = m["data/plates.lua"]
   local memoryIndices = m["data/memories.lua"]
+  -- Genesect's four Drives, the smallest family here and the only one whose
+  -- indices table needed no byteless sentinel: 234-255 sat entirely unused
+  -- ahead of it, so data/drives.lua gives all four a real byte the way the
+  -- appliances and the other six held forms do.  Merged into the same
+  -- persistentIndices table below alongside everything else.
+  local driveIndices = m["data/drives.lua"]
   persistent.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                     rows = persistentRows, log = mod.log,
                     price = m["src/stone.lua"].PRICE })
@@ -211,6 +217,7 @@ return function(mod)
   for itemId, index in pairs(heldFormIndices) do persistentIndices[itemId] = index end
   for itemId, index in pairs(plateIndices) do persistentIndices[itemId] = index end
   for itemId, index in pairs(memoryIndices) do persistentIndices[itemId] = index end
+  for itemId, index in pairs(driveIndices) do persistentIndices[itemId] = index end
   persistent.install(mod, persistentRows, persistentIndices)
   -- Its own install for a stronger version of the appliances' reason: this item
   -- does not stamp the Pokemon it is used on, it moves a second one into the PC.
@@ -243,6 +250,11 @@ return function(mod)
   -- actually runs rather than merely being reachable.
   m["src/shop.lua"].installPlates(mod, plateIndices)
   m["src/shop.lua"].installMemories(mod, memoryIndices)
+  -- The Drives, last on that same counter -- call order is shelf order, as
+  -- everywhere else on this shelf.  Unlike the Plates and Memories these carry
+  -- real bytes (data/drives.lua), so this is an ordinary run through the
+  -- numeric sort path, not the byteless one.
+  m["src/shop.lua"].installDrives(mod, driveIndices)
   anim.install(mod)
 
   -- The battle message a form change prints.  Handed to the two

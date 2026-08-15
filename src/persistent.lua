@@ -237,9 +237,9 @@ function M.install(mod, rows, indices)
     local index = indices and indices[itemId]
     if index == nil then
       mod.log:error("%s has no bag index -- add it to its indices table "
-        .. "(data/appliances.lua, data/heldforms.lua, data/plates.lua or "
-        .. "data/memories.lua); until then the item cannot exist in a save "
-        .. "and no Pokemon can be given one", itemId)
+        .. "(data/appliances.lua, data/heldforms.lua, data/plates.lua, "
+        .. "data/memories.lua or data/drives.lua); until then the item "
+        .. "cannot exist in a save and no Pokemon can be given one", itemId)
     else
       mod.content.items:register(itemId, {
         id = itemId,

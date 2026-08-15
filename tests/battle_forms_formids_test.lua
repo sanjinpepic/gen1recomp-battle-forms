@@ -183,8 +183,9 @@ do
   for key in pairs(persistent) do species[#species + 1] = key end
   table.sort(species)
   T.eq(table.concat(species, ","),
-    "ARCEUS,DIALGA,GIRATINA,PALKIA,ROTOM,SHAYMIN,SILVALLY,ZACIAN,ZAMAZENTA",
-    "data/persistent.lua wires exactly the nine species it says it does")
+    "ARCEUS,DIALGA,GENESECT,GIRATINA,PALKIA,ROTOM,SHAYMIN,SILVALLY,ZACIAN,"
+      .. "ZAMAZENTA",
+    "data/persistent.lua wires exactly the ten species it says it does")
   for _, key in ipairs(species) do
     T.check(isRecordKey(key), key .. " is a record KEY in national.lua (a "
       .. "persistent row keyed on a species that does not exist can never fire)")
@@ -247,6 +248,31 @@ do
   for _ in pairs(persistent.SILVALLY or {}) do silvallyCount = silvallyCount + 1 end
   T.eq(arceusCount, 17, "Arceus wires exactly its seventeen Plates")
   T.eq(silvallyCount, 17, "Silvally wires exactly its seventeen Memories")
+end
+
+-- Genesect's four Drives, named outright for the same reason: a pairing
+-- quietly dropped would only make the sweep above one shorter, and here it
+-- would also strip that form off every Genesect already wearing it in a
+-- player's save the next time a battle ended.  See
+-- tests/battle_forms_drives_test.lua for the mechanism itself (registration
+-- with a real bag byte, using and un-using the item, the cosmetic-only
+-- claim); this is only the id table, the same way the Plates/Memories block
+-- above is only the id table in this file.
+do
+  local expected = {
+    { "DOUSE_DRIVE", "GENESECT_DOUSE" },
+    { "SHOCK_DRIVE", "GENESECT_SHOCK" },
+    { "BURN_DRIVE",  "GENESECT_BURN" },
+    { "CHILL_DRIVE", "GENESECT_CHILL" },
+  }
+  for _, row in ipairs(expected) do
+    local item, formId = row[1], row[2]
+    T.eq(persistent.GENESECT and persistent.GENESECT[item], formId,
+      "data/persistent.lua still pairs Genesect's " .. item .. " with " .. formId)
+  end
+  local count = 0
+  for _ in pairs(persistent.GENESECT or {}) do count = count + 1 end
+  T.eq(count, 4, "Genesect wires exactly its four Drives")
 end
 
 -- The six pairings named outright rather than counted, for the reason the

@@ -3,6 +3,33 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.25.0
+
+### Added
+
+- **Genesect's four Drives -- Douse, Shock, Burn and Chill -- as held items
+  that change its appearance and nothing else.** National Dex 0.26.0 added
+  the four records this needed, and the sprite mod's form-art index picked up
+  full front-and-back art for all four the moment it was rebuilt against
+  them, so the same held-item mechanism every other persistent form here uses
+  -- an item stamped on the Pokemon, a marker derived from it, undone by using
+  the same item again -- covers them with no new code, only a new row in
+  `data/persistent.lua`. They are the first purely cosmetic family this
+  mechanism has carried: a Drive changes nothing else about Genesect, because
+  the real games only ever change the type of Techno Blast, a per-move
+  property no form record here can hold, and `mod.card` and this entry both
+  say so plainly rather than leaving a stat or type effect implied. Sold at
+  the Indigo Plateau lobby counter behind the Memories.
+- **Real bag bytes, where the 34 Plates and Memories had to go without.**
+  98-233 was full with no gap before this addition and 234-255 sat entirely
+  unused -- `tests/battle_forms_keyitems_test.lua` now pins both facts
+  directly -- so the four Drives fit comfortably at 234-237 with eighteen
+  bytes still spare, and `data/drives.lua` gives each a real byte rather than
+  the `false` sentinel the Plates and Memories needed when the same 22 bytes
+  had 34 items competing for them. `src/persistent.lua`'s install() now names
+  `data/drives.lua` alongside the other four indices tables in its "no bag
+  index" refusal.
+
 ## 0.24.0
 
 ### Added

@@ -136,11 +136,23 @@ function M.installPlates(mod, indices)
 end
 
 -- Silvally's seventeen Memories, behind the Plates on that same counter --
--- main.lua calls this last, so the lobby shelf reads orbs, fusion items, the
--- six other held forms, the Plates, then the Memories, in the order main.lua
--- calls the six installers that stock it.  Same byteless shape as the
--- Plates, for the same reason (data/memories.lua).
+-- main.lua calls this before the Drives, so the lobby shelf reads orbs,
+-- fusion items, the six other held forms, the Plates, then the Memories, in
+-- the order main.lua calls the installers that stock it.  Same byteless
+-- shape as the Plates, for the same reason (data/memories.lua).
 function M.installMemories(mod, indices)
+  shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
+end
+
+-- Genesect's four Drives, behind the Memories on that same counter -- main.lua
+-- calls this last, so the lobby shelf reads orbs, fusion items, the six other
+-- held forms, the Plates, the Memories, then the Drives.  Unlike the Plates
+-- and Memories these carry real bytes (data/drives.lua), so this shelf sorts
+-- them by byte the same way the six other held forms above do; nothing about
+-- this call is different from M.installHeldForms beyond its position.  Every
+-- Drive registered is a Drive sold: no option gates one, so there is no
+-- subset to offer.
+function M.installDrives(mod, indices)
   shelf(mod, "IndigoPlateauLobby", "TEXT_INDIGOPLATEAULOBBY_CLERK", indices, nil)
 end
 

@@ -51,10 +51,17 @@
 -- data/plates.lua and data/memories.lua for the one thing that IS different
 -- about them: neither family's items carry a bag byte, because the shared
 -- single-byte item space ran out 12 items short of the 34 the two families
--- need between them.  Genesect's four Drives are still not wired, for a
--- different reason than either: no GENESECT_DOUSE/SHOCK/BURN/CHILL record
--- exists in national.lua at all, so there is no form id a pairing here could
--- even name.
+-- need between them.
+--
+-- Genesect's four Drives are the smallest row here and the only purely
+-- cosmetic one.  National Dex's GENESECT_DOUSE/SHOCK/BURN/CHILL records exist
+-- now but differ from base Genesect in nothing this engine can hold -- not
+-- even typing, since a Drive changes only Techno Blast's own type in the real
+-- games, a per-move property no form record here can express -- so using one
+-- changes a Genesect's appearance and nothing it can do in battle.  Wired
+-- exactly like every other row above regardless: the derivation, the sweep
+-- and the undo do not ask whether a form carries a stat difference, only
+-- whether a pairing and its art exist.
 --
 -- Every wired form has front AND back art under [BASE].forms.[SUFFIX]; the
 -- art suite fails if that ever stops being true.  A form with only a front
@@ -66,7 +73,8 @@
 -- no Plate and no Memory in the real games either, National Dex registers no
 -- ARCEUS_NORMAL or SILVALLY_NORMAL record to point one at, and the seventeen
 -- types below are already the whole of what a Plate or a Memory changes a
--- Pokemon into.
+-- Pokemon into.  Genesect wires no base row for the same reason: a plain
+-- Genesect holds no Drive.
 return {
   ROTOM = {
     MICROWAVE_OVEN  = "ROTOM_HEAT",
@@ -130,5 +138,11 @@ return {
     DRAGON_MEMORY   = "SILVALLY_DRAGON",
     DARK_MEMORY     = "SILVALLY_DARK",
     FAIRY_MEMORY    = "SILVALLY_FAIRY",
+  },
+  GENESECT = {
+    DOUSE_DRIVE = "GENESECT_DOUSE",
+    SHOCK_DRIVE = "GENESECT_SHOCK",
+    BURN_DRIVE  = "GENESECT_BURN",
+    CHILL_DRIVE = "GENESECT_CHILL",
   },
 }
