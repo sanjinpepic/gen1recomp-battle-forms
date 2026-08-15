@@ -51,6 +51,13 @@ for species, byItem in pairs(dofile(MOD .. "/data/fusion.lua")) do
     for partner, formId in pairs(byPartner) do fusion[species][partner] = formId end
   end
 end
+-- data/ultraburst.lua is already species -> item -> form, needing no
+-- reshaping, and is swept under the same stricter rule as the persistent and
+-- fusion tables: Ultra Burst survives switching out the way a fusion does, so
+-- a form with only a front picture would be invisible on the player's own
+-- side of the battle for the rest of the fight, not merely until the mon left
+-- the field.
+local ultraburst = dofile(MOD .. "/data/ultraburst.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 local FORM_ART = MOD .. "/../data/sprites/generated/formart.lua"
@@ -89,11 +96,13 @@ end
 
 local checked, primalsChecked, conditionalChecked = 0, 0, 0
 local gigantamaxChecked, persistentChecked, fusionChecked = 0, 0, 0
+local ultraburstChecked = 0
 for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true },
                          { table_ = conditional, conditional = true },
                          { table_ = gigantamax, gigantamax = true },
                          { table_ = persistent, persistent = true },
-                         { table_ = fusion, fusion = true } }) do
+                         { table_ = fusion, fusion = true },
+                         { table_ = ultraburst, ultraburst = true } }) do
   for base, byItem in pairs(wired.table_) do
     for _, formId in pairs(byItem) do
       checked = checked + 1
@@ -102,6 +111,7 @@ for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true }
       if wired.gigantamax then gigantamaxChecked = gigantamaxChecked + 1 end
       if wired.persistent then persistentChecked = persistentChecked + 1 end
       if wired.fusion then fusionChecked = fusionChecked + 1 end
+      if wired.ultraburst then ultraburstChecked = ultraburstChecked + 1 end
       local suffix = formSuffixFor(formId)
       T.check(suffix ~= nil, formId .. " has a form suffix in national.lua")
       if suffix then
@@ -116,7 +126,8 @@ for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true }
         -- same as art: Corviknight's Gigantamax has a back picture and no
         -- front, and half an entry passes the check above while showing the
         -- base species from one side.  This is the check that keeps it out.
-        if (wired.gigantamax or wired.persistent or wired.fusion) and entry then
+        if (wired.gigantamax or wired.persistent or wired.fusion
+            or wired.ultraburst) and entry then
           T.check(entry.front ~= nil,
             base .. ".forms." .. suffix .. " has FRONT art")
           T.check(entry.back ~= nil,
@@ -139,6 +150,8 @@ T.eq(persistentChecked, 11,
     .. "Zamazenta and Shaymin")
 T.eq(fusionChecked, 6,
   "all six fusion result forms were checked against formart.lua")
+T.eq(ultraburstChecked, 1,
+  "the one Ultra Burst form was checked against formart.lua")
 
 -- The two exclusions, pinned as facts about the data rather than as prose in
 -- data/gigantamax.lua's header.  If a later art build fills Corviknight's

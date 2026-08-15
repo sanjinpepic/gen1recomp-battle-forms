@@ -84,6 +84,7 @@ return function(mod)
                   "src/substitute.lua", "src/maxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/resolve.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
+                  "src/ultraburst.lua",
                   "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua",
@@ -92,7 +93,8 @@ return function(mod)
                   "data/gigantamax.lua", "data/maxmoves.lua",
                   "data/zmoves.lua", "data/crystals.lua",
                   "data/persistent.lua", "data/appliances.lua",
-                  "data/fusion.lua", "data/fusers.lua", "data/heldforms.lua" }
+                  "data/fusion.lua", "data/fusers.lua", "data/heldforms.lua",
+                  "data/ultraburst.lua", "data/ultracrystal.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -173,9 +175,18 @@ return function(mod)
   fusion.bind({ forms = m["src/forms.lua"], rows = fusionRows, log = mod.log,
                 price = m["src/stone.lua"].PRICE })
 
+  -- The sixth family, and the only one whose pairing table has a single row:
+  -- Ultranecrozium Z fits Necrozma alone.  No option ever gates it, so `all`
+  -- and `active` are the same table, the way primal reversion's are -- and it
+  -- goes through the PAIRED install rather than the crystals' unpaired one,
+  -- which is what refuses it on any species that is not Necrozma.
+  local ultraRows = m["data/ultraburst.lua"]
+  local ultraCrystalIndices = m["data/ultracrystal.lua"]
+
   m["src/stone.lua"].bind(eligibility, persistent)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
+  m["src/stone.lua"].install(mod, ultraRows, ultraRows, ultraCrystalIndices)
   m["src/stone.lua"].installUnpaired(mod, zmoves.crystalIds(zrows),
                                      crystalIndices)
   -- Its own install rather than the stone one, for the single reason
@@ -197,6 +208,11 @@ return function(mod)
   -- appliances.
   m["src/shop.lua"].installKeyItems(mod, keyIndices)
   m["src/shop.lua"].installCrystals(mod, crystalIndices)
+  -- Ultranecrozium Z, immediately behind the eighteen type crystals: a deep
+  -- registry concatenates patches in the order they arrive, and a player
+  -- looking for a Z-Crystal should find all nineteen shelved together rather
+  -- than hunting a nineteenth one down among the mega stones.
+  m["src/shop.lua"].installCrystals(mod, ultraCrystalIndices)
   m["src/shop.lua"].installAppliances(mod, applianceIndices)
   m["src/shop.lua"].install(mod, indices, megaset.stoneIds(megas))
   m["src/shop.lua"].installOrbs(mod, orbIndices)
@@ -313,6 +329,23 @@ return function(mod)
       tostring(zWhy))
   end
 
+  -- The fifth entry, and the only one gated on three things standing together:
+  -- the Z-Ring, Ultranecrozium Z on the mon, and a fusion src/fusion.lua
+  -- already made true of it.  Handed that module rather than a pairing table
+  -- of its own for the third gate, because "already fused" is a question only
+  -- src/fusion.lua's own stamp can answer.
+  local ultraburst = m["src/ultraburst.lua"]
+  ultraburst.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
+                     fusion = fusion, keyitems = keyitems, rows = ultraRows,
+                     animId = anim.ID, announce = announce, log = mod.log })
+  local ultraburstState = ultraburst.new()
+  local ultraOk, ultraWhy = registry:register(ultraburst.entry(ultraburstState))
+  if not ultraOk then
+    mod.log:error("battle_forms: Ultra Burst was refused a place on the "
+      .. "battle menu (%s) -- the cell keeps the transformations that did "
+      .. "register", tostring(ultraWhy))
+  end
+
   diag.registry(registry, registered, why)
 
   -- The party sweep and the faint handler are handed the persistent module for
@@ -417,6 +450,10 @@ return function(mod)
     run("tera.onBattleStarted", function() tera.onBattleStarted(teraState) end)
     run("maxmoves.onBattleStarted", function() maxmoves.onBattleStarted(guardState) end)
     run("zmoves.onBattleStarted", function() zmoves.onBattleStarted(zState) end)
+    -- Ultra Burst never auto-transforms on a send-out -- it is manual, like
+    -- mega evolution -- so this only drops a stale mon reference a previous
+    -- battle (or an adoption) might have left behind.
+    run("ultraburst.onBattleStarted", function() ultraburst.onBattleStarted(ultraburstState) end)
   end)
   mod.events:on("battle.turn_started", function(ev)
     diag.reached("battle.turn_started", ev)
@@ -440,6 +477,16 @@ return function(mod)
     -- ending has to clear mon.form before any later handler asks what form the
     -- mon is wearing.
     run("dynamax.onBattlerSwitched", function() dynamax.onBattlerSwitched(dynamaxState, ev) end)
+    -- Beside Dynamax's rather than beside resolve's mega path above: Necrozma
+    -- is never in data/megas.lua, so resolve's own switch-in reapply has
+    -- nothing to say about it and this mechanic has to reapply Ultra Necrozma's
+    -- curStats/curTypes itself, tracked by the mon that actually burst rather
+    -- than re-derived -- the crystal and the fusion cannot move mid-battle, so
+    -- the mon leaving the field is the only thing that could have changed.
+    -- Ahead of Terastallization for the reason the comment below gives: that
+    -- one is the outermost state there is and has to win if both ever stood on
+    -- the same mon, though the shared once-per-battle lock means they never do.
+    run("ultraburst.onBattlerSwitched", function() ultraburst.onBattlerSwitched(ultraburstState, ev) end)
     -- Last of the switch handlers, and it has to stay last: a Terastallization
     -- outlives a switch where every other manual transformation here either
     -- ends on one or is reapplied by resolve above, and it is the outermost of
@@ -486,6 +533,11 @@ return function(mod)
     run("dynamax.onFainted", function() dynamax.onFainted(dynamaxState, ev) end)
     run("tera.onFainted", function() tera.onFainted(teraState, ev) end)
     run("zmoves.onFainted", function() zmoves.onFainted(zState, ev) end)
+    -- After resolve's own faint handler, which has already reverted mon.form
+    -- (and, since the mon is still fused, put its Dusk Mane or Dawn Wings
+    -- suffix straight back through src/fusion.lua's settle) -- this only drops
+    -- the reference tracking that the mon was mid-Ultra-Burst.
+    run("ultraburst.onFainted", function() ultraburst.onFainted(ultraburstState, ev) end)
   end)
   mod.events:on("battle.ended", function(ev)
     diag.reached("battle.ended", ev)
@@ -505,6 +557,11 @@ return function(mod)
     -- substituted array, and the battler it is holding must not outlive the
     -- battle that built it.
     run("zmoves.onBattleEnded", function() zmoves.onBattleEnded(zState) end)
+    -- Beside them, for the reason Dynamax's is here: resolve's own party sweep
+    -- above already reverted every mon.form (a still-fused Necrozma landing
+    -- back on its Dusk Mane or Dawn Wings suffix), so this only drops the mon
+    -- reference, which must not outlive the battle that owned it.
+    run("ultraburst.onBattleEnded", function() ultraburst.onBattleEnded(ultraburstState) end)
     -- After the party sweep above, and it must stay after it: this marks the
     -- battle closed so no later frame can adopt it and re-apply a form to a
     -- mon resolve.onBattleEnded has just reverted.

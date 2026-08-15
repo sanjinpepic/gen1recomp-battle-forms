@@ -1,7 +1,7 @@
 -- Sharing metadata.  Read by tooling and the manager's detail pane; never by
 -- the loader's merge, so nothing here can break a load.
 return {
-  summary = "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, persistent held-item forms for Rotom, Giratina, Palkia, Dialga, Zacian, Zamazenta and Shaymin, and fusion for Kyurem, Necrozma and Calyrex, which joins two Pokemon into one and keeps the partner in the PC until they are separated again.",
+  summary = "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, persistent held-item forms for Rotom, Giratina, Palkia, Dialga, Zacian, Zamazenta and Shaymin, fusion for Kyurem, Necrozma and Calyrex, which joins two Pokemon into one and keeps the partner in the PC until they are separated again, and Ultra Burst for a Necrozma already fused into Dusk Mane or Dawn Wings, which becomes Ultra Necrozma for the rest of the battle.",
   author = "sanjinpepic",
   contact = "https://github.com/sanjinpepic",
   tags = { "gameplay", "battle" },
@@ -11,7 +11,9 @@ return {
       "an existing save loses mega evolution until a Key Stone is bought, and loses Dynamax until a Dynamax Band is: both were previously ungated, and the real games require the trainer to carry one as well as the Pokemon to carry its own item",
       "the menu cell also reads TERA once the trainer has a Tera Orb, which every species may use whatever it is carrying",
       "and Z-MOVE once the trainer has a Z-Ring and the Pokemon in front is carrying a Z-Crystal with something in its moveset to convert",
+      "and BURST once the trainer has a Z-Ring, the Pokemon in front is a Necrozma already fused into Dusk Mane or Dawn Wings, and it is holding Ultranecrozium Z",
       "a Pokemon can hold a mega stone, an orb or a Z-Crystal but never two of them, which was already true of a stone and an orb and now costs a real choice: giving a Charizard a crystal takes its mega stone away",
+      "Ultranecrozium Z goes through that same one held-item slot, so a Necrozma holding it cannot also hold a type Z-Crystal and is never offered a Z-Move -- the crystal converts nothing on its own",
       "arming Dynamax or a Z-Move on the menu cell now changes the Pokemon's moves straight away, so the Max Move or the Z-Move can be picked on that same turn instead of the next one; pressing A on the cell again, or cycling to another transformation, puts the original moves back",
       "one transformation the player asks for per battle, across all of them: using a mega or a Dynamax now takes the menu cell away for the rest of that battle instead of leaving the other on it, which is how the mainline games have ruled the trainer's gimmick; the automatic forms are not part of it",
     },
@@ -47,6 +49,8 @@ return {
       "a battle already under way is picked up the moment the mod is enabled, so turning it on mid-fight from the mod manager brings the MEGA cell and primal reversion with it instead of doing nothing until the next battle",
       "DEBUG TRACE, off by default, which records into mod storage why the menu cell and primal reversion did or did not happen -- for reporting a bug, not for playing with",
       "six more persistent held-item forms, on the same mechanism as Rotom's appliances: the Griseous Orb turns Giratina into its Origin Forme, the Lustrous Globe and the Adamant Crystal do the same for Palkia and Dialga, the Rusted Sword and the Rusted Shield turn Zacian and Zamazenta Crowned, and the Gracidea puts Shaymin in Sky Forme -- all six are bag items sold at the Indigo Plateau lobby counter, used on a Pokemon the way a mega stone is, and using the same item again takes the form back off",
+      "Ultra Burst for Necrozma: Ultranecrozium Z, a nineteenth Z-Crystal sold behind the other eighteen on the Celadon stone floor, turns a Necrozma already fused into Dusk Mane or Dawn Wings into Ultra Necrozma for the rest of the battle once the trainer's Z-Ring is on -- no turn, move or PP spent, one of the trainer's one manual transformation a battle, and it survives switching out the way a mega does",
+      "reverting an Ultra Necrozma -- on fainting or at the battle's end -- lands back on whichever fused form it burst from rather than on a plain Necrozma, because the fusion itself never stopped being true underneath it",
     },
     known = {
       "abilities are unaffected -- nothing here makes an ability do anything, and no ability animations ship yet",
@@ -63,7 +67,8 @@ return {
       "Shaymin's Sky Forme also wants daytime in the real games, which Gen 1 has no time-of-day system to ask about -- it is wired on the Gracidea alone rather than left out, the same liberty every other item-gated mechanic here already takes to fit this engine",
       "Arceus (17 Plates) and Silvally (17 Memories) are not wired despite having real held-item mechanics and a National Dex record for every type: neither species has a single entry in the built form-art set, not even a base one, so every one of the 34 forms between them would show as the plain species with nothing to tell it apart",
       "Genesect's four Drives are not wired at all -- no GENESECT_DOUSE/SHOCK/BURN/CHILL record exists in the National Dex data, so there is no form id a pairing could even name",
-      "regional forms, cosmetic forms and Ultra Burst are not implemented",
+      "regional forms and cosmetic forms are not implemented",
+      "Ultra Burst needs the fusion to already exist -- fusion items are usable only outside battle, so there is no path that fuses and bursts in the same fight; the trainer fuses Necrozma first, in an earlier battle or the overworld, and carries Ultranecrozium Z into the next one",
       "a fused pair exported to a Game Boy .sav comes back as two plain Pokemon -- the base in the party, the partner in the box it was put in -- because the cartridge mon struct has no room for either of the two strings a fusion writes; nothing is lost, and the way back is to fuse them again",
       "the partner is visible in the PC while it is fused, and it can be withdrawn or released like any other boxed Pokemon: withdrawing it leaves the player holding both halves at once, and releasing it means a later separation returns nothing and says so",
       "fusing refuses, without moving anything, when there is no partner in the party, when it would leave the party with no Pokemon able to battle, and when all 240 PC slots are full; separating refuses when the party is full",

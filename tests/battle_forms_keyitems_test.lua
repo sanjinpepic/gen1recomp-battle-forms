@@ -31,6 +31,7 @@ local crystalIndices = dofile(MOD .. "/data/crystals.lua")
 local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 local fuserIndices = dofile(MOD .. "/data/fusers.lua")
 local heldFormIndices = dofile(MOD .. "/data/heldforms.lua")
+local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
 
 -- ------- the two ids and their bag bytes -----------------------------
 
@@ -57,13 +58,13 @@ for itemId in pairs(keyIndices) do
   T.check(named[itemId], itemId .. " is indexed and is also a named key item")
 end
 
--- One bag, seven tables.  A byte handed out twice would make one item
+-- One bag, eight tables.  A byte handed out twice would make one item
 -- indistinguishable from another in a save, which is unrecoverable rather
 -- than merely wrong.
 local seen = {}
 for _, source in ipairs({ stoneIndices, orbIndices, keyIndices,
                           crystalIndices, applianceIndices, fuserIndices,
-                          heldFormIndices }) do
+                          heldFormIndices, ultraCrystalIndices }) do
   for itemId, index in pairs(source) do
     T.check(seen[index] == nil,
       itemId .. "'s bag byte " .. tostring(index) .. " is not already "
@@ -75,6 +76,11 @@ for _, itemId in ipairs(KeyItems.ITEMS) do
   T.check(keyIndices[itemId] >= 196 and keyIndices[itemId] <= 255,
     itemId .. " continues past the orbs rather than reusing a byte")
 end
+
+-- Ultranecrozium Z continues at 233, past data/heldforms.lua's 227-232,
+-- rather than reusing a byte from any of the other seven tables.
+T.eq(ultraCrystalIndices.ULTRANECROZIUM_Z, 233,
+  "Ultranecrozium Z continues where data/heldforms.lua stopped")
 
 -- ------- registration, which nothing may gate ------------------------
 

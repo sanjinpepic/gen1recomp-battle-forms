@@ -28,6 +28,7 @@ local conditional = dofile(MOD .. "/data/conditional.lua")
 local gigantamax = dofile(MOD .. "/data/gigantamax.lua")
 local persistent = dofile(MOD .. "/data/persistent.lua")
 local fusion = dofile(MOD .. "/data/fusion.lua")
+local ultraburst = dofile(MOD .. "/data/ultraburst.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 
@@ -56,7 +57,7 @@ local formIds = {}
 -- form that would simply never happen, where this one describes a form the
 -- battle-end sweep is meant to put BACK, and an unresolvable one is a marker
 -- cleared out of a player's save on every fight.
-for _, table_ in ipairs({ megas, primals, persistent }) do
+for _, table_ in ipairs({ megas, primals, persistent, ultraburst }) do
   for _, byItem in pairs(table_) do
     for _, formId in pairs(byItem) do
       formIds[#formIds + 1] = formId
@@ -111,6 +112,23 @@ T.eq(primals.GROUDON and primals.GROUDON.RED_ORB, "GROUDON_PRIMAL",
   "data/primals.lua still pairs Groudon with the Red Orb")
 T.eq(primals.KYOGRE and primals.KYOGRE.BLUE_ORB, "KYOGRE_PRIMAL",
   "data/primals.lua still pairs Kyogre with the Blue Orb")
+
+-- Ultra Burst's one pairing, named outright for the same reason: a pairing
+-- quietly dropped would only make the sweep above one shorter, and nothing
+-- would fail.
+T.eq(ultraburst.NECROZMA and ultraburst.NECROZMA.ULTRANECROZIUM_Z,
+  "NECROZMA_ULTRA",
+  "data/ultraburst.lua still pairs Necrozma's Ultranecrozium Z with "
+    .. "NECROZMA_ULTRA")
+do
+  local wired = 0
+  for _ in pairs(ultraburst) do wired = wired + 1 end
+  T.eq(wired, 1, "data/ultraburst.lua wires exactly the one species it says")
+  local byItem = ultraburst.NECROZMA or {}
+  local items = 0
+  for _ in pairs(byItem) do items = items + 1 end
+  T.eq(items, 1, "and pairs nothing else -- one item, one form")
+end
 
 -- And for the persistent pairings, named outright rather than counted, for the
 -- reason the two primals are: a pairing quietly dropped would only make the

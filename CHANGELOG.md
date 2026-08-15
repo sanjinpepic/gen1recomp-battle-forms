@@ -3,6 +3,27 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.22.0
+
+### Added
+
+- **Ultra Burst, the last unimplemented in-battle gimmick.** A Necrozma
+  already fused into Dusk Mane or Dawn Wings -- through the N-Solarizer or the
+  N-Lunarizer, shipped in 0.20.0 -- can now hold Ultranecrozium Z, a new
+  nineteenth Z-Crystal sold alongside the other eighteen on the Celadon stone
+  floor, and become Ultra Necrozma for the rest of the battle once the
+  trainer's Z-Ring is on. It costs no turn, no move and no PP, joins the one
+  manual transformation a trainer gets per battle alongside mega evolution,
+  Dynamax, Terastallization and Z-Moves, and survives switching out the way a
+  mega does, reverting only on fainting or when the battle ends. The item
+  occupies the same held-item slot a mega stone or a type Z-Crystal does, so a
+  Necrozma carrying Ultranecrozium Z cannot also be offered a Z-Move -- the
+  crystal converts nothing on its own -- and the third gate, "already fused,"
+  is answered by asking src/fusion.lua's own stamp rather than by teaching
+  Ultra Burst anything about fusion itself. Reverting lands back on whichever
+  fused form the mon burst from, not on a plain Necrozma, because the fusion
+  never stopped being true underneath it.
+
 ## 0.21.0
 
 ### Added

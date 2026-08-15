@@ -10,8 +10,8 @@
 -- exists.
 --
 -- WHAT ANNOUNCES.  Primal reversion, mega evolution, Dynamax at both ends of
--- its three turns, Terastallization, the Z-Power going up, and Max Guard.
--- Nothing else.
+-- its three turns, Terastallization, the Z-Power going up, Ultra Burst, and
+-- Max Guard.  Nothing else.
 --
 -- Mega is here even though the player asked for it: the armed marker is gone
 -- from the cell by the time the change lands, the cell itself is gone with the
@@ -108,6 +108,15 @@ local TERA_TYPE = "It became the\n%s type!"
 local Z_POWER = "%s\nsurrounded itself"
 local Z_POWER_TAIL = "with its Z-Power!"
 
+-- Two pages for the same reason: the real games' own sentence is "regained
+-- its true power through Ultra Burst!", which is fifteen characters longer
+-- than one eighteen-character row can hold even before the name in front of
+-- it.  "regained its true" is seventeen; "power through" is thirteen and
+-- "Ultra Burst!" is twelve, so the tail's own two rows have room to spare
+-- where the head's does not.
+local ULTRA_BURST = "%s\nregained its true"
+local ULTRA_BURST_TAIL = "power through\nUltra Burst!"
+
 -- say appends to the battle's queue; sayNext inserts at the battle's own
 -- insert cursor, the one the engine is using itself.  Which is correct depends
 -- entirely on where the caller sits in that queue, so each transformation
@@ -187,6 +196,14 @@ end
 function M.zPower(battle, battler)
   if not emit(battle, "sayNext", Z_POWER, battler) then return false end
   return push(battle, "sayNext", text(Z_POWER_TAIL))
+end
+
+-- Ultra Burst resolves from battle.turn_started beside mega evolution, Dynamax
+-- and Terastallization, and takes the cursor for the same reason: the queue is
+-- drained and the insert cursor cleared, so this lands at the head of the turn.
+function M.ultraBurst(battle, battler)
+  if not emit(battle, "sayNext", ULTRA_BURST, battler) then return false end
+  return push(battle, "sayNext", text(ULTRA_BURST_TAIL))
 end
 
 -- The expiry is the other case entirely.  It resolves from battle.turn_ended,

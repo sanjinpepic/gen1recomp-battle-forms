@@ -24,6 +24,12 @@ local crystalIndices = dofile(MOD .. "/data/crystals.lua")
 -- number written down here would go stale the moment another one is added.
 local crystalCount = 0
 for _ in pairs(crystalIndices) do crystalCount = crystalCount + 1 end
+-- Ultranecrozium Z sells on that same shelf, immediately behind the eighteen,
+-- through its own call in main.lua rather than a slot in data/crystals.lua --
+-- counted separately for the same reason the eighteen are counted at all.
+local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
+local ultraCrystalCount = 0
+for _ in pairs(ultraCrystalIndices) do ultraCrystalCount = ultraCrystalCount + 1 end
 -- The appliances share that shelf too, and are counted for the same reason.
 local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 local applianceCount = 0
@@ -141,16 +147,19 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local sold = {}
   for _, id in ipairs(mart) do sold[id] = true end
   T.eq(#mart,
-    #FLOOR_STOCK + #KeyItems.ITEMS + crystalCount + applianceCount
-      + (case.all and 96 or 48),
+    #FLOOR_STOCK + #KeyItems.ITEMS + crystalCount + ultraCrystalCount
+      + applianceCount + (case.all and 96 or 48),
     "the Celadon shelf holds the floor's own stock, every key item, every "
-      .. "crystal, every appliance and "
+      .. "crystal, Ultranecrozium Z, every appliance and "
       .. (case.all and "every" or "only the official")
       .. " stone with the option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
     T.check(sold[id], "the floor's own stock survives with the option "
       .. case.label)
   end
+  T.check(sold.ULTRANECROZIUM_Z,
+    "Ultranecrozium Z is sold on the Celadon shelf with the option "
+      .. case.label)
   T.check(sold.VENUSAURITE,
     "an official stone is sold with the option " .. case.label)
   T.eq(sold.STARMIITE, case.all or nil,
