@@ -24,6 +24,10 @@ local crystalIndices = dofile(MOD .. "/data/crystals.lua")
 -- number written down here would go stale the moment another one is added.
 local crystalCount = 0
 for _ in pairs(crystalIndices) do crystalCount = crystalCount + 1 end
+-- The appliances share that shelf too, and are counted for the same reason.
+local applianceIndices = dofile(MOD .. "/data/appliances.lua")
+local applianceCount = 0
+for _ in pairs(applianceIndices) do applianceCount = applianceCount + 1 end
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 
 local function readFile(path)
@@ -137,9 +141,11 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local sold = {}
   for _, id in ipairs(mart) do sold[id] = true end
   T.eq(#mart,
-    #FLOOR_STOCK + #KeyItems.ITEMS + crystalCount + (case.all and 96 or 48),
+    #FLOOR_STOCK + #KeyItems.ITEMS + crystalCount + applianceCount
+      + (case.all and 96 or 48),
     "the Celadon shelf holds the floor's own stock, every key item, every "
-      .. "crystal and " .. (case.all and "every" or "only the official")
+      .. "crystal, every appliance and "
+      .. (case.all and "every" or "only the official")
       .. " stone with the option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
     T.check(sold[id], "the floor's own stock survives with the option "
@@ -218,6 +224,38 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   T.eq(E.stoneOf(groudon), "RED_ORB",
     "and stamps it, which is all a primal reversion ever needs "
       .. "(option " .. case.label .. ")")
+
+  -- The one item family that writes a form into the save, exercised through the
+  -- real load rather than a fixture: main.lua has to have bound the persistent
+  -- module to the item effect, or the stamp would land with no marker beside it
+  -- and the Rotom would only be its appliance form inside a battle.
+  do
+    -- The harness loads against fixture data with no National Dex records in
+    -- it, and the marker is read off the record's own `form` field, so the one
+    -- record this check needs is supplied here.  Everything else below is the
+    -- real registration.
+    data.pokemon.ROTOM_WASH = data.pokemon.ROTOM_WASH
+      or { baseStats = { hp = 50, attack = 65, defense = 107,
+                         speed = 86, special = 107 },
+           types = { "ELECTRIC", "WATER" }, form = "WASH" }
+    local rotom = { species = "ROTOM" }
+    T.eq(data.item_effects.WASHING_MACHINE.use({ data = data, target = rotom }),
+      "kept",
+      "the washing machine assigns itself to a Rotom with the option "
+        .. case.label)
+    T.eq(E.stoneOf(rotom), "WASHING_MACHINE",
+      "and stamps it (option " .. case.label .. ")")
+    T.eq(rotom.form, "WASH",
+      "and marks the form out of battle, which is what reaches the save "
+        .. "(option " .. case.label .. ")")
+    T.eq(rotom.species, "ROTOM",
+      "without ever touching the species (option " .. case.label .. ")")
+    T.eq(data.item_effects.WASHING_MACHINE.use({ data = data, target = rotom }),
+      "kept", "and using it again is the way back (option " .. case.label .. ")")
+    T.eq(rotom.form, nil,
+      "which leaves the save exactly as it found it (option "
+        .. case.label .. ")")
+  end
 
   local lobby = data.text_pointers and data.text_pointers.IndigoPlateauLobby
   local lobbyMart = lobby and lobby.TEXT_INDIGOPLATEAULOBBY_CLERK

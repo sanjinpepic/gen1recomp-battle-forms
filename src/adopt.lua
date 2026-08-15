@@ -86,7 +86,19 @@ function M.consider(battle)
   -- runs from inside a wrapped engine function where a throw would take the
   -- frame's update with it.
   local ev = { battle = battle, source = "adopt" }
-  local ok, err = pcall(deps.primal.onBattleStarted, ev)
+  -- Leading, as it does on the two real send-out events and for the same
+  -- reason: a persistent form is the baseline the other two are laid over, and
+  -- it is the most clearly re-derivable thing here -- read straight back out of
+  -- the item stamped on the Pokemon, so it was true of the mon during every
+  -- turn this mod was not there to see.  Guarded on its own like the two below,
+  -- and optional where they are not: the suites bind adoption with the deps
+  -- they exercise and no more.
+  local ok, err
+  if deps.persistent then
+    ok, err = pcall(deps.persistent.onBattleStarted, ev)
+    if not ok and deps.diag then deps.diag.fault("adopt.persistent", err) end
+  end
+  ok, err = pcall(deps.primal.onBattleStarted, ev)
   if not ok and deps.diag then deps.diag.fault("adopt.primal", err) end
   ok, err = pcall(deps.conditional.onBattleStarted, ev)
   if not ok and deps.diag then deps.diag.fault("adopt.conditional", err) end

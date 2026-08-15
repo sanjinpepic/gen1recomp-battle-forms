@@ -26,6 +26,7 @@ local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local primals = dofile(MOD .. "/data/primals.lua")
 local conditional = dofile(MOD .. "/data/conditional.lua")
 local gigantamax = dofile(MOD .. "/data/gigantamax.lua")
+local persistent = dofile(MOD .. "/data/persistent.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 
@@ -48,7 +49,13 @@ local function isRecordKey(id)
 end
 
 local formIds = {}
-for _, table_ in ipairs({ megas, primals }) do
+-- data/persistent.lua is the same species -> item -> form shape, so it joins
+-- the sweep rather than needing a pass of its own.  A wrong id there is worse
+-- than a wrong id anywhere else in this file: every other table describes a
+-- form that would simply never happen, where this one describes a form the
+-- battle-end sweep is meant to put BACK, and an unresolvable one is a marker
+-- cleared out of a player's save on every fight.
+for _, table_ in ipairs({ megas, primals, persistent }) do
   for _, byItem in pairs(table_) do
     for _, formId in pairs(byItem) do
       formIds[#formIds + 1] = formId
@@ -83,6 +90,39 @@ T.eq(primals.GROUDON and primals.GROUDON.RED_ORB, "GROUDON_PRIMAL",
   "data/primals.lua still pairs Groudon with the Red Orb")
 T.eq(primals.KYOGRE and primals.KYOGRE.BLUE_ORB, "KYOGRE_PRIMAL",
   "data/primals.lua still pairs Kyogre with the Blue Orb")
+
+-- And for the persistent pairings, named outright rather than counted, for the
+-- reason the two primals are: a pairing quietly dropped would only make the
+-- sweep above one shorter and nothing would fail -- but here it would also
+-- strip that form off every Pokemon already wearing it in a player's save the
+-- next time a battle ended, because the marker is derived and this table is the
+-- only thing entitled to vouch for it.
+do
+  local rotom = persistent.ROTOM or {}
+  local expected = {
+    MICROWAVE_OVEN  = "ROTOM_HEAT",
+    WASHING_MACHINE = "ROTOM_WASH",
+    REFRIGERATOR    = "ROTOM_FROST",
+    ELECTRIC_FAN    = "ROTOM_FAN",
+    LAWN_MOWER      = "ROTOM_MOW",
+  }
+  local count = 0
+  for itemId, formId in pairs(expected) do
+    T.eq(rotom[itemId], formId,
+      "data/persistent.lua still pairs Rotom's " .. itemId .. " with " .. formId)
+    count = count + 1
+  end
+  local wired = 0
+  for _ in pairs(rotom) do wired = wired + 1 end
+  T.eq(wired, count, "and pairs nothing else -- five appliances, five forms")
+
+  local species = {}
+  for key in pairs(persistent) do species[#species + 1] = key end
+  T.eq(table.concat(species, ","), "ROTOM",
+    "data/persistent.lua wires exactly the one species it says it does")
+  T.check(isRecordKey("ROTOM"), "ROTOM is a record KEY in national.lua (a "
+    .. "persistent row keyed on a species that does not exist can never fire)")
+end
 
 -- Same reasoning for the conditional rows: a row quietly dropped would only
 -- make the id sweep one shorter, and nothing would fail.  The list is the

@@ -28,6 +28,7 @@ local keyIndices = dofile(MOD .. "/data/keyitems.lua")
 local stoneIndices = dofile(MOD .. "/data/stones.lua")
 local orbIndices = dofile(MOD .. "/data/orbs.lua")
 local crystalIndices = dofile(MOD .. "/data/crystals.lua")
+local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 
 -- ------- the two ids and their bag bytes -----------------------------
 
@@ -54,12 +55,12 @@ for itemId in pairs(keyIndices) do
   T.check(named[itemId], itemId .. " is indexed and is also a named key item")
 end
 
--- One bag, four tables.  A byte handed out twice would make one item
+-- One bag, five tables.  A byte handed out twice would make one item
 -- indistinguishable from another in a save, which is unrecoverable rather
 -- than merely wrong.
 local seen = {}
 for _, source in ipairs({ stoneIndices, orbIndices, keyIndices,
-                          crystalIndices }) do
+                          crystalIndices, applianceIndices }) do
   for itemId, index in pairs(source) do
     T.check(seen[index] == nil,
       itemId .. "'s bag byte " .. tostring(index) .. " is not already "

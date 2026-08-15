@@ -3,6 +3,30 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.19.0
+
+### Added
+
+- **A form that outlives the battle, and the first thing this mod writes into a
+  save.** Rotom's five appliances are now bag items sold on the Celadon stone
+  floor; using one on a Rotom puts it in that appliance's form and leaves it
+  there through the battle, the party sweep, saving and reloading, and using the
+  same appliance again takes it back off. Every form before this was cleared by
+  the battle-end sweep, which is what kept them safe, so the persistent one is
+  derived rather than remembered: the item stamped on the Pokemon is the truth
+  and the form marker is computed from it, which is why the sweep needs no way
+  of telling the two kinds apart -- it writes whatever the pairing table
+  vouches for and deletes everything else, so a mega still cannot reach the save
+  and an appliance form still cannot be swept out of one. The species, the stat
+  block, current HP and the move list are never written, so the form changes the
+  Pokemon's picture and its types in battle and nothing that a level-up or a
+  save validation would disagree with. Exporting to a Game Boy `.sav` loses both
+  fields, because the cartridge party struct is 44 bytes with every one of them
+  spoken for: a Rotom comes back plain, having forgotten which appliance it was
+  in, and never as a different Pokemon or as a base form carrying a form's
+  stats. Fusion, regional forms, cosmetic forms and Ultra Burst are deliberately
+  not part of this.
+
 ## 0.18.0
 
 ### Changed

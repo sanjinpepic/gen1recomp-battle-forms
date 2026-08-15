@@ -22,11 +22,21 @@
 local M = {}
 
 local eligibility = nil
+local persistent = nil
 
 -- Injected rather than required: a mod's siblings are not on package.path, so
 -- main.lua hands the loaded module in.
-function M.bind(eligibilityModule)
+--
+-- The second module is optional and is here for one job: a persistent form is
+-- derived from this very stamp (src/persistent.lua), so moving the stamp has to
+-- move the form with it.  Without this, giving a Rotom-Wash a Z-Crystal would
+-- take away the appliance that entitles it to the form and leave the marker
+-- standing -- appliance art with base stats behind it until the next battle
+-- ended.  Every write to the stamp below therefore re-derives, and a build
+-- without the module bound simply has no persistent forms to re-derive.
+function M.bind(eligibilityModule, persistentModule)
   eligibility = eligibilityModule
+  persistent = persistentModule
 end
 
 -- The Celadon evolution-stone shelf sells its stones at 2100; what unlocks a
@@ -43,6 +53,7 @@ function M.effectFor(pairings, itemId)
       return "failed", { "It won't have\nany effect." }
     end
     mon[eligibility.STAMP] = itemId
+    if persistent then persistent.mark(ctx.data, mon) end
     return "kept", { "It seems to\nresonate!" }
   end
 end
@@ -137,6 +148,7 @@ function M.installUnpaired(mod, itemIds, indices)
           local mon = ctx and ctx.target
           if not mon then return "failed", { "It won't have\nany effect." } end
           mon[eligibility.STAMP] = itemId
+          if persistent then persistent.mark(ctx.data, mon) end
           return "kept", { "It seems to\nresonate!" }
         end,
       })

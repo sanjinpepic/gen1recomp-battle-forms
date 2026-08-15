@@ -83,13 +83,15 @@ return function(mod)
                   "src/transforms.lua", "src/mega.lua", "src/dynamax.lua",
                   "src/substitute.lua", "src/maxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/resolve.lua",
-                  "src/primal.lua", "src/conditional.lua", "src/diag.lua",
+                  "src/primal.lua", "src/persistent.lua",
+                  "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua", "data/maxmoves.lua",
-                  "data/zmoves.lua", "data/crystals.lua" }
+                  "data/zmoves.lua", "data/crystals.lua",
+                  "data/persistent.lua", "data/appliances.lua" }
   local m = {}
   for _, name in ipairs(names) do
     m[name] = loadSibling(mod, name)
@@ -140,16 +142,34 @@ return function(mod)
   local crystalIndices = m["data/crystals.lua"]
   local zmoves = m["src/zmoves.lua"]
 
-  m["src/stone.lua"].bind(eligibility)
+  -- The fourth family through that stamp, and the first whose form outlives the
+  -- battle.  Bound before the stones are installed and handed to them, because
+  -- a persistent form is DERIVED from the stamp: every write to that field has
+  -- to re-derive, or moving an appliance off a Rotom would leave the form on it.
+  local persistent = m["src/persistent.lua"]
+  local persistentRows = m["data/persistent.lua"]
+  local applianceIndices = m["data/appliances.lua"]
+  persistent.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
+                    rows = persistentRows, log = mod.log,
+                    price = m["src/stone.lua"].PRICE })
+
+  m["src/stone.lua"].bind(eligibility, persistent)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
   m["src/stone.lua"].installUnpaired(mod, zmoves.crystalIds(zrows),
                                      crystalIndices)
+  -- Its own install rather than the stone one, for the single reason
+  -- src/persistent.lua gives: an appliance is the only item here a player needs
+  -- a way to take back off, because it is the only one that changes what the
+  -- Pokemon is in the save.
+  persistent.install(mod, persistentRows, applianceIndices)
   -- Before the stones, so the items that make that shelf worth anything are at
   -- the top of it rather than under ninety-odd stones -- key items first, then
-  -- the crystals that the last of them needs to do anything.
+  -- the crystals that the last of them needs to do anything, then the five
+  -- appliances.
   m["src/shop.lua"].installKeyItems(mod, keyIndices)
   m["src/shop.lua"].installCrystals(mod, crystalIndices)
+  m["src/shop.lua"].installAppliances(mod, applianceIndices)
   m["src/shop.lua"].install(mod, indices, megaset.stoneIds(megas))
   m["src/shop.lua"].installOrbs(mod, orbIndices)
   anim.install(mod)
@@ -260,9 +280,14 @@ return function(mod)
 
   diag.registry(registry, registered, why)
 
+  -- The party sweep and the faint handler are handed the persistent module for
+  -- one question: which of the mons they are about to clear are entitled to keep
+  -- a form.  Nothing else in resolve.lua changes -- see its own comment on why
+  -- asking rather than exempting is what keeps a battle form out of the save.
   local resolve = m["src/resolve.lua"]
   resolve.bind({ registry = registry, forms = m["src/forms.lua"],
-                 eligibility = eligibility, megas = megas, log = mod.log })
+                 eligibility = eligibility, megas = megas, log = mod.log,
+                 persistent = persistent })
 
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,
@@ -306,7 +331,7 @@ return function(mod)
   -- because what it recovers is exactly what a send-out would have applied.
   local adopt = m["src/adopt.lua"]
   adopt.bind({ state = state, primal = primal, conditional = conditional,
-               diag = diag })
+               persistent = persistent, diag = diag })
 
   -- The menu cell owns input/draw seams overlay.lua has no hook for
   -- (BattleState.update, BattleState.drawTextArea, WideBattle.draw), which
@@ -336,6 +361,15 @@ return function(mod)
   mod.events:on("battle.started", function(ev)
     diag.reached("battle.started", ev)
     run("arm.onBattleStarted", function() state:onBattleStarted(ev) end)
+    -- Ahead of the other two send-out handlers, because a persistent form is
+    -- the BASELINE the rest are laid over: it is true of the Pokemon before the
+    -- battle started and will be after it ends, so it should be standing before
+    -- anything asks what the mon is already wearing.  Nothing BREAKS in the
+    -- other order -- the handler applies and reconciles nothing, precisely so
+    -- that its correctness does not rest on its position -- but a conditional
+    -- row refuses a mon already wearing something else, and this is the order in
+    -- which that refusal means what it says.
+    run("persistent.onBattleStarted", function() persistent.onBattleStarted(ev) end)
     run("primal.onBattleStarted", function() primal.onBattleStarted(ev) end)
     run("conditional.onBattleStarted", function() conditional.onBattleStarted(ev) end)
     run("dynamax.onBattleStarted", function() dynamax.onBattleStarted(dynamaxState) end)
@@ -350,6 +384,12 @@ return function(mod)
   mod.events:on("battle.battler_switched", function(ev)
     diag.reached("battle.battler_switched", ev)
     run("resolve.onBattlerSwitched", function() resolve.onBattlerSwitched(ev) end)
+    -- Ahead of the other two for the reason it leads at battle.started, and
+    -- here for one more of its own: makeBattler is form-blind, so a mon whose
+    -- form is simply true of it needs the stat and type override put back on
+    -- every arrival, and it should be back before a conditional row asks what
+    -- the mon is wearing.
+    run("persistent.onBattlerSwitched", function() persistent.onBattlerSwitched(ev) end)
     run("primal.onBattlerSwitched", function() primal.onBattlerSwitched(ev) end)
     run("conditional.onBattlerSwitched", function() conditional.onBattlerSwitched(ev) end)
     -- After resolve's switch-in reapply, and it has to stay after it: this

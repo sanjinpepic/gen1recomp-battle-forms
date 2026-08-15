@@ -66,6 +66,18 @@ function M.installCrystals(mod, indices)
   shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
 end
 
+-- The appliances sell on that same floor and behind the crystals, which
+-- main.lua arranges by calling this between the crystals and the stones: a deep
+-- registry concatenates patches in the order they arrive, so the shelf reads key
+-- items, crystals, appliances, then the ninety-odd stones.  Ahead of the stones
+-- because there are five of them against ninety and a player who cannot find
+-- them has a mechanic that appears not to exist; behind the crystals because
+-- they matter to exactly one species where a crystal matters to all of them.
+-- Every appliance registered is an appliance sold: no option gates one.
+function M.installAppliances(mod, indices)
+  shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
+end
+
 -- The orbs sell at the Indigo Plateau lobby, the last counter before the
 -- Elite Four, rather than on the mega stones' shelf.  They are a different
 -- transformation type and Groudon and Kyogre are endgame Pokemon, so the two

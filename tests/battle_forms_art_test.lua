@@ -32,6 +32,12 @@ local gigantamax = {}
 for species, formId in pairs(dofile(MOD .. "/data/gigantamax.lua")) do
   gigantamax[species] = { GIGANTAMAX = formId }
 end
+-- data/persistent.lua is already species -> item -> form, so it needs no
+-- reshaping.  It is swept under the STRICTER of the two rules below -- both
+-- faces, not merely an entry -- because a form with a front picture and no back
+-- is invisible on the player's own side of the battle, and this is the one
+-- family where that would not end when the battle did.
+local persistent = dofile(MOD .. "/data/persistent.lua")
 
 local NATIONAL_DEX = MOD .. "/../national_dex_mod/data/species/generated/national.lua"
 local FORM_ART = MOD .. "/../data/sprites/generated/formart.lua"
@@ -69,16 +75,18 @@ local function formSuffixFor(id)
 end
 
 local checked, primalsChecked, conditionalChecked = 0, 0, 0
-local gigantamaxChecked = 0
+local gigantamaxChecked, persistentChecked = 0, 0
 for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true },
                          { table_ = conditional, conditional = true },
-                         { table_ = gigantamax, gigantamax = true } }) do
+                         { table_ = gigantamax, gigantamax = true },
+                         { table_ = persistent, persistent = true } }) do
   for base, byItem in pairs(wired.table_) do
     for _, formId in pairs(byItem) do
       checked = checked + 1
       if wired.primal then primalsChecked = primalsChecked + 1 end
       if wired.conditional then conditionalChecked = conditionalChecked + 1 end
       if wired.gigantamax then gigantamaxChecked = gigantamaxChecked + 1 end
+      if wired.persistent then persistentChecked = persistentChecked + 1 end
       local suffix = formSuffixFor(formId)
       T.check(suffix ~= nil, formId .. " has a form suffix in national.lua")
       if suffix then
@@ -93,7 +101,7 @@ for _, wired in ipairs({ { table_ = megas }, { table_ = primals, primal = true }
         -- same as art: Corviknight's Gigantamax has a back picture and no
         -- front, and half an entry passes the check above while showing the
         -- base species from one side.  This is the check that keeps it out.
-        if wired.gigantamax and entry then
+        if (wired.gigantamax or wired.persistent) and entry then
           T.check(entry.front ~= nil,
             base .. ".forms." .. suffix .. " has FRONT art")
           T.check(entry.back ~= nil,
@@ -110,6 +118,8 @@ T.eq(conditionalChecked, 8,
   "all eight conditional forms were checked against formart.lua")
 T.eq(gigantamaxChecked, 31,
   "all 31 wired Gigantamax forms were checked against formart.lua")
+T.eq(persistentChecked, 5,
+  "all five wired persistent forms were checked against formart.lua")
 
 -- The two exclusions, pinned as facts about the data rather than as prose in
 -- data/gigantamax.lua's header.  If a later art build fills Corviknight's

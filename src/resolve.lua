@@ -72,32 +72,62 @@ function M.onBattlerSwitched(ev)
   deps.forms.becomeForm(battle.data, battler, formId, battle)
 end
 
--- The form is the battle's, not the save's, so the battle ending unwinds it.
+-- Almost every form here is the battle's, not the save's, so the battle ending
+-- unwinds it.
 --
 -- This sweeps the PARTIES rather than the two active battlers, and that is
 -- the whole point: a mega survives switching out, so a mon can transform on
 -- turn one and be on the bench when the battle ends.  Reverting only what is
 -- on the field would leave it permanently transformed in the save.
 -- revertMon is a no-op on an untransformed mon, so the sweep can be blunt.
+--
+-- The one exception gets first refusal rather than an exemption, and that
+-- ordering is the whole of how the sweep tells the two kinds apart.  A
+-- persistent form is derived from the item stamped on the mon, so
+-- src/persistent.lua can be asked what a mon is ENTITLED to wear and can write
+-- that over whatever the battle left -- answering true for a mon it claims and
+-- false for every other, which is the blunt clear's cue.  Neither branch
+-- preserves a marker: one overwrites it from the pairing table and the other
+-- deletes it, so a battle form cannot reach the save down either path, and a
+-- persistent one cannot be swept away by a mechanic that never heard of it.
+-- deps.persistent is optional for the reason deps.log is -- the unit suites
+-- bind this module without one -- and its absence is exactly today's behaviour.
+local function settle(battle, mon)
+  if deps.persistent and deps.persistent.settle(battle.data, mon) then return end
+  deps.forms.revertMon(mon)
+end
+
 function M.onBattleEnded(ev)
   local battle = ev and ev.battle
   if not battle then return end
   local save = battle.game and battle.game.save
   for _, mon in ipairs(save and save.party or {}) do
-    deps.forms.revertMon(mon)
+    settle(battle, mon)
   end
   for _, mon in ipairs(battle.enemyParty or {}) do
-    deps.forms.revertMon(mon)
+    settle(battle, mon)
   end
 end
 
 -- A faint reverts at once rather than waiting for the battle to end: the mon
 -- can be looked at in the party menu before the battle is over, and a revived
 -- mon comes back in its base form.
+--
+-- A persistent form is put back straight afterwards, because for that one the
+-- base form is not where a faint should land: the Pokemon is still the
+-- appliance form it was before the battle and will still be after it, and the
+-- party menu the player is about to open is exactly where they would see it
+-- claiming otherwise.  Only the MARKER is restored, not the battler's stat and
+-- type override -- the battler is on its way off the field and nothing reads a
+-- fainted one's stats, where a becomeForm here would rebuild the picture of a
+-- Pokemon in the middle of falling over.
 function M.onFainted(ev)
   local battle = ev and ev.battle
   if not battle or not ev.battler then return end
   deps.forms.revertForm(ev.battler, battle.data, battle)
+  if deps.persistent then
+    deps.persistent.settle(battle.data, ev.battler.mon)
+  end
 end
 
 return M
