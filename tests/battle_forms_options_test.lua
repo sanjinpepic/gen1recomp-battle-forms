@@ -41,6 +41,12 @@ end
 local applianceIndices = dofile(MOD .. "/data/appliances.lua")
 local applianceCount = 0
 for _ in pairs(applianceIndices) do applianceCount = applianceCount + 1 end
+-- TM171 sells on that same shelf too (src/shop.lua's M.installTM), counted
+-- the same way rather than written down as 1 -- a number written down here
+-- would go stale the moment this table grows a second entry.
+local tmIndices = dofile(MOD .. "/data/tm171.lua")
+local tmCount = 0
+for _ in pairs(tmIndices) do tmCount = tmCount + 1 end
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 
 local function readFile(path)
@@ -166,11 +172,11 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local sold = {}
   for _, id in ipairs(mart) do sold[id] = true end
   T.eq(#mart,
-    #FLOOR_STOCK + #KeyItems.ITEMS + crystalCount + ultraCrystalCount
+    #FLOOR_STOCK + #KeyItems.ITEMS + tmCount + crystalCount + ultraCrystalCount
       + speciesZCrystalCount + applianceCount + (case.all and 95 or 47),
-    "the Celadon shelf holds the floor's own stock, every key item, every "
-      .. "crystal, Ultranecrozium Z, every species crystal, every appliance "
-      .. "and " .. (case.all and "every" or "only the official")
+    "the Celadon shelf holds the floor's own stock, every key item, TM171, "
+      .. "every crystal, Ultranecrozium Z, every species crystal, every "
+      .. "appliance and " .. (case.all and "every" or "only the official")
       .. " stone with the option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
     T.check(sold[id], "the floor's own stock survives with the option "

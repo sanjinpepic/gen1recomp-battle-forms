@@ -27,6 +27,7 @@ return {
       "Terastallization for every species: the Pokemon becomes a single type for the rest of the battle, taking damage as that type and getting the same-type bonus on it, and it survives switching out where a Dynamax does not",
       "TERA TYPE, which picks the type a Terastallization uses; it is read at the moment the change happens, so it can be changed between battles from the mod manager",
       "TERA BLAST, which plays as an ordinary Normal-type attack until its Pokemon terastallizes and then substitutes to the chosen type on arming, following the Pokemon back in on every switch",
+      "TM171, sold on the Celadon department store's stone floor right behind the Tera Orb, which teaches TERA BLAST to any Pokemon that is not a mega, Gigantamax or other alternate-form entry -- the fix for TERA BLAST having shipped with nothing able to learn it",
       "the form survives switching out and unwinds when the battle ends or the mon faints",
       "condition-driven forms for eight species, with no item and no menu: Darmanitan and Minior flip at half HP, Wishiwashi schools above a quarter HP from level 20, Aegislash draws its blade on an attacking move and shields on a status one, Morpeko alternates every round, Mimikyu and Eiscue break on a damaging hit, and Greninja bonds on a knockout it dealt",
       "the reversible ones flip back and forth as many times as the battle calls for, because the form is re-derived from the mon rather than remembered",

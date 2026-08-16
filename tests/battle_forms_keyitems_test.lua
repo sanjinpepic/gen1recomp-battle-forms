@@ -36,6 +36,8 @@ local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
 local plateIndices = dofile(MOD .. "/data/plates.lua")
 local memoryIndices = dofile(MOD .. "/data/memories.lua")
 local driveIndices = dofile(MOD .. "/data/drives.lua")
+local speciesZCrystalIndices = dofile(MOD .. "/data/speciescrystals.lua")
+local tmIndices = dofile(MOD .. "/data/tm171.lua")
 
 -- ------- the two ids and their bag bytes -----------------------------
 
@@ -62,7 +64,7 @@ for itemId in pairs(keyIndices) do
   T.check(named[itemId], itemId .. " is indexed and is also a named key item")
 end
 
--- One bag, eleven tables.  A byte handed out twice would make one item
+-- One bag, thirteen tables.  A byte handed out twice would make one item
 -- indistinguishable from another in a save, which is unrecoverable rather
 -- than merely wrong.  data/plates.lua and data/memories.lua are excluded from
 -- this particular loop, not skipped by it: every one of their 34 entries is
@@ -71,12 +73,14 @@ end
 -- them through `seen[index]` would make the SECOND `false` entry this loop
 -- ever sees fail as a false collision against the first, which is not the
 -- bug this loop exists to catch.  They get their own, narrower check below.
--- data/drives.lua carries real bytes like every table in this loop's list, so
--- it belongs here rather than beside the Plates and Memories.
+-- data/drives.lua, data/speciescrystals.lua and data/tm171.lua all carry real
+-- bytes like every other table in this loop's list, so each belongs here
+-- rather than beside the Plates and Memories.
 local seen = {}
 for _, source in ipairs({ stoneIndices, orbIndices, keyIndices,
                           crystalIndices, applianceIndices, fuserIndices,
-                          heldFormIndices, ultraCrystalIndices, driveIndices }) do
+                          heldFormIndices, ultraCrystalIndices, driveIndices,
+                          speciesZCrystalIndices, tmIndices }) do
   for itemId, index in pairs(source) do
     T.check(seen[index] == nil,
       itemId .. "'s bag byte " .. tostring(index) .. " is not already "
@@ -124,8 +128,29 @@ for _, itemId in ipairs({ "DOUSE_DRIVE", "SHOCK_DRIVE", "BURN_DRIVE", "CHILL_DRI
   T.check(driveIndices[itemId] > 233,
     itemId .. " continues past Ultranecrozium Z rather than reusing a byte")
 end
-T.eq(seen[238], nil, "byte 238 is still free -- the Drives used exactly "
-  .. "234-237 of the 22 bytes 234-255 left open, eighteen still spare")
+
+-- data/speciescrystals.lua: the fourteen species Z-Crystals, continuing
+-- immediately past the Drives' 234-237 rather than reusing a byte, and
+-- leaving four still spare (252-255) behind them.
+local speciesZCrystalCount = 0
+for itemId, index in pairs(speciesZCrystalIndices) do
+  speciesZCrystalCount = speciesZCrystalCount + 1
+  T.check(index ~= nil and index ~= false,
+    itemId .. " has a real bag byte, not the byteless sentinel")
+  T.check(index > 237,
+    itemId .. " continues past the Drives rather than reusing a byte")
+end
+T.eq(speciesZCrystalCount, 14, "all fourteen species Z-Crystals were checked")
+
+-- data/tm171.lua: TM171 continues at the next byte free after the species
+-- crystals, the fix for TERA BLAST having shipped in a moveset nothing could
+-- reach it from -- see src/terablasttm.lua's own header.
+T.eq(tmIndices.TM171, 252,
+  "TM171 continues past the fourteen species crystals rather than reusing "
+    .. "a byte")
+T.eq(seen[253], nil, "byte 253 is still free -- 234-255's 22 bytes are now "
+  .. "spent on the Drives (234-237), the species crystals (238-251) and "
+  .. "TM171 (252), three still spare")
 
 -- ------- registration, which nothing may gate ------------------------
 

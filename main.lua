@@ -81,6 +81,7 @@ return function(mod)
                   "src/stone.lua", "src/keyitems.lua", "src/shop.lua",
                   "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dragonascent.lua",
+                  "src/terablasttm.lua",
                   "src/dynamax.lua",
                   "src/substitute.lua", "src/maxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
@@ -96,6 +97,7 @@ return function(mod)
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua", "data/maxmoves.lua",
                   "data/zmoves.lua", "data/crystals.lua", "data/terablast.lua",
+                  "data/tm171.lua",
                   "data/speciesz.lua", "data/speciescrystals.lua",
                   "data/persistent.lua", "data/appliances.lua",
                   "data/fusion.lua", "data/fusers.lua", "data/heldforms.lua",
@@ -232,6 +234,18 @@ return function(mod)
   local zcrystals = dragonascent.crystalSet(crystalIndices, ultraCrystalIndices)
   dragonascent.install(mod)
 
+  -- Tera Blast's own reachability fix, beside Dragon Ascent's for the same
+  -- reason: both patch a national_dex move and its learners rather than
+  -- registering anything of their own, and both exist because a feature
+  -- shipped on a move nothing could actually know. TM171 teaches TERABLAST
+  -- (data/tm171.lua's own bag byte) to every species that is not itself a
+  -- form pseudo-record, and flags the move honestly modelled -- see
+  -- src/terablasttm.lua's own header for why that flag can be true here
+  -- when national_dex's own registration cannot claim it.
+  local terablasttm = m["src/terablasttm.lua"]
+  local tmIndices = m["data/tm171.lua"]
+  terablasttm.install(mod, tmIndices)
+
   m["src/stone.lua"].bind(eligibility, persistent)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
@@ -264,6 +278,9 @@ return function(mod)
   -- the crystals that the last of them needs to do anything, then the five
   -- appliances.
   m["src/shop.lua"].installKeyItems(mod, keyIndices)
+  -- TM171, immediately behind the key items and ahead of the crystals: see
+  -- src/shop.lua's own comment on M.installTM for why it sits here.
+  m["src/shop.lua"].installTM(mod, tmIndices)
   m["src/shop.lua"].installCrystals(mod, crystalIndices)
   -- Ultranecrozium Z, immediately behind the eighteen type crystals: a deep
   -- registry concatenates patches in the order they arrive, and a player

@@ -70,6 +70,18 @@ function M.installKeyItems(mod, indices)
   shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
 end
 
+-- TM171, on that same floor and immediately behind the key items -- main.lua
+-- calls this between M.installKeyItems and M.installCrystals, so the shelf
+-- reads key items, TM171, then the crystals: a deep registry concatenates
+-- patches in the order they arrive. Ahead of the crystals for the reason the
+-- key items are ahead of everything else -- a player who just bought the
+-- Tera Orb finds the one item that makes it teach anything right behind it,
+-- rather than after ninety-odd stones. Every TM171 registered is TM171
+-- sold: no option gates it, so there is no subset to offer.
+function M.installTM(mod, indices)
+  shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
+end
+
 -- The Z-Crystals sell on the same floor and immediately behind the key items,
 -- which main.lua arranges by calling this between the two: a deep registry
 -- concatenates patches in the order they arrive, so the shelf reads key items,

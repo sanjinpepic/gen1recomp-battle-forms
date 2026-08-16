@@ -3,6 +3,27 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.34.0
+
+### Fixed
+
+- **TERA BLAST, added in 0.27.0, could not actually be learned by any
+  Pokemon.** National Dex registers the move, and Terastallizing already
+  substituted it into the chosen type correctly whenever a Pokemon happened
+  to know it -- but nothing taught it to anything: it sat in no species'
+  learnset and no shard National Dex's own MOVES=ALL widening reads either,
+  so the whole eighteen-type substitution was built on a move a player could
+  never actually have. A new item, TM171, fixes it the way the real games
+  do: buyable on the Celadon department store's stone floor right behind
+  the Tera Orb, it teaches TERA BLAST to any Pokemon that is not a mega,
+  Gigantamax or other alternate-form entry -- those never appear as a
+  battler's own species in this mod, so a Pokemon that can be caught,
+  hatched or traded can learn it. Tera Blast's own real effect, becoming
+  the Tera type, is what the substitution already does, so it is now
+  honestly flagged as a modelled move rather than the placeholder National
+  Dex had no choice but to register it as before this mod existed to make
+  the claim true.
+
 ## 0.33.0
 
 ### Changed
