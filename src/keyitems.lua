@@ -85,12 +85,22 @@ end
 -- (BattleState.lua:577 keeps the game, and its EXP.ALL check at 3975 reads the
 -- bag exactly here).
 --
+-- `battle.save` is asked second, for src/gen2menu.lua's own reason:
+-- game/src/battle/gen2/Battle.lua carries `self.save` directly
+-- (`self.save = opts.save`) and no `.game` field at all -- there is no UI
+-- BattleState in reach of `available(battle)`, only the engine object
+-- src/battlerof.lua's own header describes, so `battle.game.save` alone
+-- would never resolve on Gen 2 and no key item would ever read as held.
+-- Gen 1's BattleState never carries a `.save` field of its own, so this is
+-- inert there and the `game.save` branch keeps deciding it exactly as
+-- before.
+--
 -- Answers false rather than throwing when any link is missing.  This runs from
 -- the menu cell's decision on every drawn frame, and a battle screen taken
 -- down by a nil index is a worse outcome than a cell that is not offered.
 function M.held(battle, itemId)
   local game = battle and battle.game
-  local save = game and game.save
+  local save = (game and game.save) or (battle and battle.save)
   local inventory = save and save.inventory
   if not inventory or not itemId then return false end
   local carried = inventory[itemId]

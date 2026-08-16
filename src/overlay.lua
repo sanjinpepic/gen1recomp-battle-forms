@@ -20,17 +20,33 @@ function M.bind(modules) deps = modules end
 -- call rather than one buffer kept between them: the input path and both draw
 -- paths ask on the same frame, and none of them may see another's answer
 -- change underneath it.
-function M.offered(state)
+--
+-- `uiBattle` is optional and exists for Gen 2 alone.  On Gen 1 one object
+-- backs both the phase/queue the menu reads and the battle src/arm.lua
+-- caches from battle.started, so `state:current()` already IS the phase
+-- source and every caller before src/gen2menu.lua existed left this nil.  On
+-- Gen 2 they are two different objects -- src/battlerof.lua's own header
+-- says why -- Gold's `phase`/`queue`/`menuIndex` live on the UI
+-- src/ui/gen2/BattleState.lua instance, and battle.started's own payload is
+-- the ENGINE game/src/battle/gen2/Battle.lua instance (`.player`, `.enemy`,
+-- `.data`, `.save`, no `.phase` at all), which is what `state:current()`
+-- holds.  src/gen2menu.lua hands its own `self` (the UI object every frame
+-- already gives it) in here as `uiBattle` so the phase/queue gate reads the
+-- right table; every entry's own `available(battle)` still reads the engine
+-- object, unchanged, because that is the shape src/mega.lua and the rest
+-- already expect.
+function M.offered(state, uiBattle)
   local out = {}
   local battle = state:current()
   if not battle then return out end
+  local phaseSource = uiBattle or battle
   -- The cell must be on screen exactly when the key is live.  The engine only
   -- fires battle.menu_auxiliary at the command menu with an empty queue
   -- (BattleSafety.inspect), but the draw seams run on every frame regardless
   -- of phase; without this check the cell would appear during messages and
   -- other busy phases where pressing A does nothing.
-  if battle.phase ~= "menu" then return out end
-  local queue = battle.queue
+  if phaseSource.phase ~= "menu" then return out end
+  local queue = phaseSource.queue
   if queue and next(queue) ~= nil then return out end
   -- One manual transformation per battle across all of them: spending any
   -- registered entry takes every entry off the cell for the rest of the fight,
@@ -56,16 +72,16 @@ function M.offered(state)
   return out
 end
 
-function M.shouldOffer(state)
-  return #M.offered(state) > 0
+function M.shouldOffer(state, uiBattle)
+  return #M.offered(state, uiBattle) > 0
 end
 
 -- The entry the cell is currently showing.  Falls back to the first on offer
 -- when the selection has gone stale -- the mon it belonged to switched out, a
 -- stone was taken away -- because the cell has to name something for as long
 -- as it is drawn at all.
-function M.selected(state)
-  local offered = M.offered(state)
+function M.selected(state, uiBattle)
+  local offered = M.offered(state, uiBattle)
   local id = state:selected()
   for _, entry in ipairs(offered) do
     if entry.id == id then return entry end
@@ -96,13 +112,13 @@ M.GENERIC_LABEL = GENERIC_LABEL
 -- own header on the armed-state decision calls out: replacing a whole word
 -- on arming is a far bigger, more legible change than the trailing '*' alone
 -- ever was, and it costs the same one cell this mod has ever had.
-function M.label(state)
+function M.label(state, uiBattle)
   local armedId = state:armed()
   if armedId then
     local entry = deps and deps.registry and deps.registry:get(armedId)
     if entry then return entry.label .. "*" end
   end
-  if #M.offered(state) == 0 then return nil end
+  if #M.offered(state, uiBattle) == 0 then return nil end
   return GENERIC_LABEL
 end
 

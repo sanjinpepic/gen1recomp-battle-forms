@@ -91,7 +91,7 @@ function M.handleInput(battle, state)
   if not battle or battle.phase ~= "menu" or battle.demo or battle.safari then
     return false
   end
-  if not deps or not deps.overlay.shouldOffer(state) or not safeToOffer(battle) then
+  if not deps or not deps.overlay.shouldOffer(state, battle) or not safeToOffer(battle) then
     battle._battleFormsMenuCell = false
     if deps and deps.formmenu then deps.formmenu.close(battle) end
     return false
@@ -180,8 +180,8 @@ local CURSOR_GLYPH = 0xED
 -- twice: a cell that gained a marker in classic alone would be a cell missing
 -- from half the game, which is the mistake src/overlay.lua's header exists to
 -- prevent for the decisions above it.
-local function drawCell(Font, state, at, onCell)
-  Font.draw(deps.overlay.label(state), at.label, ROW_Y)
+local function drawCell(battle, Font, state, at, onCell)
+  Font.draw(deps.overlay.label(state, battle), at.label, ROW_Y)
   if onCell then Font.drawCode(CURSOR_GLYPH, at.cursor, ROW_Y) end
 end
 
@@ -203,7 +203,7 @@ end
 -- nothing of FIGHT/PKMN/ITEM/RUN survives visible beneath it.
 function M.drawClassic(battle, state, vanillaDraw, Font)
   note(battle, "drawTextArea", "BattleState.drawTextArea")
-  if not deps or not deps.overlay.shouldOffer(state) then
+  if not deps or not deps.overlay.shouldOffer(state, battle) then
     return vanillaDraw(battle)
   end
   local onCell = M.isOnCell(battle)
@@ -213,13 +213,13 @@ function M.drawClassic(battle, state, vanillaDraw, Font)
   if onCell and deps.formmenu.isOpen(battle) then
     deps.formmenu.drawClassic(battle, state, Font)
   else
-    drawCell(Font, state, CELL.classic, onCell)
+    drawCell(battle, Font, state, CELL.classic, onCell)
   end
 end
 
 function M.drawWide(battle, state, vanillaDraw, Font)
   note(battle, "wideDraw", "WideBattle.draw")
-  if not deps or not deps.overlay.shouldOffer(state) then
+  if not deps or not deps.overlay.shouldOffer(state, battle) then
     return vanillaDraw(battle)
   end
   local onCell = M.isOnCell(battle)
@@ -229,7 +229,7 @@ function M.drawWide(battle, state, vanillaDraw, Font)
   if onCell and deps.formmenu.isOpen(battle) then
     deps.formmenu.drawWide(battle, state, Font)
   else
-    drawCell(Font, state, CELL.wide, onCell)
+    drawCell(battle, Font, state, CELL.wide, onCell)
   end
 end
 

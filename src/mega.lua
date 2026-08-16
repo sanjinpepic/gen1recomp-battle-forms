@@ -20,6 +20,34 @@
 -- a build where src/dragonascent.lua failed to load degrades to exactly the
 -- two-tier gate every mega has always used, rather than taking mega evolution
 -- down entirely over the one species that gets a second trigger.
+--
+-- deps.gen2 branches the whole entry onto Gold's own shape, the same flag
+-- src/persistent.lua already reads.  Three things differ and nothing else
+-- does -- the label, the once-per-battle bookkeeping and the Key Stone gate
+-- above are identical on both games:
+--
+--   * WHICH ITEM COUNTS.  Gen 1 has no held-item slot, so a Mega Stone is a
+--     bag-use stamp read through deps.eligibility.formForMon (mon[STAMP]).
+--     Gold has a real one, and src/persistent.lua's own header explains why
+--     the real held item is always asked over any stamp where both exist --
+--     so the Gen 2 branch reads mon.item, given straight to
+--     deps.eligibility.formFor the way src/persistent.lua's own Gen 2 read
+--     does, never the stamp.
+--   * WHICH PRIMITIVE APPLIES IT.  Gen 2 has no battler wrapper at all
+--     (src/battlerof.lua's own header), so deps.forms.becomeForm -- built on
+--     curStats/curTypes, fields that do not exist on a bare mon -- would
+--     silently write nothing a damage or type check ever reads.
+--     deps.gen2forms.becomeForm is the primitive that actually reaches
+--     mon.stats and Battle.speciesDef there.
+--   * WHAT ELSE ACTIVATING DOES.  Nothing, on Gold, for now.  Mega
+--     Rayquaza's own trigger (deps.dragonascent) is Gen 1 only in this pass
+--     -- the exemption is skipped outright on Gen 2 rather than guessed at
+--     -- and so is the announce/animation pair below: deps.announce assumes
+--     Gen 1's battler shape and battle:animNext/animationsOn are methods on
+--     Gen 1's BattleState, neither of which the engine
+--     game/src/battle/gen2/Battle.lua instance activate() receives on Gen 2
+--     carries.  A silent mega with no flash and no message is still a
+--     correct one; both are cosmetic and neither is claimed here.
 local M = {}
 
 M.ID = "mega"
@@ -51,6 +79,16 @@ function M.entry(deps)
       local mon = deps.battlerof.mon(battle.player)
       local pokemon = battle.data and battle.data.pokemon
 
+      if deps.gen2 then
+        if not deps.keyitems.held(battle, deps.keyitems.KEY_STONE) then
+          return false
+        end
+        local formId = deps.eligibility.formFor(deps.megas, mon and mon.species,
+                                                 mon and mon.item)
+        if not formId then return false end
+        return pokemon ~= nil and pokemon[formId] ~= nil
+      end
+
       local exemptForm = deps.dragonascent
         and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon)
       if exemptForm then
@@ -71,6 +109,25 @@ function M.entry(deps)
     activate = function(battle)
       local battler = battle.player
       local mon = deps.battlerof.mon(battler)
+
+      if deps.gen2 then
+        local formId = deps.eligibility.formFor(deps.megas, mon and mon.species,
+                                                 mon and mon.item)
+        if not formId then return false end
+        local ok, reason = deps.gen2forms.becomeForm(battle.data, mon, formId)
+        if not ok then
+          if deps.log then
+            deps.log:warn(
+              "battle_forms: refused mega for %s -> %s (%s) -- the "
+                .. "national_dex record is missing, has no `form` field, or "
+                .. "data/megas.lua names the wrong id",
+              tostring(mon and mon.species), tostring(formId), tostring(reason))
+          end
+          return false
+        end
+        return true
+      end
+
       local formId = (deps.dragonascent
           and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon))
         or deps.eligibility.formForMon(deps.megas, mon)

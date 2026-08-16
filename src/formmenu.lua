@@ -78,7 +78,7 @@ end
 -- moment the list appears, exactly like the FIGHT menu's own move cursor.
 function M.open(battle, state)
   if not battle then return end
-  local offered = deps.overlay.offered(state)
+  local offered = deps.overlay.offered(state, battle)
   battle._battleFormsListOpen = true
   battle._battleFormsListIndex = defaultIndex(offered, state)
 end
@@ -90,7 +90,7 @@ end
 function M.handleInput(battle, state)
   local input = battle.game and battle.game.input
   if not input then return true end
-  local offered = deps.overlay.offered(state)
+  local offered = deps.overlay.offered(state, battle)
   local count = #offered
   if count == 0 then
     -- Nothing left to show -- the mon that carried the last entry's item
@@ -172,7 +172,7 @@ M.BOX = { classic = CLASSIC, wide = WIDE }
 local CURSOR_GLYPH = 0xED
 
 local function drawList(battle, state, at, Font)
-  local offered = deps.overlay.offered(state)
+  local offered = deps.overlay.offered(state, battle)
   local index = battle._battleFormsListIndex or 1
   Font.drawBox(at.box.x, at.box.y, at.box.w, at.box.h)
   love.graphics.setColor(0, 0, 0, 1)
@@ -192,6 +192,43 @@ end
 
 function M.drawWide(battle, state, Font)
   drawList(battle, state, WIDE, Font)
+end
+
+-- ---- Gen 2 drawing -----------------------------------------------------
+--
+-- src/gen2menu.lua's own list, drawn through Gold's Chrome module
+-- (src/ui/gen2/Chrome.lua) rather than src/render/Font: Chrome.box and
+-- Chrome.print already take TILE coordinates and delegate to that same Font
+-- underneath (Chrome.lua:59-74), so this box is the CLASSIC one above
+-- divided by 8 -- not a coincidence.  Gold's own non-contest command box
+-- sits at the identical screen position Gen 1's classic one does
+-- (game/src/ui/gen2/BattleState.lua's `Chrome.box(8, 12, 12, 6)` against
+-- this file's own CLASSIC box comment on `Font.drawBox(8, 12, 12, 6)`), so
+-- the list above it needs no geometry of its own: same six rows of
+-- headroom, same two rows above the vanilla box, same right-edge budget --
+-- pinned separately in tests/battle_forms_gen2menu_test.lua rather than
+-- assumed to stay derived, the way src/menu.lua's own CELL constants are.
+--
+-- Contest battles are refused the cell entirely (src/gen2menu.lua's own
+-- header says why), so there is no contest-box counterpart to WIDE here.
+local GEN2 = {
+  box = { x = 2, y = 10, w = 16, h = 8 },
+  cursor = 3, label = 4, rowY0 = 11, rowStep = 1, maxRows = 6,
+}
+M.GEN2_BOX = GEN2
+
+function M.drawGen2(battle, state, Chrome)
+  local offered = deps.overlay.offered(state, battle)
+  local index = battle._battleFormsListIndex or 1
+  Chrome.box(GEN2.box.x, GEN2.box.y, GEN2.box.w, GEN2.box.h)
+  local armedId = state:armed()
+  for i, entry in ipairs(offered) do
+    if i > GEN2.maxRows then break end
+    local ty = GEN2.rowY0 + (i - 1) * GEN2.rowStep
+    local text = (armedId == entry.id) and (entry.label .. "*") or entry.label
+    Chrome.print(text, GEN2.label, ty)
+    if i == index then Chrome.cursor(GEN2.cursor, ty) end
+  end
 end
 
 return M

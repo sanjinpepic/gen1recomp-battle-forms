@@ -111,7 +111,7 @@ return function(mod)
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/formmenu.lua", "src/menu.lua", "src/boxmark.lua",
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
-                  "src/gen2shop.lua",
+                  "src/gen2shop.lua", "src/gen2menu.lua",
                   "src/zmovemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
@@ -343,6 +343,21 @@ return function(mod)
     for itemId, index in pairs(plateIndices) do indigoIndices[itemId] = index end
     for itemId, index in pairs(memoryIndices) do indigoIndices[itemId] = index end
     for itemId, index in pairs(driveIndices) do indigoIndices[itemId] = index end
+    -- The same counter also gains the Key Stone and this boot's own active
+    -- mega stones (the MEGA EVOLUTIONS option's OFFICIAL/ALL set, the same
+    -- one src/shop.lua's Gen 1 shelf stocks from -- megaset.stoneIds(megas)).
+    -- Mega evolution needs both a trainer item and a Pokemon item, and
+    -- neither had a route onto Gold before this pass: a menu cell with
+    -- correct code behind it is not a reachable feature if nothing sells
+    -- what it requires (HANDOFF's own standing worry about this mod's other
+    -- mechanics).  Only the Key Stone joins it from data/keyitems.lua, not
+    -- the Dynamax Band/Tera Orb/Z-Ring beside it there -- those gate
+    -- mechanics this pass does not wire for Gold, and selling one would be
+    -- a purchase that does nothing.
+    indigoIndices[keyitems.KEY_STONE] = keyIndices[keyitems.KEY_STONE]
+    for stoneId in pairs(megaset.stoneIds(megas)) do
+      indigoIndices[stoneId] = indices[stoneId]
+    end
     m["src/gen2shop.lua"].install(mod, applianceIndices, indigoIndices)
   end
   -- Its own install for a stronger version of the appliances' reason: this item
@@ -435,11 +450,16 @@ return function(mod)
   -- and every way of disarming.  Bound here rather than at construction because
   -- the state is built before there is a registry to hand it.
   m["src/arm.lua"].bind({ registry = registry })
+  -- gen2/gen2forms: the same two values src/persistent.lua's own M.apply
+  -- branches on, handed to mega evolution because it is the one manual
+  -- transformation this pass wires for Gold -- src/mega.lua's own header on
+  -- what the flag changes and what it deliberately still does not (Mega
+  -- Rayquaza's own trigger, the announce/animation pair).
   local registered, why = registry:register(m["src/mega.lua"].entry({
     forms = m["src/forms.lua"], eligibility = eligibility, megas = megas,
     keyitems = keyitems, animId = anim.ID, announce = announce,
     log = mod.log, dragonascent = dragonascent, zcrystals = zcrystals,
-    battlerof = battlerof }))
+    battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms }))
   if not registered then
     mod.log:error("battle_forms: mega evolution was refused a place on the "
       .. "battle menu (%s) -- no stone can be armed until that is fixed",
@@ -647,6 +667,25 @@ return function(mod)
   local menu = m["src/menu.lua"]
   menu.bind({ overlay = overlay, formmenu = formmenu, diag = diag, adopt = adopt })
   menu.install(mod, state)
+
+  -- Gold's own battle screen -- a different class from Gen 1's, with its own
+  -- geometry and its own fixed 2x2 input grid (src/gen2menu.lua's own header
+  -- has the file:line evidence) -- so it is a separate module rather than a
+  -- branch inside src/menu.lua, the same reason src/gen2formview.lua is
+  -- separate from src/formview.lua.  It reuses src/formmenu.lua's list
+  -- unchanged: that module already reads whichever battle it is handed as
+  -- `battle`, so no Gen 2 fork of it exists.  Not handed `adopt` -- a mod
+  -- enabled mid-battle on Gold loses the cell for that battle only, the same
+  -- degraded-not-broken behaviour Gen 1 had before adoption existed; see
+  -- src/gen2menu.lua's own header for why wiring it would touch modules
+  -- (src/primal.lua, src/conditional.lua) that assume Gen 1's battler shape
+  -- and are themselves out of this pass's scope.  Gen 1 only -- there is no
+  -- src/ui/gen2/BattleState.lua on that boot to patch.
+  if gen2 then
+    local gen2menu = m["src/gen2menu.lua"]
+    gen2menu.bind({ overlay = overlay, formmenu = formmenu, diag = diag })
+    gen2menu.install(mod, state)
+  end
 
   -- The boxed fusion partner's marker: two more engine wraps in the same
   -- style, reaching the PC box lists and the STATS screen reached from them
