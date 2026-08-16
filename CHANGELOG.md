@@ -3,6 +3,13 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.44.0
+
+### Fixed
+
+- **A Gold Pokemon's PICTURE on the party STATS screen never reflected a persistent, fusion or condition-driven form -- a Giratina holding the Griseous Orb kept showing base Giratina there even after 0.43.0 fixed the same screen's stats and types.** `SummaryMenu:picFor` reads `data.pokemon[mon.species].spriteFront` straight off the BASE species and raises no hook, so neither this mod nor a sprite mod could ever reach it -- the identical seam National Dex's own `src/gen2dexlist.lua` and `src/gen2summary.lua` had already found and worked around for their own art on Gold's dex and this exact screen. `src/gen2formview.lua` now wraps `SummaryMenu.drawPic`, not `picFor`: confirmed against the real class that the shading decision a picture needs (skip the Game Boy palette for full-colour art, or the crush National Dex's own HANDOFF.md documents for this screen recurs) lives one level up, in `drawPic`'s own call to `drawPicBlock`, so `picFor`'s plain Image return could never have carried it. The fix asks the sprite mod through the real `pokemon.sprite` hook the battle screen already fires -- the same seam the bug report named outright as the one thing this screen never raised -- and falls back to the form's own record picture, drawn through the exact treatment every other mon's picture already gets here, when there is no hook answer. Composes with National Dex's own species-level art on the same method: this module's wrap always ends up outermost, since battle_forms declares national_dex a hard dependency, and it decides only for a mon actually wearing a battle_forms form, leaving everything else to whatever drew before it.
+- **`src/conditional.lua` had no diagnostic at all, unlike `src/primal.lua` beside it, which is exactly what left a report that Aegislash never changes stance in battle with nothing to go on beyond "the event reached."** Every enter/leave attempt now traces through a new `src/diag.lua` `M.conditional` -- the species, the row matched (or the mismatched trigger it matched instead), the move's own power for a stance check, and `becomeForm`'s or `revertMon`'s own reason. Driving the real mechanism end to end -- the real National Dex data through its real Gen 2 registration reshape, the real Runtime event bus, NATIONAL DEX forced on -- found no defect: `AEGISLASH_BLADE` registers with the correct split stats and Aegislash's Blade Forme applies exactly as it should. The cause of the specific report stays open; this trace is what would name it outright if it recurs.
+
 ## 0.43.0
 
 ### Added
