@@ -32,6 +32,25 @@ local function loadSibling(mod, name)
   return result
 end
 
+-- Which generation this boot is, the same read national_dex's own
+-- src/gen2shape.lua makes and for the identical reason: `generation` is a
+-- Gen 2 constant the ROM import stamps, readable in the entry chunk because
+-- Gold fills data.gen2Constants before the loader runs, so it answers 2 on
+-- Gold and nil on Red/Blue/Yellow with no live battle or save in hand yet.
+-- Deliberately NOT require("src.core.GameVersion") for the same reason that
+-- file gives: it answers correctly but trips the dev shim's engine-internals
+-- warning for something the sanctioned mod API already exposes. Duplicated
+-- here rather than reached across the mod boundary -- a mod's own files are
+-- the only ones `mod:read` can see, and national_dex's src/gen2shape.lua is
+-- a different mod's file.
+local function generationOf(mod)
+  local ok, value = pcall(function()
+    return mod.content.constants:get("generation")
+  end)
+  if ok and type(value) == "number" then return value end
+  return 1
+end
+
 -- The type a Terastallization turns a Pokemon into, as the rows the manager
 -- draws for it.  The list lives here rather than in src/tera.lua because the
 -- options are declared before any sibling is read, so that they reach the
@@ -91,7 +110,7 @@ return function(mod)
                   "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua", "src/boxmark.lua",
-                  "src/formview.lua",
+                  "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
                   "src/zmovemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
@@ -211,10 +230,27 @@ return function(mod)
   -- since nothing calls into it until gameplay starts, well after every bind
   -- in this file has run.
   local fusion = m["src/fusion.lua"]
+  -- Gen 2 has no battler wrapper at all -- battle.player/battle.enemy ARE the
+  -- mon (src/battlerof.lua's own header) -- so src/persistent.lua's M.apply
+  -- cannot call src/forms.lua's becomeForm, which assumes one, on that game.
+  -- `generation` is read once here, at load, the way national_dex's own
+  -- src/gen2shape.lua reads it, and `gen2` is the flag M.apply branches on --
+  -- never which fields a payload happens to carry (HANDOFF's own Gen 2 trap).
+  -- src/gen2forms.lua is handed in unconditionally; only the flag decides
+  -- whether it is ever called.
+  local generation = generationOf(mod)
+  local gen2 = generation == 2
+  local gen2forms = m["src/gen2forms.lua"]
   persistent.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                     rows = persistentRows, log = mod.log,
                     price = m["src/stone.lua"].PRICE, battlerof = battlerof,
-                    fusion = fusion })
+                    fusion = fusion, gen2forms = gen2forms, gen2 = gen2 })
+  -- Patches Battle.speciesDef so a Gen 2 form's types reach damage, AI and
+  -- immunity checks (src/gen2forms.lua's own header). Installed only when
+  -- this boot actually is Gen 2 -- requiring the module is harmless either
+  -- way, but patching a class Gen 1 never runs through would be a wrap this
+  -- boot can never exercise.
+  if gen2 then gen2forms.install(mod) end
 
   -- The fifth family, and the only one that does not go through the held-item
   -- stamp at all: a fusion is recorded by which partner went in, and the
@@ -580,6 +616,18 @@ return function(mod)
   local formview = m["src/formview.lua"]
   formview.bind({ fusion = fusion, persistent = persistent, diag = diag })
   formview.install(mod)
+
+  -- Gold's own SUMMARY screen, a separate class with a separate stats layout
+  -- (specialAttack/specialDefense as two rows where Gen 1 has one `special`)
+  -- -- see src/gen2formview.lua's own header for why an overlay recomputed
+  -- fresh from data.pokemon[formId] is what a Gen 2 form needs here, rather
+  -- than trusting mon.stats to still hold what src/gen2forms.lua last wrote.
+  -- Installed only on a Gen 2 boot, for the reason src/gen2forms.lua's own
+  -- install call is: patching a class Gen 1 never draws through would be a
+  -- wrap this boot can never exercise.
+  local gen2formview = m["src/gen2formview.lua"]
+  gen2formview.bind({ fusion = fusion, persistent = persistent, diag = diag })
+  if gen2 then gen2formview.install(mod) end
 
   -- The Z-Move roster's own FIGHT-menu names, drawn in place of whatever
   -- data/zmoves.lua's `name` field spells -- display-time only, so the

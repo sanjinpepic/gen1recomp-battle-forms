@@ -469,6 +469,83 @@ do
   T.eq(Persistent.settle(DATA, nil), false, "and no mon at all is refused")
 end
 
+-- ------- the Gen 2 dispatch -------------------------------------------
+--
+-- Gen 2 has no battler wrapper at all -- battle.player/battle.enemy ARE the
+-- mon (src/battlerof.lua's own header) -- and src/forms.lua's becomeForm
+-- assumes one (`battler.mon`), so calling it with a bare Gen 2 mon always
+-- returns "no_target" and applies nothing.  M.apply must route to
+-- src/gen2forms.lua instead, gated on the generation this module was bound
+-- with -- never on which fields a payload happens to carry, the mistake
+-- HANDOFF.md's own Gen 2 trap #1 warns about.
+do
+  local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+
+  -- Gen 2 shape: baseStats splits specialAttack/specialDefense rather than
+  -- carrying one `special` (src/gen2forms.lua's own header).
+  local GEN2_DATA = { pokemon = {
+    ROTOM = { baseStats = { hp = 50, attack = 50, defense = 77, speed = 91,
+                            specialAttack = 95, specialDefense = 95 },
+              types = { "ELECTRIC", "GHOST" } },
+    ROTOM_WASH = { baseStats = { hp = 50, attack = 65, defense = 107,
+                                 speed = 86, specialAttack = 107,
+                                 specialDefense = 107 },
+                   types = { "ELECTRIC", "WATER" }, form = "WASH" },
+  } }
+
+  local function gen2Mon(species, held)
+    local base = GEN2_DATA.pokemon[species].baseStats
+    local mon = { species = species, level = 50,
+                  dvs = { hp = 15, attack = 15, defense = 15, speed = 15,
+                          special = 15 },
+                  statExp = {}, [E.STAMP] = held, hp = 120 }
+    mon.stats = { hp = base.hp, attack = base.attack, defense = base.defense,
+                  speed = base.speed, specialAttack = base.specialAttack,
+                  specialDefense = base.specialDefense }
+    return mon
+  end
+
+  Persistent.bind({ forms = Forms, gen2forms = Gen2Forms, gen2 = true,
+                    eligibility = E, rows = rows, log = log,
+                    price = Stone.PRICE, battlerof = Battlerof })
+
+  local mon = gen2Mon("ROTOM", "WASHING_MACHINE")
+  -- Gen 2's own event payload: battle.player/battle.enemy ARE the mon, with
+  -- no wrapper for src/battlerof.lua to unwrap.
+  local battle = { data = GEN2_DATA, player = mon }
+  Persistent.onBattleStarted({ battle = battle })
+
+  T.eq(mon.form, "WASH", "the marker lands the same way it does on Gen 1")
+  T.eq(mon.species, "ROTOM", "species is still never touched")
+  T.same(mon.formTypes, { "ELECTRIC", "WATER" },
+    "src/gen2forms.lua's own type seam is populated, not src/forms.lua's curTypes")
+  T.check(mon.stats.defense > 77,
+    "mon.stats is mutated in place, gen2forms.lua's own contract")
+
+  -- A mon coming back from the bench arrives on a fresh, form-blind mon
+  -- table the way Gen 1's makeBattler does -- simulated here the same way
+  -- Mon.refreshStats would reset it at the next Battle:new.
+  mon.stats.defense = 77
+  Persistent.onBattlerSwitched({ battle = battle, battler = mon })
+  T.check(mon.stats.defense > 77,
+    "onBattlerSwitched dispatches to gen2forms too, not just onBattleStarted")
+
+  -- A form some other mechanic already applied is left standing, the same
+  -- refusal M.apply already makes on Gen 1 -- exercised here so the Gen 2
+  -- arm cannot bypass it.
+  local dressed = gen2Mon("ROTOM", "WASHING_MACHINE")
+  dressed.form = "SOMETHING_ELSE"
+  Persistent.apply({ data = GEN2_DATA }, dressed)
+  T.eq(dressed.form, "SOMETHING_ELSE",
+    "a form another mechanic applied is not overwritten on Gen 2 either")
+
+  -- restore the Gen 1 binding: nothing after this point in the file reads
+  -- Persistent's bound deps, but a rebind keeps this section's fixture from
+  -- leaking into whatever runs after it if the file is ever reordered.
+  Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
+                    price = Stone.PRICE, battlerof = Battlerof })
+end
+
 -- ------- the shelf ---------------------------------------------------
 
 do

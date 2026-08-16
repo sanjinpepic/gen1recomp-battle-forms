@@ -151,6 +151,16 @@ end
 -- form is the baseline a battle form is laid over, not something that outranks
 -- one, and overwriting a mega here would undo mid-battle something the player
 -- only gets once.
+--
+-- deps.gen2 picks which primitive actually does the work, and it is a flag
+-- this module is bound with rather than anything read off `battler` -- Gen 2
+-- hands battle.player/battle.enemy in as the bare mon with no wrapper at all
+-- (src/battlerof.lua's own header), so `battler` having no `.mon` field is
+-- indistinguishable from a malformed Gen 1 payload and cannot be trusted to
+-- mean "this is Gen 2" (HANDOFF's own trap: gate on the generation, never on
+-- which shape a table happens to have).  deps.battlerof.mon still does the
+-- right thing on either shape -- it is what `mon` below already is -- so only
+-- the primitive itself needs to branch.
 function M.apply(battle, battler)
   local mon = deps.battlerof.mon(battler)
   if not mon or not battle then return end
@@ -160,7 +170,12 @@ function M.apply(battle, battler)
   local suffix = suffixOf(battle.data, formId)
   if mon.form and suffix and mon.form ~= suffix then return end
 
-  local ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
+  local ok, reason
+  if deps.gen2 then
+    ok, reason = deps.gen2forms.becomeForm(battle.data, mon, formId)
+  else
+    ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
+  end
   if not ok and deps.log then
     -- A guard that refuses must say so out loud.  There is no player action
     -- behind a send-out, so a silent refusal would show as a Rotom that is

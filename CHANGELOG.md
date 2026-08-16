@@ -3,6 +3,17 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.37.0
+
+### Added
+
+- **Persistent held-item forms now apply correctly in a Gold battle, and their real types and stats now show on Gold's own SUMMARY screen -- both still unreachable in a real game, because the items are not yet sold there.** `src/persistent.lua`'s send-out handler called `src/forms.lua`'s `becomeForm`, which assumes Gen 1's battler wrapper (`battler.mon`) -- on Gold, `battle.player`/`battle.enemy` already ARE the mon, so that call always found no target and applied nothing. `M.apply` now dispatches to `src/gen2forms.lua` instead when this boot is Gen 2, a flag read once at load the same way `national_dex`'s own `src/gen2shape.lua` reads the generation, rather than inferred from which fields a payload happens to carry. A new `src/gen2formview.lua`, modelled on `src/formview.lua`, draws the active form's types and stats over Gold's SUMMARY screen -- its own class, with its own page layout and `specialAttack`/`specialDefense` as two rows where Gen 1 shows one `special` -- recomputed fresh from the form's own record on every draw rather than trusted from `mon.stats`, because Gold's own level-up recomputes that field from the BASE species alone and would otherwise show stale numbers for a form the Pokemon is still genuinely wearing until its next battle corrects it again.
+- **Confirmed, empirically, that Gold's form data is already correctly shaped: no `gen2shape.lua`-style splitting is needed for alternate-form records.** This mod's own `data/*.lua` files are pairing tables (species -> item -> form id) carrying no stat blocks of any kind -- the concern flagged in 0.32.0 as unverified. The stats come from National Dex, whose `nationaldex.lua` runs every record in its `register` block, base species and the 326 alternate forms alike, through the same `gen2 and gen2shape.record(record) or record` line -- a form record is never `romOwned` (that check requires `record.form == nil`), so it always takes the reshaping branch on a Gold boot. Nothing needed building here.
+
+### Known
+
+- **The persistent forms are still unreachable in a real Gold game: the items are not sold anywhere on that game, and `manifest.json` still declares `gen1` alone.** Gold's shop stock has no registry route at all -- `text_pointers`, the registry `src/shop.lua` patches on Red/Blue/Yellow, is one of the six registries `Schemas.GEN2` marks as having no Gen 2 home outright, not merely a differently-shaped one, so a patch through it is silently dropped and reported. The raw table Gold's own mart screen reads (`game.data.gen2Marts`) has no registry pointing at it either, and which numeric mart id corresponds to which real shop is ROM-extracted at import time -- nothing in this source checkout names it, and guessing one risked shipping stock in the wrong shop, or none, with no way to verify it against a real cartridge. It stays unbuilt rather than shipped unverified. `manifest.json`'s `games` stays `["gen1"]` because of it: a mod that loads on Gold and half-works is worse than one that honestly does not load, and nothing here is buyable, so nothing here is a coherent feature yet.
+
 ## 0.36.0
 
 ### Fixed
