@@ -460,7 +460,15 @@ do
   T.eq(reshiram[Fusion.HELD], nil, "and the tag is gone")
   T.eq(kyurem[Fusion.STAMP], nil, "the Kyurem records no partner")
   T.eq(kyurem.form, nil, "and the marker went with it, so the save is clean")
-  T.check(msgs and #msgs == 2, "two message pages")
+  -- One message page, not two: the "came back from the PC!" line was cut,
+  -- for the same reason 0.28.0 cut fusing's "went into the PC!" line --
+  -- src/boxmark.lua's F marker is gone from the WITHDRAW and RELEASE lists
+  -- the moment the withdraw happens, which already answers "where is it
+  -- now" on screen, durably, rather than in a line printed once and gone.
+  T.check(msgs and #msgs == 1, "one message page -- the separation itself, "
+    .. "not where the partner came from")
+  T.check(msgs[1]:find("PC", 1, true) == nil,
+    "and it says nothing about the PC")
 end
 
 -- The right one of two, which is the whole reason the partner is tagged at all.

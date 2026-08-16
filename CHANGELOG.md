@@ -3,6 +3,23 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.33.0
+
+### Changed
+
+- **Splitting a fused Pokemon no longer prints a "came back from the PC!"
+  textbox.** The partner still comes out of the PC exactly as it did before
+  -- that has not changed -- but the player no longer has to read a message
+  to know it, for the same reason 0.28.0 dropped the matching line on the
+  way in: 0.24.0's `src/boxmark.lua` already marks a boxed fusion partner
+  with an F in the WITHDRAW and RELEASE lists and on its own STATS screen,
+  and that marker is simply gone the instant the withdraw happens, which
+  answers "where did it go" on screen rather than in a line printed once
+  and then gone. The one exception is the anomaly branch, where the partner
+  was released, traded or lost to a Game Boy `.sav` export: that page still
+  prints, because there is no marker for a Pokemon that never came back and
+  nowhere else for the player to learn it.
+
 ## 0.32.0
 
 ### Added

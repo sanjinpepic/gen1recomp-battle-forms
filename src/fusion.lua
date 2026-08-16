@@ -320,12 +320,18 @@ local function split(ctx, mon)
     return "failed", { "The party is\nfull!" }
   end
 
-  local message
+  -- One page, not two, on the ordinary path: the "came back from the PC!"
+  -- line is cut for the same reason 0.28.0 cut fusing's "went into the PC!"
+  -- one -- src/boxmark.lua's F marker is gone from the WITHDRAW and RELEASE
+  -- lists the instant the withdraw happens, which already answers "where is
+  -- it now" on screen rather than in a line printed once and gone. The
+  -- anomaly branch below still gets its own page: there is no marker for a
+  -- Pokemon that never came back, so the player has nowhere else to learn it.
+  local extra
   if partner then
     table.remove(Boxes.ensure(save)[box], slot)
     partner[M.HELD] = nil
     table.insert(save.party, partner)
-    message = nameOf(data, partner) .. " came\nback from the PC!"
   else
     -- The partner was released, traded or lost to a cartridge round trip.  The
     -- fusion is undone anyway: refusing here would leave the player holding a
@@ -338,12 +344,14 @@ local function split(ctx, mon)
           .. "Boy .sav export; the fusion was undone with nothing to return",
         tostring(mon.species), tostring(partnerSpecies))
     end
-    message = "The other PKMN\nwasn't in the PC!"
+    extra = "The other PKMN\nwasn't in the PC!"
   end
 
   mon[M.STAMP] = nil
   M.mark(data, mon)
-  return "kept", { nameOf(data, mon) .. "\nwas separated!", message }
+  local pages = { nameOf(data, mon) .. "\nwas separated!" }
+  if extra then pages[2] = extra end
+  return "kept", pages
 end
 
 -- The fusion items, as bag items used on a Pokemon.
