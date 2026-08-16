@@ -197,9 +197,24 @@ return function(mod)
   -- appliances and the other six held forms do.  Merged into the same
   -- persistentIndices table below alongside everything else.
   local driveIndices = m["data/drives.lua"]
+
+  -- Fetched here, ahead of persistent's own bind just below, rather than
+  -- beside the rest of the fifth family's setup where it used to sit: the
+  -- fifth family (fusion, right below) is not ready to be bound yet -- its
+  -- rows and indices are fetched after this point -- but persistent's own
+  -- M.mark needs the MODULE TABLE in hand now, to ask it a question before
+  -- falling back to clearing mon.form.  See src/persistent.lua's own comment
+  -- on M.mark for why: no species was ever supposed to be both a fusion base
+  -- and an appliance user, and Ultra Burst made Necrozma both.  The bind call
+  -- that actually wires fusion's own deps stays below, with the rest of that
+  -- family -- a module table is a valid thing to hold before it is bound,
+  -- since nothing calls into it until gameplay starts, well after every bind
+  -- in this file has run.
+  local fusion = m["src/fusion.lua"]
   persistent.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                     rows = persistentRows, log = mod.log,
-                    price = m["src/stone.lua"].PRICE, battlerof = battlerof })
+                    price = m["src/stone.lua"].PRICE, battlerof = battlerof,
+                    fusion = fusion })
 
   -- The fifth family, and the only one that does not go through the held-item
   -- stamp at all: a fusion is recorded by which partner went in, and the
@@ -207,7 +222,6 @@ return function(mod)
   -- appliances because it derives its form the same way, and deliberately NOT
   -- handed to src/stone.lua below -- moving a stamp has nothing to re-derive
   -- here, and a fused Kyurem given a Z-Crystal must keep its partner.
-  local fusion = m["src/fusion.lua"]
   local fusionRows = m["data/fusion.lua"]
   local fuserIndices = m["data/fusers.lua"]
   fusion.bind({ forms = m["src/forms.lua"], rows = fusionRows, log = mod.log,

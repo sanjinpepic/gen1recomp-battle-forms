@@ -106,14 +106,33 @@ end
 
 -- The out-of-battle write, and the only one.  Unconditional where M.settle is
 -- careful, because every caller of this is a bag action: nothing but a
--- persistent form can be on `mon.form` outside a battle, so there is nothing
--- here to be careful of.  Handing an appliance to a Rotom sets the marker;
--- handing that Rotom a Z-Crystal instead moves the stamp and this takes the
--- marker back off, which is what stops a Pokemon wearing a form the item it
--- holds no longer entitles it to.
+-- persistent form can be on `mon.form` outside a battle -- OR a fusion, which
+-- is the exception this function asks about before it acts like there is
+-- nothing here to be careful of.  Handing an appliance to a Rotom sets the
+-- marker; handing that Rotom a Z-Crystal instead moves the stamp and this
+-- takes the marker back off, which is what stops a Pokemon wearing a form the
+-- item it holds no longer entitles it to.
+--
+-- deps.fusion is asked FIRST in the fallback, matching src/resolve.lua's own
+-- party sweep and for the same reason it gives: no species was ever supposed
+-- to be both a fusion base and an appliance user, so asking fusion here cost
+-- nothing for 0.22.0 versions of this file. Ultra Burst broke that -- Necrozma
+-- is a fusion base (data/fusion.lua) AND an eligibility.STAMP user
+-- (data/ultraburst.lua, through src/stone.lua's PAIRED install, the same path
+-- every mega stone takes) -- so giving a fused Necrozma the crystal reached
+-- this function, M.settle found no data/persistent.lua row for Necrozma, and
+-- the unconditional `mon.form = nil` below wiped the Dusk Mane or Dawn Wings
+-- suffix src/fusion.lua had just set, with nothing about the fusion stamp or
+-- the crystal touched -- only the marker the party sprite actually reads.
+-- deps.fusion.settle is a pure re-derivation from that stamp, so asking it
+-- here remembers nothing new; it consults a stronger, pre-existing claim
+-- before assuming there is none.
 function M.mark(data, mon)
   if not mon then return false end
   if not M.settle(data, mon) then
+    if deps.fusion and deps.fusion.settle(data, mon) then
+      return false
+    end
     mon.form = nil
     return false
   end

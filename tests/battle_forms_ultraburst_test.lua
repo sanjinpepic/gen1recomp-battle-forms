@@ -15,6 +15,8 @@ local T = require("tests.modkit")
 local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local UltraBurst = dofile(MOD .. "/src/ultraburst.lua")
 local Fusion = dofile(MOD .. "/src/fusion.lua")
+local Persistent = dofile(MOD .. "/src/persistent.lua")
+local Stone = dofile(MOD .. "/src/stone.lua")
 local Announce = dofile(MOD .. "/src/announce.lua")
 local Anim = dofile(MOD .. "/src/anim.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
@@ -33,8 +35,12 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local ultraRows = dofile(MOD .. "/data/ultraburst.lua")
 local fusionRows = dofile(MOD .. "/data/fusion.lua")
+local fuserIndices = dofile(MOD .. "/data/fusers.lua")
+local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
+local persistentRows = dofile(MOD .. "/data/persistent.lua")
 local zRows = dofile(MOD .. "/data/zmoves.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
+local Boxes = require("src.pokemon.Boxes")
 
 local DATA = { pokemon = {
   NECROZMA = { name = "NECROZMA",
@@ -431,6 +437,125 @@ do
     "which fits the classic layout's " .. budget .. " pixels armed")
   T.check(#label <= 7,
     "and is inside the seven characters that budget is worth at all")
+end
+
+-- ---------------------------------------------------------------------
+-- End to end, through the real closures for every step: fuse, give the
+-- crystal, enter battle, press BURST, then let the battle end -- the
+-- reported flow, and the fix this suite exists to confirm rather than
+-- assume.  Before 0.35.0, giving the crystal here reached
+-- src/persistent.lua's M.mark, which could not resolve Necrozma against
+-- data/persistent.lua's own table and unconditionally cleared mon.form --
+-- so the party sprite reverted to plain Necrozma the moment the crystal was
+-- handed over, before BURST was ever pressed.
+--
+-- This is also the Bug 2 re-check: a second report said pressing BURST
+-- itself left the Pokemon as Dusk Mane.  Driving the real activate()
+-- closure (the block above, "Activation") could not reproduce that --
+-- activate() either fully transforms or fully refuses, and a refusal is
+-- always logged (the "missing national_dex record" block above).  There is
+-- no path through src/ultraburst.lua's own code where activate() returns
+-- true and leaves mon.form unchanged.  What this end-to-end run adds is the
+-- missing piece: the give-the-crystal step, immediately before BURST would
+-- have been pressed, was already silently destroying the very marker BURST
+-- reads its baseline from.  A player who fused, gave the crystal, and then
+-- either saw the corruption directly or pressed BURST against whatever was
+-- left of it was living through one defect, not two -- confirming the
+-- investigation's conclusion rather than inventing a second fix.
+do
+  local function fakeMod()
+    local mod = { items = {}, effects = {}, errors = {} }
+    mod.content = {
+      items = { register = function(_, id, record) mod.items[id] = record end },
+      item_effects = {
+        register = function(_, id, record) mod.effects[id] = record end },
+    }
+    mod.log = { error = function(_, fmt, ...)
+      mod.errors[#mod.errors + 1] = string.format(fmt, ...)
+    end }
+    return mod
+  end
+
+  local log, lines = makeLog()
+  -- Wired exactly as main.lua wires it as of 0.35.0: persistent is handed
+  -- fusion, so its M.mark can ask the same question src/resolve.lua's own
+  -- party sweep already asks first.
+  Fusion.bind({ forms = Forms, rows = fusionRows, log = log,
+                battlerof = Battlerof })
+  Persistent.bind({ forms = Forms, eligibility = E, rows = persistentRows,
+                    log = log, battlerof = Battlerof, fusion = Fusion })
+  Stone.bind(E, Persistent)
+  UltraBurst.bind({ forms = Forms, eligibility = E, fusion = Fusion,
+                     keyitems = KeyItems, rows = ultraRows, animId = Anim.ID,
+                     announce = Announce, log = log, battlerof = Battlerof })
+  Resolve.bind({ registry = Transforms.new(), forms = Forms, eligibility = E,
+                 megas = megas, persistent = Persistent, fusion = Fusion,
+                 battlerof = Battlerof })
+
+  local mon = { species = "NECROZMA", level = 60,
+                dvs = { hp = 15, attack = 15, defense = 15, speed = 15, special = 15 },
+                statExp = {}, hp = 250,
+                moves = { { id = "CONFUSION", pp = 25 } } }
+  mon.stats = { hp = 97, attack = 107, defense = 101, speed = 79, special = 127 }
+  local solgaleo = { species = "SOLGALEO", level = 60,
+                     dvs = { hp = 15, attack = 15, defense = 15, speed = 15, special = 15 },
+                     statExp = {}, hp = 250, moves = {} }
+  solgaleo.stats = { hp = 137, attack = 137, defense = 107, speed = 97, special = 113 }
+  local save = { party = { mon, solgaleo }, inventory = {} }
+  Boxes.ensure(save)
+
+  -- Step 1: fuse, through the real N-Solarizer item effect.
+  local fusionMod = fakeMod()
+  Fusion.install(fusionMod, fusionRows, fuserIndices)
+  local fuseResult = fusionMod.effects.N_SOLARIZER.use(
+    { data = DATA, save = save, target = mon })
+  T.eq(fuseResult, "kept", "step 1: the N-Solarizer fuses Necrozma with Solgaleo")
+  T.eq(mon.form, "DUSK", "and the party sprite is Dusk Mane before anything else happens")
+
+  -- Step 2: give the crystal, through the real item effect src/stone.lua's
+  -- PAIRED install registers -- the exact call main.lua makes for
+  -- data/ultraburst.lua.  This is the step 0.35.0 fixes.
+  local crystalMod = fakeMod()
+  Stone.install(crystalMod, ultraRows, ultraRows, ultraCrystalIndices)
+  crystalMod.effects.ULTRANECROZIUM_Z.use({ data = DATA, target = mon })
+  T.eq(mon[E.STAMP], "ULTRANECROZIUM_Z", "the crystal is now held")
+  T.eq(mon.form, "DUSK",
+    "step 2: and the fused party sprite survives being handed it -- this is "
+      .. "the 0.35.0 fix, proved through the real give-item closure rather "
+      .. "than a hand-set field")
+
+  -- Step 3: enter battle. The marker src/persistent.lua's onBattleStarted
+  -- would have swept is not this module's, so it is left exactly as it
+  -- arrived -- still Dusk Mane, not yet Ultra Necrozma.
+  local battle = makeBattle(mon, ZRING)
+  local state = UltraBurst.new()
+  T.eq(UltraBurst.entry(state).available(battle), true,
+    "step 3: with the Z-Ring, the crystal and the fusion all standing, BURST "
+      .. "is offered")
+
+  -- Step 4: press BURST.
+  T.eq(UltraBurst.entry(state).activate(battle), true, "step 4: BURST activates")
+  T.eq(mon.form, "ULTRA", "the form is now Ultra Necrozma")
+  T.eq(mon.species, "NECROZMA", "the species is still never touched")
+  T.check(battle.player.curStats.attack > mon.stats.attack,
+    "curStats follow Ultra Necrozma's own, higher, base attack")
+  T.eq(battle.player.curTypes[1], "PSYCHIC", "curTypes follow it too")
+  T.eq(battle.player.curTypes[2], "DRAGON", "including the second type")
+  T.eq(mon.stats.attack, 107, "while the save's own stat block is untouched")
+  T.check(#lines == 0, "no refusal was logged anywhere along the flow")
+
+  -- Step 5: the battle ends. src/resolve.lua's sweep asks fusion before it
+  -- asks persistent, exactly as it does for every other transformation here,
+  -- and Necrozma is still fused -- so the sweep lands back on Dusk Mane, not
+  -- on a plain Necrozma and not on Ultra Necrozma either.
+  Resolve.onBattleEnded({ battle = battle })
+  UltraBurst.onBattleEnded(state)
+  T.eq(mon.form, "DUSK",
+    "step 5: the battle ending reverts Ultra Burst to the fused baseline it "
+      .. "came from, exactly where step 1 left it")
+  T.eq(mon[Fusion.STAMP], "SOLGALEO",
+    "and the fusion itself -- what made any of this possible -- is still "
+      .. "standing, untouched by any of the five steps above")
 end
 
 T.finish("battle_forms_ultraburst")

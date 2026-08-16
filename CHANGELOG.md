@@ -3,6 +3,27 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.35.0
+
+### Fixed
+
+- **Giving a fused Necrozma Ultranecrozium Z reverted it to plain Necrozma in
+  the party menu.** Ultra Burst (0.22.0) made Necrozma both a fusion base
+  (`data/fusion.lua`) and an eligibility-stamp item user (`data/ultraburst.lua`,
+  through `src/stone.lua`'s paired install), which is exactly the case
+  `src/persistent.lua` assumed could never happen. Handing over the crystal
+  called `persistent.mark`, which could not find Necrozma in its own
+  `data/persistent.lua` table and unconditionally cleared `mon.form` --
+  wiping the Dusk Mane or Dawn Wings suffix `src/fusion.lua` had just set,
+  while leaving the fusion stamp and the crystal itself untouched. A second
+  report that pressing BURST left the Pokemon as Dusk Mane could not be
+  reproduced separately -- `activate()` always either fully transforms or
+  refuses loudly -- and reads as the same defect seen at a different moment,
+  since the marker was already gone by the time BURST was pressed.
+  `persistent.mark` now asks `src/fusion.lua` before it falls back to
+  clearing the marker, the same order `src/resolve.lua`'s own party sweep
+  already used for the identical reason.
+
 ## 0.34.0
 
 ### Fixed

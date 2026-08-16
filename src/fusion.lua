@@ -123,10 +123,19 @@ function M.settle(data, mon)
 end
 
 -- The out-of-battle write, and the only one.  Unconditional where M.settle is
--- careful, for src/persistent.lua's reason: every caller is a bag action, and
--- nothing but a persistent form or a fusion can be on mon.form outside a
--- battle.  No species is both a fusion base and an appliance user, so the two
--- can never be asked about the same Pokemon.
+-- careful, for src/persistent.lua's reason: every caller of THIS function is
+-- one of the two fusion items, and neither stamps eligibility.STAMP -- see
+-- the header above on why the item is not stamped -- so nothing this
+-- function's fallback could wipe was ever put there by data/persistent.lua's
+-- family.  That is a narrower claim than "no species is both a fusion base
+-- and an appliance user" -- Ultra Burst made that one false the day
+-- data/ultraburst.lua paired Necrozma through src/stone.lua's PAIRED install
+-- -- but the narrower one still holds: this function is never reached by
+-- giving an appliance, a mega stone, an orb or a crystal, only by using
+-- DNA_SPLICERS, N_SOLARIZER, N_LUNARIZER or REINS_OF_UNITY, so a persistent
+-- form has no route onto mon.form for this fallback to be careless about. The
+-- reverse direction -- an appliance or a crystal wiping a FUSION marker -- is
+-- src/persistent.lua's own M.mark, and that is the one Ultra Burst broke.
 function M.mark(data, mon)
   if not mon then return false end
   if not M.settle(data, mon) then
