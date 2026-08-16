@@ -570,6 +570,36 @@ do
   local anims = (run.data.battle_anims or {}).moveAnims or {}
   T.check(anims[GMax.idFor("GMAXWILDFIRE", 90)] ~= nil,
     "an animation is merged in for the G-Max roster too")
+
+  -- ---------------------------------------------------------------------
+  -- The trap named in src/gmaxmoves.lua's own header: zmovemenu.install may
+  -- only ever be called once, so a G-Max name that main.lua forgot to fold
+  -- into the SAME map handed to that one call would silently never draw --
+  -- "G-MAX WILDFIRE" would run straight into the move box border rather
+  -- than showing "WILDFIRE". Proven through the REAL classic FIGHT-menu
+  -- redraw src/zmovemenu.lua patched during the load above (Lua modules are
+  -- singletons through package.loaded, the same fact
+  -- tests/battle_forms_diag_test.lua's own real-loader block relies on) --
+  -- not a hand-built name map fed to src/zmovemenu.lua directly, which
+  -- would still pass even if main.lua itself never performed the merge.
+  -- ---------------------------------------------------------------------
+  local BattleState = require("src.battle.BattleState")
+  T.check(BattleState._battleFormsZMoveMenuPatched == true,
+    "the real classic FIGHT menu draw was actually wrapped by this load")
+
+  local Font = require("src.render.Font")
+  local drawn = {}
+  local originalDraw = Font.draw
+  Font.draw = function(text, x, y) drawn[#drawn + 1] = { text = text, x = x, y = y } end
+
+  local ok = pcall(BattleState.drawTextArea, { phase = "moveSelect",
+    player = { curMoves = { { id = GMax.idFor("GMAXWILDFIRE", 90) } } } })
+  Font.draw = originalDraw
+  T.check(ok, "the wrapped draw does not throw against a real G-Max move id")
+  T.eq(#drawn, 1, "the FIGHT menu redrew the one G-Max slot")
+  T.eq(drawn[1] and drawn[1].text, "WILDFIRE",
+    "with data/gmaxmoves.lua's own short menu name -- not the real, "
+      .. "fourteen-column \"G-MAX WILDFIRE\" the vanilla draw would have left")
 end
 
 T.finish("battle_forms_gmaxmoves")
