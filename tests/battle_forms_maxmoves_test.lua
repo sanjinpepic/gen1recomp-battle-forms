@@ -574,7 +574,9 @@ end
 do
   Resolve.bind({ registry = Transforms.new(), forms = Forms, eligibility = E,
                  megas = Megaset.select(dofile(MOD .. "/data/megas.lua"),
-                                        Megaset.ALL), battlerof = Battlerof })
+                                        Megaset.ALL),
+                 gigantamaxRows = { CHARIZARD = "CHARIZARD_GMAX" },
+                 battlerof = Battlerof })
   local state = Dynamax.new()
   local entry = Dynamax.entry(state)
   local battle = makeBattle("CHARIZARD")

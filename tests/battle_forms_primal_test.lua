@@ -98,7 +98,8 @@ registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
                                battlerof = Battlerof }))
 local function bindResolve(log)
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas, log = log, battlerof = Battlerof })
+                 megas = megas, primals = primals, log = log,
+                 battlerof = Battlerof })
 end
 bindResolve(nil)
 Overlay.bind({ registry = registry })

@@ -289,7 +289,7 @@ end
 -- the same primitive.  Dynamax has to be correct behind it, not just in front.
 do
   Resolve.bind({ registry = Transforms.new(), forms = Forms, eligibility = E,
-                 megas = megas, battlerof = Battlerof })
+                 megas = megas, gigantamaxRows = GIGANTAMAX, battlerof = Battlerof })
   local state = Dynamax.new()
   local entry = Dynamax.entry(state)
   local battle = makeBattle("CHARIZARD")
@@ -365,7 +365,7 @@ do
                                  announce = Announce, battlerof = Battlerof }))
   registry:register(Dynamax.entry(state))
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas, battlerof = Battlerof })
+                 megas = megas, gigantamaxRows = GIGANTAMAX, battlerof = Battlerof })
 
   local battle = makeBattle("CHARIZARD", "CHARIZARDITE_X")
   local arm = Arm.new()
@@ -418,7 +418,7 @@ do
   local entry = Dynamax.entry(state)
   registry:register(entry)
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas, battlerof = Battlerof })
+                 megas = megas, gigantamaxRows = GIGANTAMAX, battlerof = Battlerof })
 
   local battle = makeBattle("CHARIZARD", "CHARIZARDITE_X")
   local arm = Arm.new()
@@ -471,7 +471,7 @@ local function bothRegistered()
   registry:register(Dynamax.entry(Dynamax.new()))
   Overlay.bind({ registry = registry })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas, battlerof = Battlerof })
+                 megas = megas, gigantamaxRows = GIGANTAMAX, battlerof = Battlerof })
   return registry
 end
 

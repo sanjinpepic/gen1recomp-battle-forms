@@ -306,4 +306,87 @@ do
   T.eq(foe.form, nil, "and the enemy side, read off battle.enemyParty directly")
 end
 
+-- ---------------------------------------------------------------------
+-- Cross-mod correctness: a form marker this mod never set must survive the
+-- battle-end sweep and the faint handler untouched.
+--
+-- A sibling mod (wild_forms) marks caught regional and Minior forms with the
+-- identical field, mon.form, because that is the field the sprite registry
+-- reads regardless of which mod set it -- and that field OUTLIVES the
+-- battle for wild_forms exactly the way a persistent held-item form outlives
+-- one here.  The blunt fallback below used to assume "neither fusion nor
+-- persistent claims this mon" meant "so whatever is on mon.form is battle-
+-- scoped and safe to clear" -- true for every mechanic THIS mod has ever
+-- shipped, and false the moment a second mod reuses the same field for
+-- something that is never supposed to come off.  A VULPIX with no row in
+-- this mod's megas table is the proof: nothing here could ever have put
+-- "ALOLAN" there.
+-- ---------------------------------------------------------------------
+do
+  bindResolve(nil)
+  local foreign = newMon(false)
+  foreign.species = "VULPIX"
+  foreign.form = "ALOLAN"
+  local battle = makeBattle(false)
+  battle.game.save.party = { foreign }
+  Resolve.onBattleEnded({ battle = battle })
+  T.eq(foreign.form, "ALOLAN",
+    "a foreign form marker survives the battle-end sweep untouched")
+end
+
+do
+  bindResolve(nil)
+  local foreignMon = newMon(false)
+  foreignMon.species = "VULPIX"
+  foreignMon.form = "ALOLAN"
+  local foreignBattler = { isPlayer = true, mon = foreignMon,
+                           curStats = { attack = 999 }, curTypes = { "ICE" } }
+  Resolve.onFainted({ battle = makeBattle(false), battler = foreignBattler })
+  T.eq(foreignMon.form, "ALOLAN", "a foreign form marker survives fainting too")
+  T.eq(foreignBattler.curStats.attack, 999,
+    "and the OTHER mod's own battler-scoped override is left standing")
+  T.eq(foreignBattler.curTypes[1], "ICE", "curTypes too")
+end
+
+-- The Gen 2 half: mon.stats is a REAL save field there, so resetting it for
+-- a foreign form would touch a field this mod does not own, not merely a
+-- marker.
+do
+  bindGen2Resolve()
+  local foreign = gen2Mon()
+  foreign.species = "VULPIX"
+  foreign.form = "ALOLAN"
+  local originalAttack = foreign.stats.attack
+  Resolve.onFainted({ battle = { data = GEN2_DATA }, battler = foreign })
+  T.eq(foreign.form, "ALOLAN", "a foreign form marker survives fainting on Gen 2 too")
+  T.eq(foreign.stats.attack, originalAttack,
+    "and the real stats field the save writes is left completely alone")
+end
+
+do
+  bindGen2Resolve()
+  local foreign = gen2Mon()
+  foreign.species = "VULPIX"
+  foreign.form = "ALOLAN"
+  local originalAttack = foreign.stats.attack
+  Resolve.onBattleEnded({ battle = { data = GEN2_DATA, party = { foreign },
+                                     enemyParty = {} } })
+  T.eq(foreign.form, "ALOLAN", "and it survives the Gen 2 battle-end sweep too")
+  T.eq(foreign.stats.attack, originalAttack, "with stats untouched")
+end
+
+-- A leftover form this mod DID set is still cleared -- the fix is about not
+-- touching foreign markers, not about ceasing to clean up its own, so a
+-- benched mega left standing must still revert exactly as it always has.
+do
+  bindResolve(nil)
+  local ours = newMon(true)
+  Forms.becomeForm(DATA, { mon = ours }, "CHARIZARD_MEGA_X")
+  T.eq(ours.form, "MEGA_X", "precondition: this mod's own mega marker is set")
+  local battle = makeBattle(false)
+  battle.game.save.party = { ours }
+  Resolve.onBattleEnded({ battle = battle })
+  T.eq(ours.form, nil, "and still reverts, unlike the foreign one above")
+end
+
 T.finish("battle_forms_resolve")

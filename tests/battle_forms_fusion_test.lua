@@ -126,7 +126,7 @@ local messages, log = recorder()
 Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
               battlerof = Battlerof })
 Resolve.bind({ forms = Forms, eligibility = E, megas = megas, fusion = Fusion,
-               battlerof = Battlerof })
+               fusionRows = rows, battlerof = Battlerof })
 
 local function fakeMod()
   local mod = { items = {}, effects = {}, errors = {} }

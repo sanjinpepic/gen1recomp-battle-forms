@@ -113,7 +113,8 @@ local warnings, log = recorder()
 Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
                   price = Stone.PRICE, battlerof = Battlerof })
 Resolve.bind({ forms = Forms, eligibility = E, megas = megas,
-               persistent = Persistent, battlerof = Battlerof })
+               persistent = Persistent, persistentRows = rows,
+               battlerof = Battlerof })
 Stone.bind(E, Persistent)
 
 -- ------- the data table says what it means ---------------------------

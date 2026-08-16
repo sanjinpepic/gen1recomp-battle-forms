@@ -126,7 +126,8 @@ registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
                                announce = Announce, battlerof = Battlerof }))
 Overlay.bind({ registry = registry })
 Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-               megas = megas, battlerof = Battlerof })
+               megas = megas, primals = primals, conditionalRows = rows,
+               battlerof = Battlerof })
 
 local function newAdopter()
   local state = Arm.new()

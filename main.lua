@@ -632,12 +632,28 @@ return function(mod)
   -- Gen 2 battle; see src/resolve.lua's own header on M.onBattleEnded and
   -- M.onFainted for the full reasoning, including why M.onBattlerSwitched
   -- now refuses outright on Gen 2 instead of running Gen 1's reapply logic.
+  --
+  -- primals/conditionalRows/persistentRows/fusionRows/ultraRows/
+  -- gigantamaxRows are every OTHER pairing table this mod owns, all handed
+  -- in so src/resolve.lua's own ownsForm can tell a leftover form this mod
+  -- set apart from a marker a SIBLING mod set through the identical
+  -- mon.form field -- wild_forms marks caught regional and Minior forms
+  -- that way, and they are meant to outlive the battle exactly as a
+  -- persistent held-item form here does. Without these the party sweep and
+  -- the faint handler could no longer tell the two apart from either
+  -- direction: not only would a wild_forms marker have kept getting
+  -- deleted, this mod's OWN leftover markers (a benched mega, primal
+  -- reversion, a condition-driven form, a Gigantamax) would have stopped
+  -- clearing at all, since ownsForm would recognise nothing without them.
   local resolve = m["src/resolve.lua"]
   resolve.bind({ registry = registry, forms = m["src/forms.lua"],
                  eligibility = eligibility, megas = megas, log = mod.log,
                  persistent = persistent, fusion = fusion,
                  dragonascent = dragonascent, zcrystals = zcrystals,
-                 battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms })
+                 battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms,
+                 primals = primals, conditionalRows = m["data/conditional.lua"],
+                 persistentRows = persistentRows, fusionRows = fusionRows,
+                 ultraRows = ultraRows, gigantamaxRows = m["data/gigantamax.lua"] })
 
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,

@@ -23,6 +23,91 @@ function M.bind(modules)
   deps = modules
 end
 
+-- Whether mon.form is a suffix ANY of this mod's own pairing tables could
+-- have produced for mon.species -- not necessarily the one it is entitled to
+-- RIGHT NOW (a stone taken away, a fusion already undone), only whether the
+-- shape is this mod's at all.
+--
+-- WHY THIS EXISTS.  The faint handler and the battle-end sweep below used to
+-- assume "fusion and persistent both say this mon is not theirs" meant "so
+-- whatever is on mon.form is battle-scoped and safe to clear" -- true for
+-- every mechanic this mod has ever shipped, and false the moment a SIBLING
+-- mod marks a Pokemon through the identical field for a reason of its own.
+-- wild_forms marks caught regional and Minior forms with mon.form, because
+-- that is the field the sprite registry reads regardless of which mod set
+-- it, and that marker outlives the battle the same way a persistent held-
+-- item form does here -- so a party mon carrying one, with no row in any
+-- table below, was having it silently deleted at the end of the next battle
+-- this mod happened to be loaded for.  A marker this function does not
+-- recognise belongs to a mechanic this mod has never heard of and must be
+-- left standing; see M.onBattleEnded's and M.onFainted's own headers for
+-- where that now matters.
+--
+-- Every pairing table this mod owns is listed here by the shape it carries,
+-- because there is no field on a national_dex record that names which mod's
+-- pairing table produced it -- enumeration is the only way to ask "is this
+-- ours" at all.  A pairing table added anywhere else in this mod belongs on
+-- this list too, or this function quietly starts treating that table's own
+-- markers as foreign the moment a species collides with something else that
+-- clears them.
+local function suffixOf(data, formId)
+  local record = data and data.pokemon and data.pokemon[formId]
+  local suffix = record and record.form
+  return (type(suffix) == "string" and suffix ~= "") and suffix or nil
+end
+
+-- species -> item -> formId: megas, primal reversion, the persistent
+-- held-item families and Ultra Burst all share this shape (src/eligibility.
+-- lua's own M.formFor).
+local function fromFlat(rows, species, data, form)
+  local byItem = rows and species and rows[species]
+  if type(byItem) ~= "table" then return false end
+  for _, formId in pairs(byItem) do
+    if suffixOf(data, formId) == form then return true end
+  end
+  return false
+end
+
+-- species -> item -> partner species -> formId: fusion's own three-level
+-- shape (src/fusion.lua's own M.formIdFor).
+local function fromFusion(rows, species, data, form)
+  local byItem = rows and species and rows[species]
+  if type(byItem) ~= "table" then return false end
+  for _, byPartner in pairs(byItem) do
+    if type(byPartner) == "table" then
+      for _, formId in pairs(byPartner) do
+        if suffixOf(data, formId) == form then return true end
+      end
+    end
+  end
+  return false
+end
+
+local function ownsForm(battle, mon)
+  if not mon or not mon.form or not mon.species then return false end
+  local data, species, form = battle and battle.data, mon.species, mon.form
+  if fromFlat(deps.megas, species, data, form) then return true end
+  if fromFlat(deps.primals, species, data, form) then return true end
+  if fromFlat(deps.persistentRows, species, data, form) then return true end
+  if fromFlat(deps.ultraRows, species, data, form) then return true end
+  if fromFusion(deps.fusionRows, species, data, form) then return true end
+  -- species -> { form = formId, ... }: src/conditional.lua's one-row-per-
+  -- species shape (data/conditional.lua's own header).
+  local conditionalRow = deps.conditionalRows and deps.conditionalRows[species]
+  if conditionalRow and suffixOf(data, conditionalRow.form) == form then
+    return true
+  end
+  -- species -> formId directly: data/gigantamax.lua's own flattest shape.
+  -- Dynamax relies on THIS sweep to take a Gigantamax marker off at battle
+  -- end (src/dynamax.lua's own header: "src/resolve.lua has already swept
+  -- both parties and reverted every form, so there is nothing left to take
+  -- off"), so leaving this table out would silently reopen the identical bug
+  -- for every Gigantamax species the moment this fix landed.
+  local gigaFormId = deps.gigantamaxRows and deps.gigantamaxRows[species]
+  if gigaFormId and suffixOf(data, gigaFormId) == form then return true end
+  return false
+end
+
 -- The once-per-battle limit is spent here rather than inside the entry, so
 -- every mechanic that ever registers gets the same rule from the same place:
 -- an activation that answers false was refused, and a refusal must not spend
@@ -142,13 +227,24 @@ end
 -- battle, always right on screen" contract already established for mega and
 -- persistent forms; a mon NEITHER claims ends with mon.stats correctly at
 -- base with nothing left to paper over it.
+--
+-- Both the Gen 2 revert and the Gen 1 blunt clear below are now guarded by
+-- ownsForm: a mon whose CURRENT mon.form is not a suffix any table this mod
+-- owns could have produced is left standing completely untouched, on both
+-- generations -- see ownsForm's own header for why that guard exists at
+-- all. Asked before fusion/persistent get a chance to claim the mon, not
+-- instead of them: a genuinely fused or persistent mon's marker IS one of
+-- ours (persistentRows/fusionRows are both on ownsForm's own list), so this
+-- changes nothing about the two claimant branches below -- only the final
+-- fallback, and the Gen 2 pre-revert that used to run unconditionally ahead
+-- of them.
 local function settle(battle, mon)
-  if deps.gen2 and deps.gen2forms then
+  if deps.gen2 and deps.gen2forms and ownsForm(battle, mon) then
     deps.gen2forms.revertMon(mon, battle.data)
   end
   if deps.fusion and deps.fusion.settle(battle.data, mon) then return end
   if deps.persistent and deps.persistent.settle(battle.data, mon) then return end
-  if not deps.gen2 then deps.forms.revertMon(mon) end
+  if not deps.gen2 and ownsForm(battle, mon) then deps.forms.revertMon(mon) end
 end
 
 -- The party this sweep walks is read differently per generation because the
@@ -206,12 +302,20 @@ function M.onFainted(ev)
     return
   end
 
-  deps.forms.revertForm(ev.battler, battle.data, battle)
+  -- Guarded by ownsForm for the identical reason settle() is: revertForm
+  -- resets battler.curStats/curTypes from the BASE species record as well as
+  -- clearing mon.form, and a mon fainting with a foreign mod's own form
+  -- marker on it is also, very plausibly, standing on that OTHER mod's own
+  -- battler-scoped override -- overwriting curStats/curTypes here would
+  -- undo that override too, not merely clear a marker.
+  local mon = deps.battlerof.mon(ev.battler)
+  if ownsForm(battle, mon) then
+    deps.forms.revertForm(ev.battler, battle.data, battle)
+  end
   -- A fusion is put back for the same reason and more strongly: an appliance
   -- form is what a Rotom looks like, where this one is a Pokemon with another
   -- Pokemon in the PC behind it, and the party menu is exactly where a player
   -- would see it claiming to be plain again.
-  local mon = deps.battlerof.mon(ev.battler)
   if deps.fusion and deps.fusion.settle(battle.data, mon) then return end
   if deps.persistent then
     deps.persistent.settle(battle.data, mon)

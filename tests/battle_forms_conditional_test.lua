@@ -86,7 +86,7 @@ registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
                                keyitems = KeyItems, animId = "TESTANIM",
                                battlerof = Battlerof }))
 Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-               megas = megas, battlerof = Battlerof })
+               megas = megas, conditionalRows = rows, battlerof = Battlerof })
 Overlay.bind({ registry = registry })
 
 local function newMon(species, level, held)
