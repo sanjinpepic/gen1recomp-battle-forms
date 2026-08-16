@@ -307,6 +307,34 @@ function M.primal(source, battle, mon, formId, became, reason)
   M.note(battle, answer, "%s", answer)
 end
 
+-- One condition-driven form decision, from whichever handler made it.
+-- Deduplicated on the whole answer the same way M.primal is, for the same
+-- reason: a mon re-checked every end of turn or every hit taken repeating the
+-- same answer is one finding, not twenty lines of it.
+--
+-- Unlike a primal reversion there are two directions (enter/leave) and a
+-- fifth field a primal attempt never has -- `power`, the move's own, non-nil
+-- only for a move_kind row's own battle.move_used check -- because that is
+-- the one trigger whose decision reads something beyond the mon and the row
+-- itself. `row` is data/conditional.lua's own row, or nil when the mon's
+-- species names no row at all; `action` is what this call actually attempted
+-- ("enter", "leave", or "skip" for a row that matched but whose trigger was
+-- the wrong kind for the event asking); `became`/`reason` are becomeForm's or
+-- revertMon's own answer, both nil when nothing was actually called.
+function M.conditional(source, battle, mon, row, power, action, became, reason)
+  if not M.enabled() then return end
+  local pokemon = battle and battle.data and battle.data.pokemon
+  local formId = row and row.form
+  local answer = ("conditional: %s species=%s trigger=%s power=%s form=%s "
+      .. "record=%s action=%s became=%s%s"):format(
+    tostring(source), tostring(mon and mon.species), tostring(row and row.trigger),
+    tostring(power), tostring(formId),
+    tostring(formId ~= nil and pokemon ~= nil and pokemon[formId] ~= nil),
+    tostring(action), tostring(became),
+    reason ~= nil and (" (" .. tostring(reason) .. ")") or "")
+  M.note(battle, answer, "%s", answer)
+end
+
 function M.onBattleEnded()
   emit("battle.ended")
   scope, session, reached, faulted = nil, nil, {}, {}

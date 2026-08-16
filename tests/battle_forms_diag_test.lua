@@ -460,6 +460,141 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- Condition-driven forms, through the real module: src/conditional.lua
+-- shipped a whole release with no diagnostic at all, unlike src/primal.lua
+-- beside it -- exactly the asymmetry that turned a real Aegislash report
+-- into a guess instead of a one-line answer. This pins that the trace now
+-- says, for every refused or skipped attempt, the species, the row it
+-- matched (or did not), the move's power where one applies, and
+-- becomeForm's/revertMon's own reason.
+-- ---------------------------------------------------------------------
+do
+  local CONDITIONAL_DATA = { pokemon = {
+    AEGISLASH = { baseStats = { hp = 60, attack = 50, defense = 140,
+                                speed = 60, special = 50 },
+                  types = { "STEEL", "GHOST" } },
+    AEGISLASH_BLADE = { baseStats = { hp = 60, attack = 140, defense = 50,
+                                      speed = 60, special = 140 },
+                        types = { "STEEL", "GHOST" }, form = "BLADE" },
+  } }
+  local conditionalRows = { AEGISLASH = { form = "AEGISLASH_BLADE", trigger = "move_kind" } }
+
+  local function aegislash()
+    return { species = "AEGISLASH", level = 50, hp = 200,
+             dvs = { hp = 15, attack = 15, defense = 15, speed = 15, special = 15 },
+             statExp = {},
+             stats = { hp = 200, attack = 55, defense = 154, speed = 66, special = 55 } }
+  end
+
+  -- A successful stance change: species, row, power and becomeForm's own
+  -- `true` all land on one line.
+  do
+    local mod = fakeMod()
+    mod.option = "on"
+    local kit = newDiag(mod)
+    local Conditional = dofile(MOD .. "/src/conditional.lua")
+    local Forms = dofile(MOD .. "/src/forms.lua")
+    Conditional.bind({ forms = Forms, rows = conditionalRows,
+                       battlerof = Battlerof, diag = kit.diag })
+
+    local mon = aegislash()
+    local battler = { mon = mon, isPlayer = true, curStats = mon.stats,
+                      curTypes = CONDITIONAL_DATA.pokemon.AEGISLASH.types }
+    local battle = { data = CONDITIONAL_DATA }
+    Conditional.onMoveUsed({ battle = battle, user = battler, move = { power = 80 } })
+
+    T.eq(mon.form, "BLADE", "precondition: the real primitive actually dressed it")
+    local line = firstMatching(mod, "conditional: move_used species=AEGISLASH")
+    T.check(line ~= nil, "the handler and the species are named")
+    T.check(line:find("trigger=move_kind", 1, true) ~= nil, "and the row it matched")
+    T.check(line:find("power=80", 1, true) ~= nil, "and the move's own power")
+    T.check(line:find("form=AEGISLASH_BLADE", 1, true) ~= nil, "and the target form")
+    T.check(line:find("record=true", 1, true) ~= nil, "whether that record exists")
+    T.check(line:find("action=enter", 1, true) ~= nil, "what was attempted")
+    T.check(line:find("became=true", 1, true) ~= nil, "and what becomeForm said")
+  end
+
+  -- The exact refusal that shipped silently: a form record the species table
+  -- has no entry for. becomeForm's own reason must survive onto the line.
+  do
+    local mod = fakeMod()
+    mod.option = "on"
+    local kit = newDiag(mod)
+    local Conditional = dofile(MOD .. "/src/conditional.lua")
+    local Forms = dofile(MOD .. "/src/forms.lua")
+    Conditional.bind({ forms = Forms, rows = conditionalRows,
+                       battlerof = Battlerof, diag = kit.diag })
+
+    local mon = aegislash()
+    local battler = { mon = mon, isPlayer = true, curStats = mon.stats,
+                      curTypes = { "STEEL", "GHOST" } }
+    local orphanData = { pokemon = { AEGISLASH = CONDITIONAL_DATA.pokemon.AEGISLASH } }
+    Conditional.onMoveUsed({ battle = { data = orphanData }, user = battler,
+      move = { power = 40 } })
+
+    T.eq(mon.form, nil, "precondition: becomeForm really refused")
+    local line = firstMatching(mod, "conditional: move_used species=AEGISLASH")
+    T.check(line:find("record=false", 1, true) ~= nil,
+      "the missing record is stated")
+    T.check(line:find("became=nil", 1, true) ~= nil, "becomeForm's own nil")
+    T.check(line:find("no_record", 1, true) ~= nil,
+      "and becomeForm's own refusal reason comes through, unlike before this "
+        .. "pass when nothing said why the stance never changed")
+  end
+
+  -- A species with a row for a DIFFERENT trigger (Darmanitan attacking, say)
+  -- is reported as a mismatch, not left silent -- which from a chair in
+  -- front of the game looks identical to "no row was found at all".
+  do
+    local mod = fakeMod()
+    mod.option = "on"
+    local kit = newDiag(mod)
+    local Conditional = dofile(MOD .. "/src/conditional.lua")
+    local Forms = dofile(MOD .. "/src/forms.lua")
+    local hpRows = { DARMANITAN = { form = "DARMANITAN_ZEN", trigger = "hp" } }
+    Conditional.bind({ forms = Forms, rows = hpRows, battlerof = Battlerof,
+                       diag = kit.diag })
+
+    local mon = { species = "DARMANITAN", level = 50, hp = 100,
+                  stats = { hp = 100 } }
+    local battler = { mon = mon, isPlayer = true }
+    Conditional.onMoveUsed({ battle = { data = { pokemon = {} } }, user = battler,
+      move = { power = 90 } })
+
+    local line = firstMatching(mod, "conditional: move_used species=DARMANITAN")
+    T.check(line ~= nil, "a row that matched the wrong trigger is still reported")
+    T.check(line:find("action=skip", 1, true) ~= nil, "as a skip, not an attempt")
+    T.check(line:find("not move_kind", 1, true) ~= nil,
+      "naming the trigger this row actually has")
+  end
+
+  -- Reverting: a status move takes the form back off, and that success is
+  -- traced too.
+  do
+    local mod = fakeMod()
+    mod.option = "on"
+    local kit = newDiag(mod)
+    local Conditional = dofile(MOD .. "/src/conditional.lua")
+    local Forms = dofile(MOD .. "/src/forms.lua")
+    Conditional.bind({ forms = Forms, rows = conditionalRows,
+                       battlerof = Battlerof, diag = kit.diag })
+
+    local mon = aegislash()
+    mon.form = "BLADE"
+    local battler = { mon = mon, isPlayer = true,
+                      curStats = CONDITIONAL_DATA.pokemon.AEGISLASH_BLADE.baseStats,
+                      curTypes = CONDITIONAL_DATA.pokemon.AEGISLASH_BLADE.types }
+    Conditional.onMoveUsed({ battle = { data = CONDITIONAL_DATA }, user = battler,
+      move = { power = 0 } })
+
+    T.eq(mon.form, nil, "precondition: the status move reverted it")
+    local line = firstMatching(mod, "conditional: move_used species=AEGISLASH")
+    T.check(line:find("action=leave", 1, true) ~= nil, "the leave half is named too")
+    T.check(line:find("power=0", 1, true) ~= nil, "with the status move's own zero power")
+  end
+end
+
+-- ---------------------------------------------------------------------
 -- Question 1 and question 3, through src/menu.lua's real install: what
 -- was wrapped, and whether the wrappers are the functions the engine
 -- calls.  The engine classes are stubbed into package.loaded so nothing

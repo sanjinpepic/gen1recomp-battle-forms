@@ -696,9 +696,13 @@ return function(mod)
   -- mega's and primal's own Gen 2 branches needed; deps.forms.becomeForm's
   -- battler.mon wrapper simply does not exist on Gold, and that alone was
   -- the whole of the Aegislash report.
+  -- diag is handed in the same way src/primal.lua's own bind already gets
+  -- it -- this module shipped a full release with no diagnostic at all,
+  -- which is exactly what left a later report of this same shape (Aegislash
+  -- not changing stance) guesswork instead of a one-line answer.
   local conditional = m["src/conditional.lua"]
   conditional.bind({ forms = m["src/forms.lua"],
-                     rows = m["data/conditional.lua"], log = mod.log,
+                     rows = m["data/conditional.lua"], log = mod.log, diag = diag,
                      battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms })
 
   -- Decision only: overlay says which registered transformations are on offer

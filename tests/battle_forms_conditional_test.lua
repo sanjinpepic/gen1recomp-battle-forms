@@ -607,4 +607,171 @@ do
   Conditional.bind({ forms = Forms, rows = rows, battlerof = Battlerof })
 end
 
+-- ---------------------------------------------------------------------
+-- Through the real loader, the real national_dex_mod (not a stub) and a
+-- real, hand-fired battle.move_used -- the discipline this session's own
+-- brief demands after "menu code proving correct in isolation while
+-- unreachable in play" cost this repo twice already. The section above
+-- proves src/conditional.lua's own logic is right given a correctly-shaped
+-- record; this proves the record IS correctly shaped once it comes out of
+-- national_dex's real Gen 2 registration pipeline (src/gen2shape.lua's
+-- baseStats.special -> specialAttack/specialDefense reshape, AEGISLASH_BLADE
+-- included, since its own dex number is 681 and therefore never ROM-owned)
+-- and that main.lua's real conditional.bind -- diag included -- actually
+-- reaches battle.move_used through the real Runtime event bus.
+--
+-- national_dex_mod's own NATIONAL DEX option defaults OFF (main.lua:51), and
+-- a Pokemon numbered past 251 like Aegislash does not exist at all with it
+-- off -- so a fixture representative of the reported save has to force it on
+-- the same way a player who owns a real Aegislash must have. Loader:_loadState
+-- reads that from an "options.lua" file on the SAME filesystem the mods
+-- load from (SaveData.loadOptions), which is why this needs a small
+-- alias+override filesystem rather than tests.modkit.sdk's own memfs or its
+-- real-directory alias alone.
+-- ---------------------------------------------------------------------
+do
+  local FsIo = require("tests.fs_io")
+  local inner = FsIo.new(".")
+  local alias = { national_dex_mod = MOD .. "/../national_dex_mod",
+                  battle_forms_mod = MOD }
+  local OPTIONS_LUA =
+    'return { modOptions = { national_dex = { national_dex = "on" } } }'
+
+  local function map(path)
+    if path == nil then return path end
+    for name, real in pairs(alias) do
+      local prefix = "mods/" .. name
+      if path == prefix then return real end
+      if path:sub(1, #prefix + 1) == prefix .. "/" then
+        return real .. path:sub(#prefix + 1)
+      end
+    end
+    return path
+  end
+
+  -- Writes stay entirely in memory, never reaching the real tree: this
+  -- harness reads two mods' real source but must never leave a real
+  -- `options.lua` (or anything else) behind in `game/`, which an earlier
+  -- draft of this fixture did by forwarding every write straight through
+  -- `inner` -- caught by finding the stray file after a run, not by any
+  -- check here, which is why writes are captured rather than delegated now.
+  local written = {}
+  local fs = {}
+  function fs.read(path)
+    if path == "options.lua" then return OPTIONS_LUA end
+    if written[path] ~= nil then return written[path] end
+    return inner.read(map(path))
+  end
+  function fs.write(path, body) written[path] = body return true end
+  function fs.load(path)
+    if path == "options.lua" then return load(OPTIONS_LUA, path) end
+    return inner.load(map(path))
+  end
+  function fs.getInfo(path)
+    if path == "mods" then return { type = "directory" } end
+    if path == "options.lua" then return { type = "file" } end
+    return inner.getInfo(map(path))
+  end
+  function fs.getDirectoryItems(path)
+    if path == "mods" then
+      local names = {}
+      for name in pairs(alias) do names[#names + 1] = name end
+      table.sort(names)
+      return names
+    end
+    return inner.getDirectoryItems(map(path))
+  end
+
+  local data = T.fixtures.fresh()
+  -- Read directly in the entry chunk (src/gen2shape.lua's own M.generation),
+  -- before mods:load runs -- the identical seed
+  -- battle_forms_gen2menu_test.lua's own "through the real loader" section
+  -- uses, and HANDOFF.md's own documented gap if it is skipped: the SDK does
+  -- not populate this from opts.generation, and every species would register
+  -- Gen 1-shaped (a collapsed `special`, no `specialAttack`) instead.
+  data.gen2Constants = { generation = 2 }
+
+  local run = T.sdk.loadMods({ "national_dex_mod", "battle_forms_mod" },
+    { fs = fs, generation = 2, data = data })
+
+  -- national_dex_mod's own moves/growth_rates gaps are pre-existing and
+  -- documented (battle_forms_gen2menu_test.lua's own comment on the same two
+  -- IDs); a real AEGISLASH_BLADE registration failure would be a THIRD,
+  -- different message and must not be waved through by this filter.
+  for _, err in ipairs(run.errors) do
+    T.check(err:find("unresolved reference to move_effects", 1, true) ~= nil
+      or err:find("text_pointers registry has no Gen 2 target", 1, true) ~= nil
+      or err:find("unresolved reference to growth_rates", 1, true) ~= nil
+      or err:find("unresolved reference to evolution_methods", 1, true) ~= nil,
+      "every load error is a known, pre-existing gap, not a new one: " .. err)
+  end
+
+  local aegi = run.data.pokemon and run.data.pokemon.AEGISLASH
+  local blade = run.data.pokemon and run.data.pokemon.AEGISLASH_BLADE
+  T.check(aegi ~= nil,
+    "AEGISLASH itself actually registered on this Gen 2 load -- the "
+      .. "assertion 0.27.1's Gold registration bug (1238 species silently "
+      .. "refused) would fail")
+  T.check(blade ~= nil, "and so did its BLADE form record")
+  T.eq(blade and blade.form, "BLADE", "carrying the real form suffix")
+  T.eq(blade and blade.baseStats and blade.baseStats.specialAttack, 140,
+    "reshaped into the real Gen 2 split by src/gen2shape.lua -- the source "
+      .. "record only carries the collapsed `special` plus a top-level "
+      .. "spAttack/spDefense pair")
+  T.eq(blade and blade.baseStats and blade.baseStats.specialDefense, 50,
+    "both halves of the split, not just one")
+
+  local mon = { species = "AEGISLASH", level = 50, dvs = {}, statExp = {},
+                hp = 200 }
+  local Mon2Real = require("src.battle.gen2.Mon")
+  mon.stats = Mon2Real.stats(aegi.baseStats, {}, 50, {})
+  local baseAttack = mon.stats.attack
+
+  local engineBattle = { data = run.data, player = mon,
+                         enemy = { species = "AEGISLASH", hp = 1,
+                                   stats = { hp = 1 } } }
+  run.loader.events:emit("battle.started", { battle = engineBattle })
+  T.eq(mon.form, nil, "precondition: nothing has dressed it yet")
+
+  -- The exact shape of the bug report: a real attacking move, through the
+  -- real Runtime event bus, reaching the real main.lua-wired conditional.lua.
+  run.loader.events:emit("battle.move_used", { battle = engineBattle,
+    user = mon, target = engineBattle.enemy, move = { power = 35, id = "TACKLE" },
+    moveId = "TACKLE", side = "player" })
+
+  T.eq(mon.form, "BLADE",
+    "an attacking move drew the real Blade Forme through the real, fully "
+      .. "wired mod -- the assertion that would fail if conditional.bind "
+      .. "were never reached, main.lua stopped passing gen2/gen2forms, or "
+      .. "this event were unwired end to end")
+  T.check(mon.stats.attack ~= baseAttack, "and the real mon.stats field moved")
+  T.same(mon.formTypes, blade.types, "and formTypes carries the Blade typing")
+
+  run.loader.events:emit("battle.move_used", { battle = engineBattle,
+    user = mon, target = engineBattle.enemy, move = { power = 0, id = "SWORDSDANCE" },
+    moveId = "SWORDSDANCE", side = "player" })
+  T.eq(mon.form, nil, "and a status move reverted it back through the same real path")
+
+  run.release()
+end
+
+-- ---------------------------------------------------------------------
+-- main.lua's own conditional.bind call actually hands the diagnostic to
+-- src/conditional.lua, the same way src/primal.lua's own bind already does
+-- -- pinned against the real source text so removing `diag = diag` there
+-- (this module shipped a whole release without it) is caught here rather
+-- than only by a player's own unexplained bug report.
+-- ---------------------------------------------------------------------
+do
+  local handle = assert(io.open(MOD .. "/main.lua", "rb"))
+  local mainSrc = handle:read("*a")
+  handle:close()
+  local bindCall = mainSrc:match("conditional%.bind%(%{.-%}%)")
+  T.check(bindCall ~= nil,
+    "main.lua's own conditional.bind call was read back out of its source")
+  T.check(bindCall and bindCall:find("diag%s*=%s*diag") ~= nil,
+    "and it hands src/diag.lua the diagnostic in, the one thing missing "
+      .. "before this pass")
+end
+
 T.finish("battle_forms_conditional")

@@ -54,20 +54,36 @@ end
 -- raw mon never has, so `enter`/`leave` silently refused ("no_target") on
 -- every one of the eight species this table names, event correctly
 -- received, row correctly resolved, primitive finding nothing to write to.
-local function enter(battle, battler, row)
+--
+-- `source` names the calling handler and `power` is a move_kind check's own
+-- move power (nil everywhere else) -- both exist for deps.diag alone, the
+-- same reason src/primal.lua's own transform() takes a `source` string.
+-- Unlike primal.lua this module went a full release with NO tracing at all,
+-- which is exactly what turned the Aegislash report into a guess: the event
+-- reached, the row matched, and nothing said why the stance never changed.
+local function enter(battle, battler, row, source, power)
   local mon = deps.battlerof.mon(battler)
   -- A conditional form only ever dresses a mon that is in its base form.
   -- Greninja is both a Battle Bond species and an extended mega, so a
   -- knockout can land on a mon that already spent the trainer's one mega for
   -- the battle -- and overwriting that would undo, silently and permanently,
   -- something the player only gets once.
-  if mon.form and not wearing(battle, mon, row) then return end
+  if mon.form and not wearing(battle, mon, row) then
+    if deps.diag then
+      deps.diag.conditional(source, battle, mon, row, power, "enter", false,
+        "already wearing a different form")
+    end
+    return
+  end
 
   local ok, reason
   if deps.gen2 then
     ok, reason = deps.gen2forms.becomeForm(battle.data, mon, row.form)
   else
     ok, reason = deps.forms.becomeForm(battle.data, battler, row.form, battle)
+  end
+  if deps.diag then
+    deps.diag.conditional(source, battle, mon, row, power, "enter", ok, reason)
   end
   if not ok and deps.log then
     -- A guard that refuses must say so out loud.  There is no player action
@@ -83,14 +99,28 @@ end
 
 -- Only ever takes off the row's own form.  A mon wearing anything else is
 -- wearing it because another transformation type put it there, and unwinding
--- that is not this module's to do.
-local function leave(battle, battler, row)
+-- that is not this module's to do.  Not wearing it at all is the common case
+-- for every trigger but hp/turn_end (re-checked on a mon that never entered),
+-- and traced anyway -- deps.diag.note collapses the repeats to one line, and
+-- the alternative is a silent no-op indistinguishable from becomeForm having
+-- refused.
+local function leave(battle, battler, row, source, power)
   local mon = deps.battlerof.mon(battler)
-  if not wearing(battle, mon, row) then return end
+  if not wearing(battle, mon, row) then
+    if deps.diag then
+      deps.diag.conditional(source, battle, mon, row, power, "leave", nil,
+        "not currently wearing this row's form")
+    end
+    return
+  end
+  local ok, reason
   if deps.gen2 then
-    deps.gen2forms.revertMon(mon, battle.data)
+    ok, reason = deps.gen2forms.revertMon(mon, battle.data)
   else
-    deps.forms.revertForm(battler, battle.data, battle)
+    ok, reason = deps.forms.revertForm(battler, battle.data, battle)
+  end
+  if deps.diag then
+    deps.diag.conditional(source, battle, mon, row, power, "leave", ok, reason)
   end
 end
 
@@ -110,7 +140,7 @@ end
 -- form-blind: mon.form survived the bench but curStats and curTypes came back
 -- seeded from the base species, so a mon whose condition still holds needs the
 -- override applied again even though it already reads as wearing the form.
-local function syncHp(battle, battler, force)
+local function syncHp(battle, battler, force, source)
   local mon = deps.battlerof.mon(battler)
   local row = rowFor(mon)
   if not row or row.trigger ~= "hp" then return end
@@ -121,9 +151,11 @@ local function syncHp(battle, battler, force)
   local want = hpWants(row, mon)
   if want == nil then return end
   if want then
-    if force or not wearing(battle, mon, row) then enter(battle, battler, row) end
+    if force or not wearing(battle, mon, row) then
+      enter(battle, battler, row, source)
+    end
   else
-    leave(battle, battler, row)
+    leave(battle, battler, row, source)
   end
 end
 
@@ -131,14 +163,14 @@ end
 -- scratch, because the answer can have changed while the mon was benched;
 -- every other row is only reapplied, because its trigger is an event that
 -- happened once and cannot be asked again.
-local function onEnterField(battle, battler)
+local function onEnterField(battle, battler, source)
   local mon = deps.battlerof.mon(battler)
   local row = rowFor(mon)
   if not row then return end
   if row.trigger == "hp" then
-    syncHp(battle, battler, true)
+    syncHp(battle, battler, true, source)
   elseif wearing(battle, mon, row) then
-    enter(battle, battler, row)
+    enter(battle, battler, row, source)
   end
 end
 
@@ -148,14 +180,14 @@ end
 function M.onBattleStarted(ev)
   local battle = ev and ev.battle
   if not battle then return end
-  onEnterField(battle, battle.player)
-  onEnterField(battle, battle.enemy)
+  onEnterField(battle, battle.player, "battle.started player")
+  onEnterField(battle, battle.enemy, "battle.started enemy")
 end
 
 function M.onBattlerSwitched(ev)
   local battle = ev and ev.battle
   if not battle then return end
-  onEnterField(battle, ev.battler)
+  onEnterField(battle, ev.battler, "battler_switched")
 end
 
 function M.onMoveUsed(ev)
@@ -163,16 +195,33 @@ function M.onMoveUsed(ev)
   local user = ev and ev.user
   local mon = deps.battlerof.mon(user)
   local row = battle and rowFor(mon)
-  if not row or row.trigger ~= "move_kind" then return end
+  if not row or row.trigger ~= "move_kind" then
+    -- A row that matched a DIFFERENT trigger (Darmanitan attacking, say) is
+    -- traced too: a silent return here looks identical, from a chair in
+    -- front of the game, to the row never being found at all.
+    if row and deps.diag then
+      deps.diag.conditional("move_used", battle, mon, row, nil, "skip", nil,
+        "this row's trigger is " .. tostring(row.trigger) .. ", not move_kind")
+    end
+    return
+  end
   if (mon.hp or 0) <= 0 then return end
 
   -- Gen 1 has no category field on a move record and splits physical from
   -- special by type, so power is what separates an attack from a stance:
   -- every damaging move has some and every status move has none.
-  if (ev.move and ev.move.power or 0) > 0 then
-    if not wearing(battle, mon, row) then enter(battle, user, row) end
+  local power = (ev.move and ev.move.power) or 0
+  if power > 0 then
+    if wearing(battle, mon, row) then
+      if deps.diag then
+        deps.diag.conditional("move_used", battle, mon, row, power, "skip",
+          nil, "already wearing this row's form")
+      end
+    else
+      enter(battle, user, row, "move_used", power)
+    end
   else
-    leave(battle, user, row)
+    leave(battle, user, row, "move_used", power)
   end
 end
 
@@ -183,11 +232,11 @@ function M.onDamageDealt(ev)
   local target = ev.target
   local hurt = deps.battlerof.mon(target)
   if hurt and (hurt.hp or 0) > 0 then
-    syncHp(battle, target)
+    syncHp(battle, target, nil, "damage_dealt hp")
     local row = rowFor(hurt)
     if row and row.trigger == "hit_taken" and (ev.damage or 0) > 0
       and not wearing(battle, hurt, row) then
-      enter(battle, target, row)
+      enter(battle, target, row, "damage_dealt hit_taken")
     end
   end
 
@@ -200,12 +249,12 @@ function M.onDamageDealt(ev)
   if dealer and hurt and (hurt.hp or 0) <= 0 and (dealer.hp or 0) > 0 then
     local row = rowFor(dealer)
     if row and row.trigger == "knockout_dealt" and not wearing(battle, dealer, row) then
-      enter(battle, user, row)
+      enter(battle, user, row, "damage_dealt knockout_dealt")
     end
   end
 end
 
-local function endOfTurn(battle, battler)
+local function endOfTurn(battle, battler, source)
   local mon = deps.battlerof.mon(battler)
   local row = rowFor(mon)
   if not row or (mon.hp or 0) <= 0 then return end
@@ -214,14 +263,14 @@ local function endOfTurn(battle, battler)
     -- damaging-move hit loop, so recoil, poison, burn, Leech Seed and a
     -- healing item all move the HP with nothing emitted -- and a threshold
     -- crossed that way would otherwise go unnoticed until the next attack.
-    syncHp(battle, battler)
+    syncHp(battle, battler, nil, source)
   elseif row.trigger == "turn_end" then
     -- Alternates rather than settling: being in one of the two forms at the
     -- close of every round is the whole of the mechanic.
     if wearing(battle, mon, row) then
-      leave(battle, battler, row)
+      leave(battle, battler, row, source)
     else
-      enter(battle, battler, row)
+      enter(battle, battler, row, source)
     end
   end
 end
@@ -229,8 +278,8 @@ end
 function M.onTurnEnded(ev)
   local battle = ev and ev.battle
   if not battle then return end
-  endOfTurn(battle, battle.player)
-  endOfTurn(battle, battle.enemy)
+  endOfTurn(battle, battle.player, "turn_end player")
+  endOfTurn(battle, battle.enemy, "turn_end enemy")
 end
 
 return M
