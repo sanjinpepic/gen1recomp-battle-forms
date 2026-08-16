@@ -3,6 +3,16 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.39.0
+
+### Added
+
+- **Holding the Griseous Orb now turns a Giratina into Origin Forme on Gold, the way the real games have always worked -- previously nothing on that game ever read Gold's own held-item slot.** Every persistent form here derived from `battleFormsStone`, a field this mod invented because Gen 1 has no held-item slot at all to read; Gold has one (`mon.item`, the same field `src/battle/gen2/Battle.lua` already reads for LUCKY_EGG, EXP_SHARE and EVERSTONE), and nothing here ever asked it. `src/persistent.lua`'s `M.formIdFor` now reads `mon.item` on Gen 2, ahead of the bag-use stamp, so a Pokemon that is actually HOLDING one of the nine held-item families' items wears its form -- confirmed on a real Gold boot in battle, on the SUMMARY screen, across a real switch and after a real battle end, with no bag use involved anywhere in that chain. Where the real held item and the bag-use stamp disagree (Rotom's five appliances are the one family that can), the real held item wins: it is Gold's own field, the one the SUMMARY screen's ITEM row already names.
+
+### Fixed
+
+- **Pressing USE on one of these items did nothing at all on Gold -- no message, no party picker, unlike a Berry.** `Game2:usePartyItem` calls `ItemEffects.partyAction(itemId)` with no `data` argument, so it can only ever consult the engine's own built-in item_effects table and never a mod's merged one -- no mod's Gen 2 field item is reachable through that dispatcher on any item, regardless of what shape it registers, and there is no seam here to patch that engine-side gap without touching engine dispatch logic. Rather than leave a USE verb on screen that silently does nothing, these items now carry `fieldMenu`/`battleMenu = "ITEMMENU_NOUSE"`, which takes the verb off Gold's PACK entirely in both pockets -- the more faithful answer on its own terms too, since the real games never offer a USE verb for a held item either (Leftovers and the Exp. Share show none). GIVE is the sole, working trigger for these items on Gold now; Gen 1 is unaffected and keeps bag USE as its only mechanism, since that game has no held-item slot to read at all.
+
 ## 0.38.0
 
 ### Added

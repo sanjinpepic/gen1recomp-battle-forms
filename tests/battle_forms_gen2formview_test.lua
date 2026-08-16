@@ -155,6 +155,31 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- The real held-item slot alone, with no mod hook ever having touched
+-- mon.form: src/ui/gen2/HeldItemMenu.lua's GIVE writes mon.item directly
+-- and fires no event this mod can see, so a mon can reach the SUMMARY
+-- screen holding an entitling item while mon.form is still nil -- exactly
+-- the bug report this file's own module exists to fix. The local
+-- formIdFor this module resolves through must not gate on mon.form
+-- already being set, or the overlay would draw nothing for precisely this
+-- case.
+-- ---------------------------------------------------------------------
+do
+  Persistent.bind({ eligibility = Eligibility, rows = persistentRows, gen2 = true })
+  local given = { species = "ROTOM", level = 50, dvs = {}, statExp = {},
+                  item = "WASHING_MACHINE" }
+  T.eq(given.form, nil, "precondition: nothing has ever marked this mon")
+
+  local form = Gen2FormView.resolve(DATA, given)
+  T.check(form ~= nil,
+    "a Rotom merely HOLDING the appliance resolves a form on the SUMMARY "
+      .. "screen even though mon.form was never set")
+  T.eq(form.types[2], "WATER", "and it is the held item's own form")
+
+  Persistent.bind({ eligibility = Eligibility, rows = persistentRows })
+end
+
+-- ---------------------------------------------------------------------
 -- The draw wrap: the engine class stubbed the same way
 -- battle_forms_formview_test.lua stubs Gen 1's, so nothing here touches the
 -- real game/src/ui/gen2/SummaryMenu.lua.

@@ -174,6 +174,13 @@ do
     T.check(effect ~= nil, itemId .. " registers an item effect")
     T.eq(effect.battle, false,
       "refused mid-battle by the engine before it can write to the save")
+    T.eq(record.battleMenu, "ITEMMENU_NOUSE",
+      "and Gen 2's own PACK submenu refuses it mid-battle the same way, off "
+        .. "the item record src/ui/gen2/PackMenu.lua reads directly")
+    T.eq(record.fieldMenu, "ITEMMENU_NOUSE",
+      "and offers no USE verb out of battle either -- GIVE is the only "
+        .. "trigger these items have on Gen 2, matching every held item the "
+        .. "real games already ship")
   end
 end
 
@@ -539,9 +546,148 @@ do
   T.eq(dressed.form, "SOMETHING_ELSE",
     "a form another mechanic applied is not overwritten on Gen 2 either")
 
+  -- The scenario that guard must NOT catch: mon.form lagging behind mon.item
+  -- by one held-item swap, which is this module's OWN stale marker rather
+  -- than a foreign mechanic's.  src/ui/gen2/HeldItemMenu.lua's GIVE/TAKE is
+  -- pure engine code with no hook this mod sees, so a Rotom that was Wash
+  -- Rotom before a player opened the party ITEM row and gave it the
+  -- Microwave Oven arrives at its next send-out still marked "WASH" even
+  -- though it is now entitled to "HEAT" -- and that mismatch must be
+  -- corrected, not read as "something else already claimed this mon".
+  GEN2_DATA.pokemon.ROTOM_HEAT = { baseStats = { hp = 50, attack = 65, defense = 107,
+                                                 speed = 86, specialAttack = 107,
+                                                 specialDefense = 107 },
+                                   types = { "ELECTRIC", "FIRE" }, form = "HEAT" }
+  local stale = gen2Mon("ROTOM", nil)
+  stale.item = "MICROWAVE_OVEN"
+  stale.form = "WASH"
+  Persistent.apply({ data = GEN2_DATA }, stale)
+  T.eq(stale.form, "HEAT",
+    "a stale marker of this module's own is corrected on Gen 2 once the "
+      .. "real held item names a different form")
+  T.check(stale.stats.defense > 0, "and the battler's stats were recomputed")
+
   -- restore the Gen 1 binding: nothing after this point in the file reads
   -- Persistent's bound deps, but a rebind keeps this section's fixture from
   -- leaking into whatever runs after it if the file is ever reordered.
+  Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
+                    price = Stone.PRICE, battlerof = Battlerof })
+end
+
+-- ------- the Gen 2 held-item trigger ------------------------------------
+--
+-- On Gold, mon.item is the engine's OWN held-item slot -- populated by
+-- src/ui/gen2/HeldItemMenu.lua's GIVE, the same field src/battle/gen2/
+-- Battle.lua already reads for LUCKY_EGG, EXP_SHARE and EVERSTONE.  A mon
+-- that is actually HOLDING one of this file's items is entitled to its form
+-- the same way one stamped through the bag is -- Gen 1 has no such field to
+-- read at all, so this branch must never fire there.
+do
+  local function itemMon(species, item, stamp)
+    local mon = newMon(species, stamp)
+    mon.item = item
+    return mon
+  end
+
+  Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
+                    price = Stone.PRICE, battlerof = Battlerof, gen2 = true })
+
+  T.eq(Persistent.formIdFor(itemMon("ROTOM", "WASHING_MACHINE", nil)),
+    "ROTOM_WASH", "on Gen 2, holding the item alone entitles the form")
+  T.eq(Persistent.formIdFor(itemMon("ROTOM", "LEFTOVERS", nil)), nil,
+    "holding something this table names nothing for entitles nothing")
+
+  -- Precedence: Rotom has five real items, each pairing with a DIFFERENT
+  -- form, so it is the one family that can genuinely disagree with itself --
+  -- stamped with one appliance, holding another.  The real held item wins:
+  -- it is the engine's own field, the one the SUMMARY screen's ITEM row
+  -- already names, and a bag "use" never took the item out of the bag at all
+  -- (see this file's header on M.install), so of the two it is the weaker
+  -- signal of what the Pokemon is holding RIGHT NOW.
+  local conflicted = itemMon("ROTOM", "MICROWAVE_OVEN", "WASHING_MACHINE")
+  T.eq(Persistent.formIdFor(conflicted), "ROTOM_HEAT",
+    "the real held item outranks a stale bag-use stamp when they disagree")
+
+  -- The fallback direction: a stamp still governs when the real held item
+  -- names nothing this table recognises for the species -- giving a Rotom a
+  -- Leftovers must not cancel an appliance form it was already stamped for.
+  local irrelevant = itemMon("ROTOM", "LEFTOVERS", "WASHING_MACHINE")
+  T.eq(Persistent.formIdFor(irrelevant), "ROTOM_WASH",
+    "an irrelevant held item falls back to the stamp rather than clearing it")
+
+  -- Gen 1 never reaches mon.item at all -- there is no such slot to read on
+  -- that game, and the field being merely PRESENT on the table (a stray
+  -- write, or a mon carried over from a different generation's fixture) must
+  -- not change what the stamp alone would have answered.
+  Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
+                    price = Stone.PRICE, battlerof = Battlerof })
+  T.eq(Persistent.formIdFor(itemMon("ROTOM", "MICROWAVE_OVEN", nil)), nil,
+    "on Gen 1, mon.item is never consulted -- an unstamped Rotom stays "
+      .. "entitled to nothing no matter what mon.item says")
+  T.eq(Persistent.formIdFor(itemMon("ROTOM", "MICROWAVE_OVEN", "WASHING_MACHINE")),
+    "ROTOM_WASH", "and the stamp alone still answers, ignoring mon.item entirely")
+
+  Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
+                    price = Stone.PRICE, battlerof = Battlerof })
+end
+
+-- ------- the Gen 2 item_effects dispatch --------------------------------
+--
+-- Gold's own PACK never reaches Gen 1's ItemEffects.use at all -- its field
+-- dispatch (Game2:usePartyItem, src/core/gen2/ItemEffects.lua) reads a
+-- record shaped { action, use(ctx) -> {used, text} } out of a DIFFERENT
+-- table (data.gen2ItemEffects) than Gen 1's { needsTarget, battle, use(ctx)
+-- -> status, messages } shape reads (data.item_effects).  This pins that
+-- M.install builds the correct Gen 2 shape regardless of whether Gold's own
+-- PACK can currently reach it -- confirmed against a real Gold boot that it
+-- cannot: fieldMenu/battleMenu (pinned above) already take the USE verb off
+-- both menus, and Game2:usePartyItem's own call to
+-- ItemEffects.partyAction(itemId) passes no `data`, so `action` comes back
+-- nil for every mod's item regardless of what shape it registers -- an
+-- engine-side gap outside this mod's reach (this file's own header), not
+-- something a different record shape could route around.  The record is
+-- still built correctly so nothing here needs a second change if either gap
+-- ever closes upstream.
+do
+  Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
+                    price = Stone.PRICE, battlerof = Battlerof, gen2 = true })
+  local mod = fakeMod()
+  Persistent.install(mod, rows, indices)
+
+  local effect = mod.effects.WASHING_MACHINE
+  T.check(effect ~= nil, "the appliance still registers an item effect on Gen 2")
+  T.check(effect.action ~= nil,
+    "and it names an action -- without one Game2:usePartyItem's dispatch "
+      .. "silently does nothing at all")
+  T.check(effect.action ~= "pp" and effect.action ~= "stone"
+    and effect.action ~= "candy",
+    "and not one of the three actions Game2:usePartyItem special-cases, none "
+      .. "of which describe a form change")
+
+  local mon = newMon("ROTOM", nil)
+  local result = effect.use({ item = "WASHING_MACHINE", mon = mon, data = DATA })
+  T.check(type(result) == "table", "the Gen 2 shape returns one table, not "
+    .. "Gen 1's (status, messages) pair")
+  T.eq(result.used, false,
+    "and reports NOT used -- Gen 2's dispatcher spends the item whenever "
+      .. "`used` is true, and this item is kept, not consumed, on either "
+      .. "generation")
+  T.eq(mon[E.STAMP], "WASHING_MACHINE", "the mutation still happened")
+  T.eq(mon.form, "WASH", "and the marker was derived the same way it is on Gen 1")
+  T.eq(result.text, "It's now holding\nthe item!",
+    "and Gen 2 shows the same flavour text Gen 1 does")
+
+  -- the undo, same as Gen 1's.
+  local again = effect.use({ item = "WASHING_MACHINE", mon = mon, data = DATA })
+  T.eq(again.used, false, "using it again is not a refusal either")
+  T.eq(mon[E.STAMP], nil, "it takes the appliance back off")
+  T.eq(mon.form, nil, "and the marker with it")
+
+  local wrong = newMon("ALAKAZAM", nil)
+  local refused = effect.use({ item = "WASHING_MACHINE", mon = wrong, data = DATA })
+  T.eq(refused.used, false, "refused the same way as a failure")
+  T.eq(wrong[E.STAMP], nil, "and stamps nothing")
+
   Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
                     price = Stone.PRICE, battlerof = Battlerof })
 end

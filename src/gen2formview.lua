@@ -62,8 +62,24 @@ end
 -- decide an outcome (no species is both a fusion base and a persistent-form
 -- holder) and why matching it here is still the right default to inherit
 -- rather than pick arbitrarily.
+--
+-- Does NOT gate on mon.form the way src/formview.lua's identical Gen 1
+-- helper safely does.  On Gen 1 that gate is free: mon.form is set the
+-- instant a stamp changes (src/persistent.lua's M.mark runs inside the same
+-- bag-use closure that writes the stamp), so a nil mon.form really does mean
+-- neither mechanic can have anything to say.  On Gen 2, src/persistent.lua's
+-- M.formIdFor also reads mon.item -- the real held-item slot
+-- src/ui/gen2/HeldItemMenu.lua's GIVE writes directly, with no event this
+-- mod can hook -- so a mon can reach this SUMMARY screen freshly given an
+-- item, entitled to a form, with mon.form still nil because nothing has
+-- applied it yet (no battle has started since the GIVE).  Gating on mon.form
+-- here would draw nothing for exactly that mon, which is the bug report this
+-- module exists to fix.  Asking fusion/persistent fresh on every draw is
+-- already this module's own design (see the header above on stats/types
+-- staleness); the one thing removed is the pre-filter that assumed the
+-- answer could only ever be "no" when mon.form was empty.
 local function formIdFor(mon)
-  if not mon or not mon.form then return nil end
+  if not mon then return nil end
   local id = deps and deps.fusion and deps.fusion.formIdFor(mon)
   if id then return id end
   return deps and deps.persistent and deps.persistent.formIdFor(mon)
