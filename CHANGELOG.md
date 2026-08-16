@@ -3,6 +3,34 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.32.0
+
+### Added
+
+- **`src/gen2forms.lua`, the Gen 2 form primitive -- groundwork only, still
+  unreachable from any battle.** Gen 2 has no battler wrapper for
+  `curStats`/`curTypes` to override, so stats follow the one precedent the
+  engine already has: `Battle:transform` mutates `mon.stats` in place and
+  restores it on the way out, and this module does the same, except nothing
+  needs caching for the restore -- `mon.species` never moves, so
+  `data.pokemon[mon.species].baseStats` plus the mon's own untouched
+  dvs/level/statExp recompute the exact pre-form numbers on demand, the way
+  `src/forms.lua`'s own revert already does for Gen 1. Types had no such
+  seam: `Battle:speciesDef(mon)` is read first at roughly ten damage, AI and
+  immunity call sites and never consults `mon.form`, and no Runtime hook
+  covers all ten -- `battle.damage` wraps only the two full damage
+  calculations, where Curse's Ghost check, Leech Seed's Grass check and the
+  rest read `speciesDef` directly. `M.install` wraps `Battle.speciesDef`
+  itself instead, the one thing every one of those sites already funnels
+  through, guarded and delegating the way every other engine patch in this
+  codebase is, so a third-party mod's own wrap over the same method keeps
+  running whichever order the two install in. `manifest.json` still declares
+  `gen1` alone and nothing calls this module yet: there is still no Gen 2
+  menu cell to trigger a form change from, so this step only proves the
+  primitive itself -- apply, revert, and revert exactly through fainting,
+  switching, a battle-end sweep and a mod disabled mid-battle -- against the
+  real engine's own stat formula and its own `Battle.speciesDef`.
+
 ## 0.31.0
 
 ### Changed
