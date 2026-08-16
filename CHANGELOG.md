@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.40.0
+
+### Added
+
+- **G-Max Moves ship for the 31 wired Gigantamax forms -- names, types and base powers only, with no effect of any kind, stated here and in `mod.card` rather than left for a player to discover mid-battle.** A second, species-aware picker (`src/gmaxmoves.lua`) now runs inside `src/dynamax.lua`'s own `arm` step, checked before the ordinary type-based Max Move picker on every slot: a Gigantamax Pokemon's damaging move of its G-Max Move's own type becomes that move instead -- G-MAX WILDFIRE in place of MAX FLARE for a Gigantamax Charizard's Fire moves -- riding the identical seven-rung power ladder `src/maxmoves.lua` already owns, read live rather than copied a second time, while every other type in the same moveset still becomes an ordinary Max Move. No additional effect is modelled, because Gen 1 predates weather outright and has no residual-damage, field-effect, PP-draining or multi-turn-effect primitive in `MoveEffects` for Wildfire's four-turn burn, Cannonade's or Vine Lash's own field damage, Volcalith's rockfall, Depletion's PP drain, or any of the rest of what these moves actually do in the real games -- the concept exists and this engine has nothing to build it from, so a G-Max Move here hits as a plain damaging move of its real type and power and says nothing more. G-Max Drum Solo, G-Max Fireball and G-Max Hydrosnipe are the one exception and are modelled in full, at their real fixed 160 power regardless of the move they replace: their whole effect past damage in the real games is ignoring an ability, the identical shape Sunsteel Strike and Moongeist Beam were given in 0.36.0, and with no abilities in this engine at all there is nothing left for that clause to still be doing. Every display name is shortened to fit the FIGHT menu's 13-column classic / 12-column widescreen budget -- "G-MAX WILDFIRE" alone is fourteen -- merged into the single name map `zmovemenu.install` takes, since that call accepts only one wrap per boot. The roster matches `data/gigantamax.lua` exactly: Corviknight and the Low Key and Rapid Strike variants of Toxtricity and Urshifu carry no row either, for the identical reason they carry no Gigantamax form at all.
+
 ## 0.39.0
 
 ### Added

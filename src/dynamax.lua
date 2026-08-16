@@ -171,12 +171,28 @@ function M.entry(state)
     -- of the action being chosen.  Answers whether anything was substituted,
     -- which is nothing to act on here -- a moveset with no Max Move for any of
     -- its types Dynamaxes plainly, exactly as it did before.
+    --
+    -- `deps.gmaxMoves` is optional, the same shape src/zmoves.lua's own
+    -- speciesCatalog is: a build with no G-Max roster bound gets ordinary
+    -- Max Moves only, exactly what this cell has always done.  Where it is
+    -- bound, it is asked FIRST, on every slot, and the ordinary picker only
+    -- where it says nothing -- a Gigantamax Charizard's Ember becomes
+    -- G-MAX WILDFIRE while its Body Slam still becomes MAX STRIKE, in the
+    -- same moveset, on the same arm.  The mon is read here rather than
+    -- waited for from `activate`, because a G-Max Move is species-aware and
+    -- arming is a step AHEAD of the Gigantamax form itself -- `activate` has
+    -- not run yet, so there is no `mon.form` to key off, only the species
+    -- the shape would be derived from.
     arm = function(battle)
       if not battle or not (deps.substitute and deps.maxMoves) then
         return false
       end
-      return deps.substitute.apply(state.moves, battle.player,
-                                   deps.maxMoves(battle.data))
+      local mon = deps.battlerof and deps.battlerof.mon(battle.player)
+      local base = deps.maxMoves(battle.data)
+      local gmax = deps.gmaxMoves and deps.gmaxMoves(battle.data, mon)
+      local pick = gmax and function(slot) return gmax(slot) or base(slot) end
+        or base
+      return deps.substitute.apply(state.moves, battle.player, pick)
     end,
 
     -- Disarming is the array coming straight back.  Nothing else of a Dynamax

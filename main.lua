@@ -102,7 +102,7 @@ return function(mod)
                   "src/transforms.lua", "src/mega.lua", "src/dragonascent.lua",
                   "src/terablasttm.lua", "src/speciesbasemoves.lua",
                   "src/dynamax.lua",
-                  "src/substitute.lua", "src/maxmoves.lua",
+                  "src/substitute.lua", "src/maxmoves.lua", "src/gmaxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
                   "src/resolve.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
@@ -115,7 +115,7 @@ return function(mod)
                   "src/zmovemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
-                  "data/gigantamax.lua", "data/maxmoves.lua",
+                  "data/gigantamax.lua", "data/maxmoves.lua", "data/gmaxmoves.lua",
                   "data/zmoves.lua", "data/crystals.lua", "data/terablast.lua",
                   "data/tm171.lua",
                   "data/speciesz.lua", "data/speciescrystals.lua",
@@ -409,6 +409,20 @@ return function(mod)
                   guard = guardState, substitute = m["src/substitute.lua"] })
   local maxCatalog = maxmoves.install(mod, m["data/maxmoves.lua"])
 
+  -- G-Max Moves: a second, species-aware catalog on the same substitution --
+  -- names, types and powers only, no effect of any kind (src/gmaxmoves.lua's
+  -- own header says why in full). Installed unconditionally and gated on the
+  -- merged type chart exactly like the type roster above, for the identical
+  -- reason: a battle can hold a move id and a move id with no record behind
+  -- it is a battle that cannot be drawn or saved. The power ladder is not
+  -- this file's own -- src/gmaxmoves.lua reads src/maxmoves.lua's live rather
+  -- than a second copy of the same seven numbers.
+  local gmaxmoves = m["src/gmaxmoves.lua"]
+  gmaxmoves.bind({ anim = anim, log = mod.log,
+                   substitute = m["src/substitute.lua"], maxmoves = maxmoves })
+  local gmaxCatalog = gmaxmoves.install(mod, m["data/gmaxmoves.lua"],
+                                        m["data/maxmoves.lua"])
+
   -- One cell on the command menu hosts every manually activated
   -- transformation there is, because the blank spacer row it draws into is the
   -- only space either battle layout has spare.  Mega evolution is the first
@@ -445,6 +459,16 @@ return function(mod)
   -- per-slot decision for one battle's merged data, so Dynamax never learns
   -- what a Max Move is and a second consumer -- a Z-Move -- arrives as another
   -- picker rather than as a change here.
+  --
+  -- `gmaxMoves` is a second, species-aware picker-factory beside `maxMoves`
+  -- rather than a change to it -- src/dynamax.lua's own `arm` step asks it
+  -- first, on every slot, and `maxMoves` only where it says nothing, the
+  -- identical composition src/zmoves.lua already keeps between its type and
+  -- species Z-Move catalogs (its own `pickerAny`). Composing the two here
+  -- instead would put load-bearing logic in main.lua where nothing can unit
+  -- test it; src/dynamax.lua owns the order, and tests/battle_forms_
+  -- dynamax_test.lua and tests/battle_forms_gmaxmoves_test.lua both drive it
+  -- directly.
   local dynamax = m["src/dynamax.lua"]
   dynamax.bind({ forms = m["src/forms.lua"],
                  gigantamax = m["data/gigantamax.lua"], keyitems = keyitems,
@@ -453,6 +477,9 @@ return function(mod)
                  battlerof = battlerof,
                  maxMoves = function(data)
                    return maxmoves.picker(maxCatalog, data)
+                 end,
+                 gmaxMoves = function(data, mon)
+                   return gmaxmoves.picker(gmaxCatalog, data, mon)
                  end })
   local dynamaxState = dynamax.new()
   local dynaOk, dynaWhy = registry:register(dynamax.entry(dynamaxState))
@@ -653,10 +680,21 @@ return function(mod)
   -- roster that call just registered.  Merged with data/speciesz.lua's own
   -- names, which need the identical redraw for the identical reason -- most
   -- of the fourteen real names are as long as the eighteen type Z-Moves'.
+  --
+  -- data/gmaxmoves.lua's own `menu` names join the same map for the same
+  -- reason again: every G-Max Move's real name is at least as long as
+  -- "G-MAX WILDFIRE" (fourteen columns), which overflows both layouts the
+  -- identical way a Z-Move's real name does. zmovemenu.install can only be
+  -- called once -- it sets a guard flag and refuses a second wrap -- so this
+  -- is the one map every display name this mod ships has to reach it through.
   local zmovemenu = m["src/zmovemenu.lua"]
   zmovemenu.bind({ diag = diag })
   local zMenuNames = zmoves.menuNames(zrows)
   for id, short in pairs(speciesz.menuNames(speciesZRows)) do
+    zMenuNames[id] = short
+  end
+  for id, short in pairs(gmaxmoves.menuNames(m["data/gmaxmoves.lua"],
+                                              m["data/maxmoves.lua"])) do
     zMenuNames[id] = short
   end
   zmovemenu.install(mod, zMenuNames)
