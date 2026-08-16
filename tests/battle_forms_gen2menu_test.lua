@@ -481,6 +481,85 @@ do
   T.check(has(indigoShelf, "CHARIZARDITE_X") or has(indigoShelf, "CHARIZARDITE_Y"),
     "at least one active mega stone is sold there too")
 
+  -- ---------------------------------------------------------------------
+  -- Terastallization, through the SAME loaded mod and the SAME wrapped
+  -- BattleState -- a second independent T.sdk.loadMods() call in this same
+  -- process would silently keep the FIRST load's wrapper (require caches
+  -- game/src/ui/gen2/BattleState.lua globally, and gen2menu.install's own
+  -- idempotency guard finds itself already patched and wraps nothing), so
+  -- its `state`/`deps` would still be the mega battle's -- exactly the
+  -- "import, then restart, then test" trap HANDOFF.md warns about, just
+  -- inside one process instead of across two. Reusing `run`/`BattleState`/
+  -- `press` here is what avoids it.
+  --
+  -- Proves the assertion that would fail if src/tera.lua's Gen 2 branch
+  -- existed but was never actually reached from a real Gold menu press --
+  -- the exact shape of defect this session's own brief warns two of the ten
+  -- found were (menu code proving correct in isolation while unreachable in
+  -- play). Also proves reachability itself: the Tera Orb has to actually be
+  -- for sale at the Indigo Plateau counter, or the cell has nothing to arm
+  -- with.
+  -- ---------------------------------------------------------------------
+
+  -- NORMAL, because that is the TERA TYPE option's own default
+  -- (main.lua's own `mod.options:define`) and nothing here changes it.
+  run.data.type_chart = run.data.type_chart or {}
+  run.data.type_chart.types = run.data.type_chart.types or {}
+  run.data.type_chart.types.NORMAL = { name = "NORMAL" }
+
+  local teraMon = { species = "CHARIZARD", level = 50, dvs = {}, statExp = {},
+                    hp = 100 }
+  teraMon.stats = { hp = 78, attack = 84, defense = 78, speed = 100,
+                    specialAttack = 85, specialDefense = 85 }
+  local RealBattleForMessages = require("src.battle.gen2.Battle")
+  -- A fresh engine battle -- a new battle.started reset the shared arm
+  -- state's "one transformation per battle" bookkeeping, or the mega just
+  -- spent above would still be blocking every entry here.
+  local teraEngineBattle = { data = run.data,
+                             save = { inventory = { TERA_ORB = 1 } },
+                             player = teraMon, events = {},
+                             emit = RealBattleForMessages.emit,
+                             monName = RealBattleForMessages.monName,
+                             takeEvents = RealBattleForMessages.takeEvents }
+  local teraUiBattle = { phase = "menu", menuIndex = 1, queue = {},
+                         battle = teraEngineBattle, game = { input = nil } }
+
+  run.loader.events:emit("battle.started", { battle = teraEngineBattle })
+
+  local function pressTera(button)
+    teraUiBattle.game.input = { wasPressed = function(_, btn) return btn == button end }
+    return BattleState.update(teraUiBattle, 0)
+  end
+
+  pressTera("left")
+  T.check(teraUiBattle._battleFormsMenuCell == true,
+    "left from FIGHT reached the real cell for the Tera battle too")
+  pressTera("a")
+  T.check(teraUiBattle._battleFormsListOpen == true, "A opened the real submenu")
+
+  -- Mega evolution is offered no stone in this fixture, so TERA is the only
+  -- row the real overlay ever lists.
+  pressTera("a")
+  T.check(teraUiBattle._battleFormsListOpen == false,
+    "confirming the one row closed the real list")
+  T.eq(teraMon.formTypes, nil,
+    "arming alone changes nothing yet -- that is turn start's job")
+
+  run.loader.events:emit("battle.turn_started", { battle = teraEngineBattle })
+  T.same(teraMon.formTypes, { "NORMAL" },
+    "and turn start ran the real Terastallization the real submenu armed, "
+      .. "through the real src/tera.lua Gen 2 branch -- proof the confirm "
+      .. "inside the real list dispatched a real arm, not just a UI field flip")
+
+  T.check(#(teraEngineBattle.events or {}) > 0,
+    "and the real Gen 2 message channel actually received the line")
+
+  -- Reachability: the Tera Orb has to actually be for sale on a fresh Gold
+  -- save, or none of the above is reachable outside a test fixture that
+  -- hands the trainer the item directly.
+  T.check(has(indigoShelf, "TERA_ORB"),
+    "the Tera Orb is sold at the Indigo Plateau counter on Gold")
+
   run.release()
 end
 

@@ -742,4 +742,86 @@ do
   end
 end
 
+-- ---------------------------------------------------------------------
+-- Gen 2: M.apply is the one place this module ever touches a Pokemon's
+-- stats and types in battle, and it is Gen 1 only today -- `battler.mon` is
+-- nil for a raw Gen 2 mon, so becomeForm always refused, silently, with the
+-- fusion's own marker (mon.form, already correct -- src/fusion.lua's M.mark
+-- runs at fuse/split time regardless of generation) left standing over base
+-- stats and base types for the rest of every battle.  This mirrors
+-- src/persistent.lua's own Gen 2 branch exactly, because it is the same
+-- primitive for the same reason.
+--
+-- NOTE ON REACHABILITY, established by reading rather than a live boot (this
+-- environment cannot drive one): the fusion ITEM itself cannot be triggered
+-- on Gold. `Game2:usePartyItem` calls `ItemEffects.partyAction(itemId)` with
+-- no `data` argument (game/src/core/Game2.lua:683), so it can only resolve
+-- the engine's own built-in item_effects table -- confirmed already, in a
+-- real Gold boot, for every mod's Gen 2 field item regardless of what it
+-- registers (CHANGELOG.md's own 0.39.0 entry). DNA_SPLICERS is never in
+-- that built-in table, so `action` comes back nil and `usePartyItem`
+-- returns before it ever opens the party picker -- no message, nothing.
+-- Unlike a persistent form, GIVE cannot stand in for this: a persistent form
+-- only needs the mon to HOLD the item, where fusion needs an ACTION (move a
+-- second Pokemon into the PC, write two markers) that nothing but a working
+-- USE effect can perform. So this proves the MECHANISM is correct and ready
+-- -- for a save a debug tool or a future engine fix could produce a fused
+-- Gen 2 mon from -- without claiming a player can reach it on Gold today.
+-- ---------------------------------------------------------------------
+local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local Mon2 = require("src.battle.gen2.Mon")
+
+local GEN2_DATA = { pokemon = {
+  KYUREM = DATA.pokemon.KYUREM, KYUREM_WHITE = DATA.pokemon.KYUREM_WHITE,
+} }
+GEN2_DATA.pokemon.KYUREM.baseStats = { hp = 125, attack = 130, defense = 90,
+  speed = 95, specialAttack = 130, specialDefense = 90 }
+GEN2_DATA.pokemon.KYUREM_WHITE.baseStats = { hp = 125, attack = 120,
+  defense = 90, speed = 95, specialAttack = 170, specialDefense = 100 }
+
+local function gen2Kyurem()
+  local mon = { species = "KYUREM", level = 50, dvs = {}, statExp = {} }
+  mon.stats = Mon2.stats(GEN2_DATA.pokemon.KYUREM.baseStats, {}, 50, {})
+  return mon
+end
+
+do
+  Fusion.bind({ forms = Forms, rows = rows, log = nil, price = Stone.PRICE,
+                battlerof = Battlerof, gen2 = true, gen2forms = Gen2Forms })
+
+  local kyurem = gen2Kyurem()
+  kyurem[Fusion.STAMP] = "RESHIRAM"
+  Fusion.mark(GEN2_DATA, kyurem)
+  T.eq(kyurem.form, "WHITE", "precondition: the marker is set the same way on both games")
+
+  local baseAttack = kyurem.stats.attack
+  local battle = { data = GEN2_DATA, player = kyurem, save = { inventory = {} } }
+  Fusion.onBattleStarted({ battle = battle })
+  T.check(kyurem.stats.attack ~= baseAttack,
+    "M.apply on Gen 2 rewrites the real mon.stats field, through gen2forms.becomeForm")
+  T.same(kyurem.formTypes, GEN2_DATA.pokemon.KYUREM_WHITE.types,
+    "and populates mon.formTypes, the type-resolution seam gen2forms.install reads")
+
+  -- Switching in reapplies it, exactly like a persistent form: Gen 2 has
+  -- no battler rebuild, but src/resolve.lua's own switch-in path is a
+  -- deliberate no-op on Gen 2 (nothing needed rebuilding), so fusion's OWN
+  -- onBattlerSwitched is what a real send-out actually goes through.
+  kyurem.stats.attack = baseAttack
+  kyurem.formTypes = nil
+  Fusion.onBattlerSwitched({ battle = battle, battler = kyurem })
+  T.check(kyurem.stats.attack ~= baseAttack,
+    "and the same reapplication runs from battle.battler_switched")
+
+  -- Refuses rather than half-applies, the identical contract every other
+  -- primitive in this mod keeps -- proven against a data table with no
+  -- KYUREM_WHITE record.
+  local barren = gen2Kyurem()
+  barren[Fusion.STAMP] = "RESHIRAM"
+  local emptyBattle = { data = { pokemon = { KYUREM = GEN2_DATA.pokemon.KYUREM } },
+                         player = barren, save = { inventory = {} } }
+  Fusion.onBattleStarted({ battle = emptyBattle })
+  T.eq(barren.stats.attack, baseAttack,
+    "a missing record on Gen 2 leaves the real stats field untouched")
+end
+
 T.finish("battle_forms_fusion")

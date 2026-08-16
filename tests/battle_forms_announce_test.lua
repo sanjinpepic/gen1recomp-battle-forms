@@ -360,4 +360,53 @@ do
   T.eq(#battle.queue, 0, "and crossing the threshold six times prints nothing")
 end
 
+-- ------- Gen 2: the real engine's own message channel -----------------
+--
+-- Gold's Battle class has no say/sayNext at all -- `M.gen2Tera`/
+-- `M.gen2UltraBurst` go through `battle:emit`/`battle:takeEvents` instead,
+-- so this drives the REAL game/src/battle/gen2/Battle.lua class rather than
+-- a hand-rolled double, the same discipline battle_forms_gen2forms_test.lua
+-- holds Battle.speciesDef to.
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local battle = setmetatable({ data = { pokemon = {} }, events = {} }, { __index = RealBattle })
+  local mon = { species = "CHARIZARD" }
+
+  T.eq(Announce.gen2Tera(battle, mon, "PSYCHIC"), true, "the Gen 2 Tera line is emitted")
+  local events = battle:takeEvents()
+  T.eq(#events, 2, "two pages are queued, exactly as Gen 1's does")
+  T.eq(events[1].text, "CHARIZARD\nTerastallized!", "the first says what happened")
+  T.eq(events[2].text, "It became the\nPSYCHIC type!", "and the second names the type")
+
+  T.eq(Announce.gen2UltraBurst(battle, mon), true, "the Gen 2 Ultra Burst line is emitted")
+  local burst = battle:takeEvents()
+  T.eq(#burst, 2, "two pages again")
+  T.eq(burst[1].text, "CHARIZARD\nregained its true", "the head of the real sentence")
+  T.eq(burst[2].text, "power through\nUltra Burst!", "and its tail")
+end
+
+-- Gen 2's own engine never prefixes "Enemy " -- Battle:monName carries no
+-- such qualifier, so this does not invent one either.
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local battle = setmetatable({ data = { pokemon = {} }, events = {} }, { __index = RealBattle })
+  local enemyMon = { species = "GROUDON", nickname = "BIGRED" }
+  Announce.gen2Tera(battle, enemyMon, "FIRE")
+  T.eq(battle:takeEvents()[1].text, "BIGRED\nTerastallized!",
+    "the nickname is used, unqualified, on either side")
+end
+
+-- A nameless mon and a battle that cannot emit are both refused rather than
+-- raising, the identical contract Gen 1's own functions keep.
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local battle = setmetatable({ data = { pokemon = {} }, events = {} }, { __index = RealBattle })
+  T.eq(Announce.gen2Tera(battle, nil, "FIRE"), false, "no mon at all is refused")
+  T.eq(#battle:takeEvents(), 0, "and nothing lands in the queue")
+
+  T.eq(Announce.gen2Tera({ data = {} }, { species = "X" }, "FIRE"), false,
+    "a battle with no emit function is refused rather than raising")
+  T.eq(Announce.gen2UltraBurst(nil, nil), false, "and no battle at all is refused too")
+end
+
 T.finish("battle_forms_announce")

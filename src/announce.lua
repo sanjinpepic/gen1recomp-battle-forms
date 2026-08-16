@@ -238,4 +238,66 @@ function M.maxGuard(battler)
   return text(MAX_GUARD, name)
 end
 
+-- ---- Gen 2 -----------------------------------------------------------
+--
+-- Gold's engine object (game/src/battle/gen2/Battle.lua) carries no `say`
+-- or `sayNext` at all -- its own message channel is `self:emit({kind =
+-- "message", text = ...})`, appended to `self.events` and drained by
+-- `self:takeEvents()` every time the UI screen finishes showing what it
+-- already had. There is no insert-cursor equivalent to steal the way
+-- `sayNext` does; there does not need to be one, because `emit` is called
+-- HERE, synchronously, from inside the same `battle.turn_started` listener
+-- Gen 1's mega and Tera calls already run from -- so two calls in a row are
+-- simply the first two entries in `self.events` for the round, ahead of
+-- anything `Battle:takeTurn` goes on to queue afterward, the identical
+-- head-of-turn placement `sayNext` achieves through a cursor Gen 2 has no
+-- equivalent of. `game/src/ui/gen2/BattleState.lua`'s own `advanceQueue`
+-- (:1444-1445) shows any event carrying a `.text` field as a message box
+-- with no `kind` check at all, so `kind = "message"` here is documentation
+-- rather than a requirement.
+--
+-- `Battle:monName(mon)` (Battle.lua:453) is the name read -- nickname, then
+-- species name, then the species id, `"?"` for nothing at all -- and unlike
+-- Gen 1's `displayName` above, it is never prefixed "Enemy " for the
+-- opposing side: grepping the whole of Battle.lua for that qualifier turns
+-- up nothing, so Gen 2's own engine-authored messages never say it either,
+-- and this does not invent the convention Gen 1's own text.asm keeps.
+local function gen2Name(battle, mon)
+  if type(battle) ~= "table" or type(battle.monName) ~= "function" then
+    return nil
+  end
+  local ok, name = pcall(battle.monName, battle, mon)
+  if not ok or type(name) ~= "string" or name == "" or name == "?" then
+    return nil
+  end
+  return name
+end
+
+local function gen2Push(battle, line)
+  if type(battle) ~= "table" or type(battle.emit) ~= "function" then
+    return false
+  end
+  local ok = pcall(battle.emit, battle, { kind = "message", text = line })
+  return ok == true
+end
+
+-- Terastallization's own two pages, Gen 2-shaped: the mon read straight
+-- (Gold hands the raw mon, never a battler wrapper -- src/battlerof.lua's
+-- own header), the message queued through `emit` rather than `sayNext`.
+function M.gen2Tera(battle, mon, typeName)
+  local name = gen2Name(battle, mon)
+  if not name then return false end
+  if not gen2Push(battle, text(TERA, name)) then return false end
+  if type(typeName) ~= "string" or typeName == "" then return true end
+  return gen2Push(battle, text(TERA_TYPE, typeName))
+end
+
+-- Ultra Burst's own two pages, the identical Gen 2 shape.
+function M.gen2UltraBurst(battle, mon)
+  local name = gen2Name(battle, mon)
+  if not name then return false end
+  if not gen2Push(battle, text(ULTRA_BURST, name)) then return false end
+  return gen2Push(battle, text(ULTRA_BURST_TAIL))
+end
+
 return M

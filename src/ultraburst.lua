@@ -77,6 +77,19 @@ function M.entry(state)
     -- same as a mega stone's pairing), and the fused state src/fusion.lua
     -- alone can answer.  Failing any of them is how the gate stays silent --
     -- the cell is simply absent, never present and refusing.
+    -- deps.gen2 asks deps.eligibility.formFor(rows, species, mon.item)
+    -- rather than formForMon(rows, mon), the identical substitution
+    -- src/mega.lua's own Gen 2 branch makes and for the same reason:
+    -- Ultranecrozium Z is stamped through src/stone.lua's PAIRED install,
+    -- and that install's `use(ctx)` closure reads ctx.target -- a field
+    -- Gold's own item dispatch never populates (Game2:usePartyItem's
+    -- `ItemEffects.partyAction(itemId)` call, no `data` argument, can only
+    -- ever resolve the engine's own built-in records -- confirmed against a
+    -- real Gold boot for every mod's Gen 2 field item, CHANGELOG.md's own
+    -- 0.39.0 entry) -- so eligibility.STAMP is never written there and
+    -- formForMon would always answer nil. mon.item, the real held-item slot
+    -- GIVE writes directly, is the only field that can ever say a Gold
+    -- Necrozma is holding the crystal.
     available = function(battle)
       if not deps.keyitems.held(battle, deps.keyitems.Z_RING) then
         return false
@@ -84,7 +97,12 @@ function M.entry(state)
       local mon = deps.battlerof.mon(battle.player)
       if not mon then return false end
       if not deps.fusion.partnerOf(mon) then return false end
-      local formId = deps.eligibility.formForMon(deps.rows, mon)
+      local formId
+      if deps.gen2 then
+        formId = deps.eligibility.formFor(deps.rows, mon.species, mon.item)
+      else
+        formId = deps.eligibility.formForMon(deps.rows, mon)
+      end
       if not formId then return false end
       local pokemon = battle.data and battle.data.pokemon
       return pokemon ~= nil and pokemon[formId] ~= nil
@@ -93,10 +111,39 @@ function M.entry(state)
     -- Answers whether the battle's one manual transformation was actually
     -- spent.  A refusal must not spend it: the player armed in good faith and
     -- nothing happened, so they keep the option for the rest of the fight.
+    -- Announced through the Gen 2 message channel and no animation at all on
+    -- that game -- there is no animNext/animationsOn to call in the first
+    -- place (Gold's engine object carries neither, src/battlerof.lua's own
+    -- header), and none is needed: the picture updates on its own the moment
+    -- mon.form changes, because Gold's own sprite draw reads it fresh every
+    -- frame rather than through a battler.sprite this mod would have to
+    -- invalidate (src/gen2forms.lua's own header). An animation hook that
+    -- does not exist is not a blocker when the mechanic works without it.
     activate = function(battle)
-      local battler = battle.player
-      local mon = deps.battlerof.mon(battler)
+      if not battle or not battle.player then return false end
+      local mon = deps.battlerof.mon(battle.player)
       if not mon then return false end
+
+      if deps.gen2 then
+        local formId = deps.eligibility.formFor(deps.rows, mon.species, mon.item)
+        if not formId then return false end
+        local ok, reason = deps.gen2forms.becomeForm(battle.data, mon, formId)
+        if not ok then
+          if deps.log then
+            deps.log:warn(
+              "battle_forms: refused Ultra Burst for %s -> %s (%s) -- the "
+                .. "national_dex record is missing, has no `form` field, or "
+                .. "data/ultraburst.lua names the wrong id",
+              tostring(mon.species), tostring(formId), tostring(reason))
+          end
+          return false
+        end
+        state.mon = mon
+        if deps.announce then deps.announce.gen2UltraBurst(battle, mon) end
+        return true
+      end
+
+      local battler = battle.player
       local formId = deps.eligibility.formForMon(deps.rows, mon)
       if not formId then return false end
 
@@ -146,6 +193,33 @@ function M.onBattlerSwitched(state, ev)
   local battler = ev and ev.battler
   local mon = deps.battlerof.mon(battler)
   if not battle or not mon or state.mon ~= mon then return end
+
+  -- Gen 2 needs this for a different reason than Gen 1 does: there is no
+  -- battler rebuild to survive (mon.stats/mon.formTypes live on the mon
+  -- itself, src/resolve.lua's own Gen 2 header), but fusion's and
+  -- persistent's own switch-in handlers run ahead of this one in main.lua's
+  -- registration order and would stomp mon.formTypes back to the fused
+  -- baseline's own types if this were not reasserted on top, same as
+  -- src/tera.lua's Gen 2 branch.
+  if deps.gen2 then
+    local formId = deps.eligibility.formFor(deps.rows, mon.species, mon.item)
+    if not formId then
+      if deps.log then
+        deps.log:warn(
+          "battle_forms: %s switched in mid-Ultra-Burst but is no longer "
+            .. "eligible for it -- stats and types were not reapplied",
+          tostring(mon.species))
+      end
+      return
+    end
+    local ok, reason = deps.gen2forms.becomeForm(battle.data, mon, formId)
+    if not ok and deps.log then
+      deps.log:warn(
+        "battle_forms: refused to reapply Ultra Burst for %s -> %s (%s) on "
+          .. "switch-in", tostring(mon.species), tostring(formId), tostring(reason))
+    end
+    return
+  end
 
   local formId = deps.eligibility.formForMon(deps.rows, mon)
   if not formId then

@@ -279,7 +279,16 @@ function M.entry(state, catalog)
     -- Terastallizing needs no Tera Blast in the moveset at all, so a mon that
     -- does not know it simply arms with nothing to substitute, exactly as it
     -- would if this whole catalog did not exist.
+    -- TERA BLAST substitution is Gen 1 only. Gen 2 has no curMoves array to
+    -- swap the way src/substitute.lua does -- a mon's moves live directly on
+    -- the object the save writes there (0.42.0's own finding on Dynamax/
+    -- Z-Moves, and the identical reason Tera Blast substitution is out of
+    -- scope for this pass rather than reopened). Arming still has to
+    -- succeed -- the cell must still work on Gold -- it just substitutes
+    -- nothing: a Gold Pokemon that knows TERA BLAST keeps it as a plain
+    -- Normal-type attack even after terastallizing.
     arm = function(battle)
+      if deps.gen2 then return true end
       local battler = battle and battle.player
       if not deps.substitute or not battler or not state.catalog then return true end
       local id = M.chosenType(battle)
@@ -297,13 +306,29 @@ function M.entry(state, catalog)
       if deps.substitute then deps.substitute.restore(state.moves) end
     end,
 
+    -- Gen 2 has no battler to hold a curTypes copy on -- mon.formTypes is
+    -- the field itself, the one src/gen2forms.lua's Battle.speciesDef wrap
+    -- reads (installed unconditionally on a Gen 2 boot, main.lua's own
+    -- `if gen2 then gen2forms.install(mod) end`), so this writes directly to
+    -- the mon the save owns and relies on that wrap already being in place
+    -- rather than calling becomeForm -- there is no form here, only a type,
+    -- and gen2forms.becomeForm needs a national_dex record this mechanic has
+    -- never had reason to have one.
     activate = function(battle)
-      local battler = battle.player
-      local mon = deps.battlerof.mon(battler)
+      if not battle or not battle.player then return false end
+      local mon = deps.battlerof.mon(battle.player)
       if not mon then return false end
       local id, name = M.chosenType(battle)
       if not id then return false end
 
+      if deps.gen2 then
+        state.mon, state.type, state.was = mon, id, mon.formTypes
+        mon.formTypes = { id }
+        if deps.announce then deps.announce.gen2Tera(battle, mon, name) end
+        return true
+      end
+
+      local battler = battle.player
       state.mon, state.type, state.was = mon, id, battler.curTypes
       battler.curTypes = { id }
 
@@ -332,6 +357,23 @@ function M.onBattlerSwitched(state, ev)
   local battler = ev and ev.battler
   local mon = deps.battlerof.mon(battler)
   if not mon or state.mon ~= mon or not state.type then return end
+
+  -- Gen 2's mon.formTypes lives on the mon rather than a rebuilt battler, so
+  -- it survives a switch on its own -- there is nothing here to REBUILD the
+  -- way Gen 1's makeBattler forces.  What this reapplies against is a
+  -- different hazard: main.lua's own battle.battler_switched ordering runs
+  -- fusion's and persistent's own switch-in reapply BEFORE this one, and
+  -- either would overwrite mon.formTypes with ITS form's own types if this
+  -- mon is also carrying one -- Tera is the outermost layer on Gen 2 exactly
+  -- as curTypes makes it the outermost on Gen 1, so this has to reassert on
+  -- top of whatever ran first, every time, the same "refreshed on every
+  -- switch-in" contract state.was already keeps for Gen 1.
+  if deps.gen2 then
+    state.was = mon.formTypes
+    mon.formTypes = { state.type }
+    return
+  end
+
   state.was = battler.curTypes
   battler.curTypes = { state.type }
 
@@ -360,6 +402,14 @@ local function finish(state, battler)
   local mon = state.mon
   clear(state)
   if not mon or not battler or deps.battlerof.mon(battler) ~= mon then return false end
+  if deps.gen2 then
+    -- Unlike Gen 1's battler.curTypes -- seeded from the species record and
+    -- never legitimately nil -- a Gen 2 mon with no other claim on it really
+    -- should end up back at nil, so this restores unconditionally rather
+    -- than only `restore ~= nil`.
+    mon.formTypes = restore
+    return true
+  end
   if restore ~= nil then battler.curTypes = restore end
   return true
 end

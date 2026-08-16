@@ -261,8 +261,19 @@ return function(mod)
   -- here, and a fused Kyurem given a Z-Crystal must keep its partner.
   local fusionRows = m["data/fusion.lua"]
   local fuserIndices = m["data/fusers.lua"]
+  -- gen2/gen2forms: the same pair src/persistent.lua's own M.apply branches
+  -- on, and for the identical reason -- Gen 2 has no battler wrapper at all,
+  -- so src/forms.lua's becomeForm would find no target and silently apply
+  -- nothing to a genuinely fused Necrozma or Kyurem there.  This does NOT by
+  -- itself make fusion reachable on Gold: the item that TRIGGERS a fusion
+  -- cannot be used there at all (Game2:usePartyItem's own dispatch gap,
+  -- confirmed for every mod's Gen 2 field item as of 0.39.0) -- what this
+  -- wires is the mechanism a fused mon would need once it exists, the
+  -- identical scope src/mega.lua's and src/persistent.lua's own Gen 2
+  -- branches already established.
   fusion.bind({ forms = m["src/forms.lua"], rows = fusionRows, log = mod.log,
-                price = m["src/stone.lua"].PRICE, battlerof = battlerof })
+                price = m["src/stone.lua"].PRICE, battlerof = battlerof,
+                gen2 = gen2, gen2forms = gen2forms })
 
   -- The sixth family, and the only one whose pairing table has a single row:
   -- Ultranecrozium Z fits Necrozma alone.  No option ever gates it, so `all`
@@ -350,11 +361,18 @@ return function(mod)
     -- neither had a route onto Gold before this pass: a menu cell with
     -- correct code behind it is not a reachable feature if nothing sells
     -- what it requires (HANDOFF's own standing worry about this mod's other
-    -- mechanics).  Only the Key Stone joins it from data/keyitems.lua, not
-    -- the Dynamax Band/Tera Orb/Z-Ring beside it there -- those gate
-    -- mechanics this pass does not wire for Gold, and selling one would be
-    -- a purchase that does nothing.
+    -- mechanics).  The Tera Orb now joins it too, for the identical reason:
+    -- Terastallization needs only the trainer's own item on Gold (no
+    -- pairing table, no species gate), so selling it is what turns this
+    -- pass's Gen 2 branch into a feature a player can actually reach rather
+    -- than code nothing sells the key to.  The Dynamax Band and the Z-Ring
+    -- stay off this shelf -- Dynamax needs a move-substitution primitive
+    -- this pass does not build, and Ultra Burst (the one mechanic here that
+    -- needs the Z-Ring) sits on top of fusion, whose own trigger item
+    -- cannot be used on Gold at all (src/fusion.lua's own header) -- selling
+    -- either would be a purchase that does nothing.
     indigoIndices[keyitems.KEY_STONE] = keyIndices[keyitems.KEY_STONE]
+    indigoIndices[keyitems.TERA_ORB] = keyIndices[keyitems.TERA_ORB]
     for stoneId in pairs(megaset.stoneIds(megas)) do
       indigoIndices[stoneId] = indices[stoneId]
     end
@@ -523,10 +541,18 @@ return function(mod)
   -- reader rather than a value for the reason the diagnostic's switch is:
   -- changing an option in the manager does not reload the mod, so a value
   -- captured here would only take effect on the next boot.
+  -- gen2 changes what the type override writes (mon.formTypes directly,
+  -- the field src/gen2forms.lua's speciesDef wrap reads -- Gold's engine
+  -- object has no battler.curTypes to assign) and drops the TERA BLAST
+  -- substitution entirely: Gen 2 has no curMoves array to swap the way
+  -- src/substitute.lua does, the identical reason Dynamax's Max Moves and
+  -- Z-Moves stay Red/Blue/Yellow only.  A Terastallization on Gold changes
+  -- type and nothing else -- a Pokemon that already knows TERA BLAST keeps
+  -- it as a plain Normal-type attack even after terastallizing.
   local tera = m["src/tera.lua"]
   tera.bind({ keyitems = keyitems, announce = announce, log = mod.log,
               substitute = m["src/substitute.lua"], anim = anim,
-              battlerof = battlerof,
+              battlerof = battlerof, gen2 = gen2,
               chosen = function() return mod.options:get("tera_type") end })
   -- TERA BLAST's own roster: one record per type the running game's chart
   -- can resolve, registered unconditionally like the Max Moves and the
@@ -573,11 +599,18 @@ return function(mod)
   -- already made true of it.  Handed that module rather than a pairing table
   -- of its own for the third gate, because "already fused" is a question only
   -- src/fusion.lua's own stamp can answer.
+  -- gen2/gen2forms follow fusion's own reasoning exactly, since Ultra Burst
+  -- sits on top of it: mon.item (not the Gen 1 bag stamp) decides whether
+  -- the crystal is held, on the identical grounds src/mega.lua's Gen 2
+  -- branch already reads a mega stone, and gen2forms.becomeForm is the
+  -- primitive that actually reaches mon.stats there.  Reachable on Gold only
+  -- to the extent fusion itself is -- see src/fusion.lua's own header on
+  -- that, cited again at src/ultraburst.lua's own Gen 2 branch.
   local ultraburst = m["src/ultraburst.lua"]
   ultraburst.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                      fusion = fusion, keyitems = keyitems, rows = ultraRows,
                      animId = anim.ID, announce = announce, log = mod.log,
-                     battlerof = battlerof })
+                     battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms })
   local ultraburstState = ultraburst.new()
   local ultraOk, ultraWhy = registry:register(ultraburst.entry(ultraburstState))
   if not ultraOk then
@@ -592,12 +625,19 @@ return function(mod)
   -- one question: which of the mons they are about to clear are entitled to keep
   -- a form.  Nothing else in resolve.lua changes -- see its own comment on why
   -- asking rather than exempting is what keeps a battle form out of the save.
+  -- gen2/gen2forms pick the party-sweep and faint-revert primitive: Gold's
+  -- engine Battle object carries `.party`/`.enemyParty` directly and no
+  -- `.game` at all, so `battle.game and battle.game.save` -- what this read
+  -- before -- was always nil there and the sweep walked zero mons on every
+  -- Gen 2 battle; see src/resolve.lua's own header on M.onBattleEnded and
+  -- M.onFainted for the full reasoning, including why M.onBattlerSwitched
+  -- now refuses outright on Gen 2 instead of running Gen 1's reapply logic.
   local resolve = m["src/resolve.lua"]
   resolve.bind({ registry = registry, forms = m["src/forms.lua"],
                  eligibility = eligibility, megas = megas, log = mod.log,
                  persistent = persistent, fusion = fusion,
                  dragonascent = dragonascent, zcrystals = zcrystals,
-                 battlerof = battlerof })
+                 battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms })
 
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,

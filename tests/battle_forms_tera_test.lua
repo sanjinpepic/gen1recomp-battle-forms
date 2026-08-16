@@ -486,4 +486,123 @@ do
     "and is inside the seven characters that budget is worth at all")
 end
 
+-- ---------------------------------------------------------------------
+-- Gen 2: no battler wrapper, no curTypes -- the override lives on
+-- mon.formTypes, the field src/gen2forms.lua's speciesDef wrap reads, and
+-- is proven against the REAL game/src/battle/gen2/Battle.lua class rather
+-- than a hand-rolled double: install the real speciesDef wrap, terastallize,
+-- and read the type back off the real engine method every other Gen 2
+-- damage/AI/immunity call site already goes through.
+-- ---------------------------------------------------------------------
+local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local RealBattle = require("src.battle.gen2.Battle")
+
+local GEN2_DATA = { type_chart = CHART, pokemon = {} }
+
+local function gen2Mon()
+  return { species = "CHARIZARD", level = 50, item = "TERA_ORB_HOLDER",
+           dvs = {}, statExp = {},
+           stats = { attack = 84, defense = 78, speed = 100,
+                     specialAttack = 85, specialDefense = 85 } }
+end
+
+local function gen2Battle(bag)
+  local mon = gen2Mon()
+  local enemy = gen2Mon()
+  return {
+    data = GEN2_DATA, save = { inventory = bag or {} },
+    player = mon, enemy = enemy, events = {},
+    emit = RealBattle.emit, takeEvents = RealBattle.takeEvents,
+    monName = RealBattle.monName,
+  }
+end
+
+local function bindGen2Tera(chosen, log)
+  Tera.bind({ keyitems = KeyItems, announce = Announce, log = log,
+              battlerof = Battlerof, gen2 = true,
+              chosen = function() return chosen end })
+end
+
+do
+  T.eq(Gen2Forms.install({ log = nil }), true,
+    "precondition: the real speciesDef wrap installs")
+
+  bindGen2Tera("GROUND")
+  local state = Tera.new()
+  local battle = gen2Battle({ [KeyItems.TERA_ORB] = 1 })
+
+  T.eq(RealBattle.speciesDef({ data = battle.data }, battle.player), nil,
+    "precondition: an unformed Gen 2 mon carries no record from this seam "
+      .. "at all (this fixture's CHARIZARD has no national_dex record)")
+
+  T.eq(Tera.entry(state).activate(battle), true, "terastallizing succeeds on Gen 2")
+  T.same(battle.player.formTypes, { "GROUND" },
+    "mon.formTypes is set directly -- there is no battler to hold a curTypes copy")
+  T.eq(battle.player.form, nil,
+    "and mon.form is left alone -- Tera marks no form on either generation")
+  T.same(RealBattle.speciesDef({ data = battle.data }, battle.player).types,
+    { "GROUND" },
+    "the real Battle.speciesDef wrap reads it back, the same seam every "
+      .. "Gen 2 damage/AI/immunity call site already goes through")
+
+  local events = battle:takeEvents()
+  T.eq(#events, 2, "the Gen 2 message channel got both pages")
+  T.eq(events[1].text, "CHARIZARD\nTerastallized!", "the same wording as Gen 1")
+end
+
+-- TERA BLAST is explicitly NOT substituted on Gen 2: Gen 2 has no curMoves
+-- array to swap the way src/substitute.lua does, and that mechanism is out
+-- of scope for this pass (0.42.0's own finding, extended here rather than
+-- reopened). Arming still succeeds -- the cell must still work -- it just
+-- substitutes nothing.
+do
+  bindGen2Tera("GROUND")
+  local state = Tera.new()
+  local entry = Tera.entry(state, { byType = { GROUND = "SOME_MOVE_ID" } })
+  local battle = gen2Battle({ [KeyItems.TERA_ORB] = 1 })
+  battle.player.moves = { { id = "TERABLAST", pp = 5 } }
+
+  T.eq(entry.arm(battle), true, "arming still succeeds on Gen 2")
+  T.same(battle.player.moves, { { id = "TERABLAST", pp = 5 } },
+    "but the moveset is completely untouched -- no curMoves array exists to swap")
+end
+
+-- Switching survives it, and it has to be reapplied on every switch-in
+-- because persistent/fusion's own switch-in handlers run first (main.lua's
+-- own ordering) and would otherwise stomp mon.formTypes with THEIR form's
+-- types -- Tera is the outermost layer on Gen 2 exactly as it is on Gen 1.
+do
+  bindGen2Tera("GROUND")
+  local state = Tera.new()
+  local battle = gen2Battle({ [KeyItems.TERA_ORB] = 1 })
+  local mon = battle.player
+  Tera.entry(state).activate(battle)
+
+  -- Something else (a persistent form's own reapply) sets formTypes first.
+  mon.formTypes = { "FIRE", "FLYING" }
+  Tera.onBattlerSwitched(state, { battle = battle, battler = mon })
+  T.same(mon.formTypes, { "GROUND" },
+    "Tera's own switch-in handler reasserts on top of it")
+
+  Tera.onBattleEnded(state, { battle = battle })
+  T.same(mon.formTypes, { "FIRE", "FLYING" },
+    "and unwinding restores whatever was underneath, not nil unconditionally")
+end
+
+-- Fainting and the battle ending both restore mon.formTypes to nil when
+-- there was nothing underneath -- unlike Gen 1's battler.curTypes (which is
+-- never legitimately nil), a Gen 2 mon with no other claim on it really
+-- should end up back at nil.
+do
+  bindGen2Tera("GROUND")
+  local state = Tera.new()
+  local battle = gen2Battle({ [KeyItems.TERA_ORB] = 1 })
+  Tera.entry(state).activate(battle)
+  T.same(battle.player.formTypes, { "GROUND" }, "precondition: terastallized")
+
+  Tera.onFainted(state, { battle = battle, battler = battle.player })
+  T.eq(battle.player.formTypes, nil, "fainting clears it back to nil")
+  T.eq(state.mon, nil, "and drops the mon reference")
+end
+
 T.finish("battle_forms_tera")

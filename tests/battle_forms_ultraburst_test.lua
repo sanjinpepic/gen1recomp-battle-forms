@@ -558,4 +558,133 @@ do
       .. "standing, untouched by any of the five steps above")
 end
 
+-- ---------------------------------------------------------------------
+-- Gen 2: the crystal is a real held item (mon.item), not the Gen 1 bag
+-- stamp -- src/stone.lua's own registration never correctly stamps
+-- eligibility.STAMP on Gold (the identical Game2:usePartyItem dispatch gap
+-- fusion's own Gen 2 section cites), so mon.item, given straight to
+-- deps.eligibility.formFor, is the only field that can ever answer "is this
+-- Necrozma holding Ultranecrozium Z" there -- the exact read src/mega.lua's
+-- own Gen 2 branch already established for a mega stone.
+--
+-- REACHABILITY, stated honestly: Ultra Burst's third gate asks
+-- src/fusion.lua whether the mon is already fused, and fusion's own trigger
+-- item cannot be used on Gold at all (see that suite's own Gen 2 section) --
+-- so in real play this cell can never actually appear there, whatever this
+-- section proves about the code underneath it. What follows proves the
+-- MECHANISM: given a mon a debug fixture (or a fixed engine, someday) has
+-- already fused, activating Ultra Burst on it does the right thing.
+-- ---------------------------------------------------------------------
+local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local Mon2 = require("src.battle.gen2.Mon")
+
+local GEN2_DATA = { pokemon = {
+  NECROZMA = { baseStats = { hp = 97, attack = 107, defense = 101, speed = 79,
+                             specialAttack = 127, specialDefense = 89 },
+              types = { "PSYCHIC" } },
+  NECROZMA_DUSK = { baseStats = { hp = 97, attack = 157, defense = 127,
+                                  speed = 77, specialAttack = 113,
+                                  specialDefense = 89 },
+                    types = { "PSYCHIC" }, form = "DUSK" },
+  NECROZMA_ULTRA = { baseStats = { hp = 97, attack = 167, defense = 97,
+                                   speed = 129, specialAttack = 167,
+                                   specialDefense = 97 },
+                     types = { "PSYCHIC", "DRAGON" }, form = "ULTRA" },
+} }
+
+local function gen2Necrozma()
+  local mon = { species = "NECROZMA", level = 60, dvs = {}, statExp = {},
+                item = "ULTRANECROZIUM_Z", hp = 250 }
+  mon.stats = Mon2.stats(GEN2_DATA.pokemon.NECROZMA.baseStats, {}, 60, {})
+  mon[Fusion.STAMP] = "SOLGALEO"
+  return mon
+end
+
+local function bindGen2(log)
+  Fusion.bind({ forms = Forms, rows = fusionRows, log = log,
+                battlerof = Battlerof, gen2 = true, gen2forms = Gen2Forms })
+  UltraBurst.bind({ forms = Forms, eligibility = E, fusion = Fusion,
+                     keyitems = KeyItems, rows = ultraRows,
+                     animId = Anim.ID, announce = Announce, log = log,
+                     battlerof = Battlerof, gen2 = true, gen2forms = Gen2Forms })
+end
+
+do
+  bindGen2(nil)
+  local entry = UltraBurst.entry(UltraBurst.new())
+  local mon = gen2Necrozma()
+  local battle = { data = GEN2_DATA, player = mon, save = { inventory = ZRING },
+                   events = {} }
+
+  T.eq(entry.available(battle), true,
+    "the Z-Ring, the real held crystal (mon.item), and the fusion stamp "
+      .. "together offer the cell")
+
+  mon.item = nil
+  T.eq(entry.available(battle), false, "no held crystal: unavailable")
+  mon.item = "ULTRANECROZIUM_Z"
+
+  mon[Fusion.STAMP] = nil
+  T.eq(entry.available(battle), false,
+    "holding the crystal with no fusion behind it: unavailable")
+  mon[Fusion.STAMP] = "SOLGALEO"
+
+  battle.save = { inventory = {} }
+  T.eq(entry.available(battle), false, "no Z-Ring in the bag: unavailable")
+  battle.save = { inventory = ZRING }
+  T.eq(entry.available(battle), true, "precondition restored: available again")
+end
+
+do
+  bindGen2(nil)
+  local state = UltraBurst.new()
+  local entry = UltraBurst.entry(state)
+  local mon = gen2Necrozma()
+  local battle = { data = GEN2_DATA, player = mon, save = { inventory = ZRING },
+                   events = {} }
+
+  T.eq(entry.activate(battle), true, "activation succeeds on Gen 2")
+  T.eq(mon.form, "ULTRA", "the real Gen 2 primitive marks Ultra Necrozma")
+  T.check(mon.stats.attack > 157,
+    "and rewrites the real mon.stats field past even Dusk Mane's own numbers")
+  T.eq(state.mon, mon, "the state tracks which mon actually burst")
+end
+
+-- No animNext call on Gen 2 -- Gold's engine object has no such method
+-- (src/battlerof.lua's own header), and there is nothing to be a blocker
+-- about: the picture updates on its own the moment mon.form changes, since
+-- Gold's own sprite draw reads it fresh every frame rather than through a
+-- cached battler.sprite (src/gen2forms.lua's own header). This proves the
+-- absence rather than assumes it: a battle table with no animNext field at
+-- all must not error.
+do
+  bindGen2(nil)
+  local state = UltraBurst.new()
+  local mon = gen2Necrozma()
+  local battle = { data = GEN2_DATA, player = mon, save = { inventory = ZRING },
+                   events = {} }
+  T.eq(UltraBurst.entry(state).activate(battle), true,
+    "activation succeeds with no animNext method present at all")
+end
+
+-- Switch-in reapplication: reasserts on top of whatever fusion's own
+-- switch-in handler (main.lua's ordering runs it first) just set.
+do
+  bindGen2(nil)
+  local state = UltraBurst.new()
+  local mon = gen2Necrozma()
+  local battle = { data = GEN2_DATA, player = mon, save = { inventory = ZRING },
+                   events = {} }
+  UltraBurst.entry(state).activate(battle)
+  T.eq(mon.form, "ULTRA", "precondition: burst")
+
+  -- Simulate fusion's own reapply landing first and stomping the marker.
+  Gen2Forms.becomeForm(GEN2_DATA, mon, "NECROZMA_DUSK")
+  T.eq(mon.form, "DUSK", "precondition: something else reapplied ahead of this")
+
+  UltraBurst.onBattlerSwitched(state, { battle = battle, battler = mon })
+  T.eq(mon.form, "ULTRA",
+    "Ultra Burst's own switch-in handler reasserts Ultra Necrozma on top of it")
+end
+
 T.finish("battle_forms_ultraburst")

@@ -193,4 +193,117 @@ s11:toggle(Mega.ID)
 Resolve.onTurnStarted(s11, { battle = b11 })
 T.eq(b11.player.mon.form, nil, "no logger bound still refuses safely")
 
+-- ---------------------------------------------------------------------
+-- Gen 2: no `battle.game`, no battler wrapper, and mon.stats is a REAL
+-- save field src/gen2forms.lua writes -- so this exercises the exact gap
+-- that made every one of the checks above silently do nothing on Gold: the
+-- engine's own Gen 2 Battle object (game/src/battle/gen2/Battle.lua) carries
+-- `.party`/`.enemyParty`/`.save` directly and no `.game` at all
+-- (confirmed against the real class's own opts table, Battle.lua:236-242),
+-- so `battle.game and battle.game.save` -- what M.onBattleEnded read before
+-- this pass -- was always nil there, and the sweep it guards never ran a
+-- single iteration.
+-- ---------------------------------------------------------------------
+local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local Fusion = dofile(MOD .. "/src/fusion.lua")
+local Persistent = dofile(MOD .. "/src/persistent.lua")
+
+local GEN2_DATA = { pokemon = {
+  CHARIZARD = { baseStats = { hp = 78, attack = 84, defense = 78, speed = 100,
+                              specialAttack = 85, specialDefense = 85 },
+                types = { "FIRE", "FLYING" } },
+  CHARIZARD_MEGA_X = { baseStats = { hp = 78, attack = 130, defense = 111,
+                                     speed = 100, specialAttack = 130,
+                                     specialDefense = 85 },
+                       types = { "FIRE", "DRAGON" }, form = "MEGA_X" },
+} }
+
+local Mon2 = require("src.battle.gen2.Mon")
+local GEN2_BASE_STATS = Mon2.stats(GEN2_DATA.pokemon.CHARIZARD.baseStats, {}, 50, {})
+
+local function gen2Mon()
+  local mon = { species = "CHARIZARD", level = 50, dvs = {}, statExp = {} }
+  mon.stats = {}
+  for key, value in pairs(GEN2_BASE_STATS) do mon.stats[key] = value end
+  return mon
+end
+
+local function bindGen2Resolve()
+  local registry = Transforms.new()
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                 megas = megas, battlerof = Battlerof, gen2 = true,
+                 gen2forms = Gen2Forms })
+end
+
+-- Switching: nothing needs reapplying at all on Gen 2, because mon.stats/
+-- mon.formTypes live on the mon itself rather than a battler makeBattler
+-- would otherwise rebuild -- so this must be a no-op, and the assertion that
+-- would catch it doing something wrong (or logging a false "no longer
+-- eligible" warning for a mon that is, in fact, still fine) is that it
+-- leaves the mon completely alone.
+do
+  bindGen2Resolve()
+  local mon = gen2Mon()
+  mon.form = "MEGA_X"
+  Gen2Forms.becomeForm(GEN2_DATA, mon, "CHARIZARD_MEGA_X")
+  local snapshot = { attack = mon.stats.attack, form = mon.form }
+  local logged = {}
+  Resolve.onBattlerSwitched({ battle = { data = GEN2_DATA }, battler = mon })
+  T.eq(mon.stats.attack, snapshot.attack,
+    "Gen 2 switch-in reapplication is a no-op -- nothing was ever rebuilt to reapply to")
+  T.eq(mon.form, snapshot.form, "and the marker is untouched")
+end
+
+-- Fainting: a plain mega'd mon reverts stats AND the marker, through the
+-- real Gen 2 primitive.
+do
+  bindGen2Resolve()
+  local mon = gen2Mon()
+  Gen2Forms.becomeForm(GEN2_DATA, mon, "CHARIZARD_MEGA_X")
+  T.eq(mon.form, "MEGA_X", "precondition: megaed")
+  T.check(mon.stats.attack > GEN2_BASE_STATS.attack, "precondition: boosted stats")
+
+  Resolve.onFainted({ battle = { data = GEN2_DATA }, battler = mon })
+  T.eq(mon.form, nil, "fainting clears the marker on Gen 2")
+  T.eq(mon.stats.attack, GEN2_BASE_STATS.attack, "and the real stat field the save writes is reverted too")
+end
+
+-- Fainting: a mon entitled to a PERSISTENT form reverts to THAT form's own
+-- stats, not to base -- proving settle() is asked, not just a blunt clear.
+do
+  bindGen2Resolve()
+  Persistent.bind({ forms = Forms, eligibility = E,
+                     rows = { CHARIZARD = { HELD_ITEM = "CHARIZARD_MEGA_X" } },
+                     gen2forms = Gen2Forms, gen2 = true })
+  local registry = Transforms.new()
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                 megas = megas, battlerof = Battlerof, gen2 = true,
+                 gen2forms = Gen2Forms, persistent = Persistent })
+
+  local mon = gen2Mon()
+  mon.item = "HELD_ITEM"
+  Gen2Forms.becomeForm(GEN2_DATA, mon, "CHARIZARD_MEGA_X")
+  Resolve.onFainted({ battle = { data = GEN2_DATA }, battler = mon })
+  T.eq(mon.form, "MEGA_X",
+    "the persistent form's own marker is restored, not cleared to nil")
+end
+
+-- Battle end sweeps battle.party / battle.enemyParty directly -- the fields
+-- the real engine object actually carries -- not battle.game.save.party.
+do
+  bindGen2Resolve()
+  local benched = gen2Mon()
+  Gen2Forms.becomeForm(GEN2_DATA, benched, "CHARIZARD_MEGA_X")
+  local foe = gen2Mon()
+  Gen2Forms.becomeForm(GEN2_DATA, foe, "CHARIZARD_MEGA_X")
+  T.eq(benched.form, "MEGA_X", "precondition: the benched mon is megaed")
+  T.eq(foe.form, "MEGA_X", "precondition: so is the enemy's")
+
+  Resolve.onBattleEnded({ battle = { data = GEN2_DATA,
+                                     party = { benched }, enemyParty = { foe } } })
+  T.eq(benched.form, nil, "a benched Gen 2 mon reverts at battle end")
+  T.eq(benched.stats.attack, GEN2_BASE_STATS.attack, "with its real stats field reverted too")
+  T.eq(foe.form, nil, "and the enemy side, read off battle.enemyParty directly")
+end
+
 T.finish("battle_forms_resolve")

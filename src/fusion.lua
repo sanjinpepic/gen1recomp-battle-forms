@@ -155,6 +155,12 @@ end
 -- src/persistent.lua, src/conditional.lua and src/dynamax.lua all keep: a
 -- fusion is the baseline a battle form is laid over, not something that
 -- outranks one.
+-- deps.gen2/deps.gen2forms pick the primitive, the exact pair
+-- src/persistent.lua's own M.apply branches on and for the identical
+-- reason: Gen 2 has no battler wrapper at all (src/battlerof.lua's own
+-- header), so deps.forms.becomeForm -- built on battler.mon -- would find
+-- no target and silently apply nothing, leaving a genuinely fused Necrozma
+-- looking and fighting as plain Necrozma for the length of every battle.
 function M.apply(battle, battler)
   local mon = deps.battlerof.mon(battler)
   if not mon or not battle then return end
@@ -164,7 +170,12 @@ function M.apply(battle, battler)
   local suffix = suffixOf(battle.data, formId)
   if mon.form and suffix and mon.form ~= suffix then return end
 
-  local ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
+  local ok, reason
+  if deps.gen2 then
+    ok, reason = deps.gen2forms.becomeForm(battle.data, mon, formId)
+  else
+    ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
+  end
   if not ok and deps.log then
     -- A guard that refuses must say so out loud.  There is no player action
     -- behind a send-out, so a silent refusal would show as a Pokemon that is
