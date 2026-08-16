@@ -85,23 +85,215 @@ local function formIdFor(mon)
   return deps and deps.persistent and deps.persistent.formIdFor(mon)
 end
 
+-- The record itself, shared by M.resolve (types/stats) and the picture below
+-- -- both ask the identical formIdFor question of the identical record, and
+-- a formId this owns nothing for (no `types`, no `baseStats`, no
+-- `spriteFront`) is exactly the case each caller refuses on its own terms
+-- rather than half-applying.
+local function formRecordFor(data, mon)
+  local formId = formIdFor(mon)
+  if not formId then return nil end
+  local formDef = data and data.pokemon and data.pokemon[formId]
+  if type(formDef) ~= "table" then return nil end
+  return formId, formDef
+end
+
 -- Refuses rather than half-applying, for src/forms.lua's own reason: a form
 -- record with no `types` or no `baseStats` would draw nothing meaningful.
 -- Quiet rather than logged, matching src/formview.lua's own choice --
 -- src/persistent.lua and src/fusion.lua's own settle() already warn out loud
 -- on the one case that can leave mon.form pointing at a record like this.
 function M.resolve(data, mon)
-  local formId = formIdFor(mon)
-  if not formId then return nil end
-  local formDef = data and data.pokemon and data.pokemon[formId]
-  if type(formDef) ~= "table" or type(formDef.types) ~= "table"
-      or formDef.types[1] == nil or type(formDef.baseStats) ~= "table" then
+  local _, formDef = formRecordFor(data, mon)
+  if not formDef or type(formDef.types) ~= "table" or formDef.types[1] == nil
+      or type(formDef.baseStats) ~= "table" then
     return nil
   end
   return {
     types = formDef.types,
     stats = Mon.stats(formDef.baseStats, mon.dvs, mon.level, mon.statExp),
   }
+end
+
+-- ---- the SUMMARY screen's picture ------------------------------------------
+--
+-- picFor(mon) (SummaryMenu.lua:885-895) reads `def.spriteFront` straight off
+-- data.pokemon[mon.species] -- the BASE species, never mon.form -- and raises
+-- no hook, so a Giratina in Origin Forme drew its base picture even after
+-- 0.43.0 fixed its stats and types on this same screen. Confirmed by driving
+-- the real class: drawPanel -> drawUpperHalf -> drawPic -> picFor is the live
+-- path (SummaryMenu:draw() is an unused alias, the exact trap 0.38.0's own
+-- drawPanel/draw confusion already cost this repo once), so picFor is where
+-- the picture is actually decided.
+--
+-- drawPic, not picFor, is what this module wraps. picFor's own return is
+-- just an Image -- the shading decision lives one level up, in drawPic's
+-- own call to drawPicBlock, which runs every image it is handed through
+-- GbcPalette.with(colors, body) UNCONDITIONALLY.  A four-shade set drawn
+-- that way is correct; a full-colour one is crushed to grey, which is
+-- exactly the failure National Dex's own src/gen2summary.lua exists to
+-- avoid for this identical screen (dev/national_dex_mod/HANDOFF.md's own
+-- "true-colour flag" section). Wrapping picFor could not have carried that
+-- decision back out to drawPic at all.
+--
+-- Composes with National Dex's own src/gen2summary.lua, which also wraps
+-- SummaryMenu.drawPic for its own (species-level, dex-form-browsing) art.
+-- battle_forms declares national_dex a hard dependency
+-- (manifest.json:"dependencies"), so the loader always installs national_dex
+-- first -- this module's own wrap therefore always ends up OUTERMOST, and it
+-- checks whether a battle_forms form applies BEFORE ever falling through to
+-- whatever drawPic was before it (national_dex's own wrap, or vanilla),
+-- which is what makes the order safe rather than merely usual: a formed mon
+-- is decided here regardless of what a sibling mod would otherwise have
+-- drawn for the bare species.
+local PIC_BOX = 7 * 8
+local PIC_ORIGIN_X, PIC_ORIGIN_Y = 0, 0
+
+local GbcPalette, Palettes = nil, nil
+
+-- src.pokemon.Sprites is the ENGINE'S own module, not a handle onto another
+-- mod -- unlike National Dex's own reach for universal_sprites (a plain
+-- mod:find closure, because it calls that mod's EXPORT directly), this
+-- module never touches the sprite mod by name at all. It fires the shared
+-- pokemon.sprite hook and lets whichever mod subscribed to it (or none)
+-- answer, so this keeps working unchanged if universal_sprites is ever
+-- replaced, renamed or simply absent. Resolved lazily and cached the same
+-- courtesy way Chrome is, above.
+local function spriteModule()
+  local SpritesMod
+  return function()
+    if SpritesMod ~= nil then return SpritesMod or nil end
+    local ok, value = pcall(require, "src.pokemon.Sprites")
+    SpritesMod = (ok and type(value) == "table" and type(value.path) == "function")
+      and value or false
+    return SpritesMod or nil
+  end
+end
+
+-- Asks the SAME seam the bug report names outright: pokemon.sprite, the hook
+-- battle art already fires and universal_sprites already subscribes to
+-- (SummaryMenu.lua never raises it on its own). `mon = { form = formSuffix }`
+-- is a SYNTHETIC mon carrying only the form -- the identical technique
+-- gen2dexlist.lua's own M.spriteArt uses (`mon = form and { form = form } or
+-- nil`) -- because the registry keys form art on `ctx.mon.form`
+-- (src/registry.lua's formId()), and the REAL mon's own .form can still be
+-- nil here (this module's own header on why formIdFor does not gate on it).
+--
+-- A hook that found nothing for this form answers with the SAME path the
+-- base species' own picture already resolves to (Sprites.path's own
+-- fallback is `def.spriteFront` off the BASE species, since `species` here
+-- is deliberately mon.species, never the compound form id) -- so that exact
+-- case is detected and treated as a miss rather than as art, the same
+-- "compare against the unformed answer" check National Dex's own resolver
+-- makes before trusting a form-specific result.
+local function neighbourPath(resolveModule, data, mon, formSuffix)
+  local module = resolveModule()
+  if not module then return nil end
+  local okForm, formPath, trueColor = pcall(module.path, data, mon.species,
+    "front", { kind = "summary", mon = { form = formSuffix } })
+  if not okForm or type(formPath) ~= "string" or formPath == "" then
+    return nil
+  end
+  local baseDef = data and data.pokemon and data.pokemon[mon.species]
+  if baseDef and formPath == baseDef.spriteFront then return nil end
+  return formPath, trueColor
+end
+
+-- The cart's own blank fill plus a centred, never-enlarged fit -- National
+-- Dex's own src/gen2dexlist.lua M.artPlacement's reasoning applies unchanged:
+-- the cart's own pics are bottom-pinned to share a ground line at a fixed
+-- 5x5/6x6/7x7 tile size, but a sprite set's art arrives at whatever size the
+-- dump ships and centring is the honest fit for art whose framing this
+-- module does not control.
+local function drawFormArt(self, mon, image, trueColor)
+  local G = love.graphics
+  local colors = self.palettes and mon.species
+    and Palettes.monColors(self.palettes, mon.species, mon.shiny) or nil
+  local blank = colors and GbcPalette.color(colors, 1) or { 255, 255, 255 }
+  G.setColor(blank[1] / 255, blank[2] / 255, blank[3] / 255, 1)
+  G.rectangle("fill", PIC_ORIGIN_X, PIC_ORIGIN_Y, PIC_BOX, PIC_BOX)
+
+  local w, h = image:getWidth(), image:getHeight()
+  local scale = math.min(PIC_BOX / w, PIC_BOX / h, 1)
+  local x = PIC_ORIGIN_X + math.floor((PIC_BOX - w * scale) / 2)
+  local y = PIC_ORIGIN_Y + math.floor((PIC_BOX - h * scale) / 2)
+  G.setColor(1, 1, 1, 1)
+  local function body() G.draw(image, x, y, 0, scale, scale) end
+  if trueColor or not (colors and GbcPalette.available()) then
+    -- The palette bypass: a four-shade NATIVE set is art the GBC palette is
+    -- RIGHT for and arrives through this same seam, so the FLAG decides
+    -- rather than the source (National Dex's own src/gen2dexlist.lua
+    -- M.unshaded's identical reasoning). Captured and restored rather than
+    -- merely cleared, in case a caller further up the draw already has one
+    -- bound.
+    local previous = G.getShader and G.getShader() or nil
+    if G.setShader then G.setShader() end
+    local ok, err = pcall(body)
+    if G.setShader then G.setShader(previous) end
+    if not ok then error(err, 0) end
+  else
+    GbcPalette.with(colors, body)
+  end
+  G.setColor(1, 1, 1, 1)
+end
+
+-- Runs INSTEAD of vanilla drawPic, never after it -- unlike the types/stats
+-- overlay, a picture cannot be corrected by blanking a tile field and
+-- reprinting over it; the whole 7x7 block has to be decided before it is
+-- drawn once. Skips the same two cases M.drawSummary skips and for the
+-- same reason: neither drawEggPage nor the move-detail view ever reaches
+-- drawPic at all, so there is nothing for this to override on either, and
+-- an unformed Pokemon (or a form this module cannot resolve so much as a
+-- picture for) returns false, which leaves the caller to run vanilla
+-- exactly as if this module were never installed.
+--
+-- Cached per menu instance, per form and per shininess -- a menu is reused
+-- for a whole party and this asks the neighbour, and the disk, at most once
+-- per mon actually looked at rather than once per drawn frame.  Keyed by
+-- formId rather than by path, and never through self.picCache: picCache
+-- caches vanilla's OWN picFor by path, and this module's art comes from a
+-- DIFFERENT resolution (the neighbour, or a form record's own spriteFront)
+-- that must never be read back under the base species' picFor cache entry --
+-- a stale or wrong picture surviving a screen re-entry is the one thing a
+-- shared cache key would risk here.
+function M.drawPic(self, resolveModule)
+  local mon = self and self.mon
+  if not mon or self.moveDetail or mon.isEgg then return false end
+  local data = self.game and self.game.data
+  local formId, formDef = formRecordFor(data, mon)
+  if not formId then return false end
+
+  local cache = self._battleFormsPicCache
+  if not cache then cache = {} self._battleFormsPicCache = cache end
+  local key = formId .. (mon.shiny and "\1shiny" or "")
+  local art = cache[key]
+  if art == nil then
+    art = false
+    local path, trueColor = neighbourPath(resolveModule, data, mon, formDef.form)
+    if not path and type(formDef.spriteFront) == "string" and formDef.spriteFront ~= "" then
+      path = formDef.spriteFront
+      trueColor = nil -- the record's own path: drawn through vanilla's own shaded treatment, not this module's
+    end
+    if path then
+      local image = self:picImage(path)
+      if image then art = { image = image, trueColor = trueColor } end
+    end
+    cache[key] = art
+  end
+  if not art then return false end
+
+  if art.trueColor == nil then
+    -- The record fallback: reuse vanilla's OWN drawPicBlock rather than
+    -- reimplementing it, so a form's picture is padded, backed and shaded
+    -- exactly the way every OTHER mon's own picture already is on this
+    -- screen -- nothing here ever guesses at that treatment independently.
+    local colors = self.palettes and mon.species
+      and Palettes.monColors(self.palettes, mon.species, mon.shiny) or nil
+    self:drawPicBlock(art.image, colors)
+  else
+    drawFormArt(self, mon, art.image, art.trueColor)
+  end
+  return true
 end
 
 -- ---- the SUMMARY screen ---------------------------------------------------
@@ -234,6 +426,40 @@ function M.install(mod)
     end
   end
   record("gen2formview: install: wrapped SummaryMenu.drawPanel")
+
+  -- The picture: a courtesy on top of a courtesy.  GbcPalette/Palettes are
+  -- needed only to shade the record fallback and to bypass shading for
+  -- true-colour art -- draw-only dependencies in exactly the sense
+  -- src/formview.lua's own header uses that word for Font, so their absence
+  -- disables the picture fix alone rather than this module's whole install.
+  local okGbc, GbcPaletteMod = pcall(require, "src.render.GbcPalette")
+  local okPalettes, PalettesMod = pcall(require, "src.world.gen2.Palettes")
+  GbcPalette = okGbc and GbcPaletteMod or nil
+  Palettes = okPalettes and PalettesMod or nil
+  if type(SummaryMenu.drawPic) ~= "function" or not GbcPalette or not Palettes then
+    record("gen2formview: install: SummaryMenu.drawPic %s, GbcPalette %s, "
+      .. "Palettes %s -- the picture fix is disabled, types and stats are not",
+      type(SummaryMenu.drawPic), tostring(GbcPalette ~= nil), tostring(Palettes ~= nil))
+    if mod.log then
+      mod.log:error("battle_forms: the SUMMARY screen's picture could not be "
+        .. "patched (a required class has changed shape) -- a Gen 2 formed "
+        .. "Pokemon's picture will still show its base species")
+    end
+    return true
+  end
+
+  local resolveModule = spriteModule()
+  local vanillaDrawPic = SummaryMenu.drawPic
+  SummaryMenu._battleFormsGen2FormViewPic = true
+  SummaryMenu.drawPic = function(self)
+    local ok, drew = pcall(M.drawPic, self, resolveModule)
+    if ok and drew then return end
+    if not ok then
+      record("gen2formview: SummaryMenu.drawPic overlay failed (%s)", tostring(drew))
+    end
+    return vanillaDrawPic(self)
+  end
+  record("gen2formview: install: wrapped SummaryMenu.drawPic")
   return true
 end
 
