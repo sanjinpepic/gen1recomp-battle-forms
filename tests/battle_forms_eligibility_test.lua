@@ -34,9 +34,12 @@ T.eq(E.formForMon(megas, nil), nil, "a nil mon is not eligible")
 -- to be a second, independent statement of the same fact: a mega marked
 -- wrong in the data file fails here instead of agreeing with itself.
 --
--- RAYQUAZA/RAYQUAZITE is on the list because Mega Rayquaza is official.  The
--- STONE is not -- the real games trigger that one off knowing Dragon Ascent,
--- and a stone is the only trigger this mod implements.
+-- RAYQUAZA/RAYQUAZITE is deliberately NOT on this list.  Mega Rayquaza is
+-- one of the 48, but data/megas.lua carries no row for it: its only trigger
+-- since 0.30.0 is knowing Dragon Ascent (src/dragonascent.lua), which this
+-- table has nothing to do with, and the withdrawn RAYQUAZITE stone pairs
+-- with nothing any longer.  See tests/battle_forms_dragonascent_test.lua for
+-- Rayquaza's own coverage.
 local OFFICIAL_PAIRS = {
   "ABOMASNOW/ABOMASITE",
   "ABSOL/ABSOLITE",
@@ -75,7 +78,6 @@ local OFFICIAL_PAIRS = {
   "MEWTWO/MEWTWONITE_Y",
   "PIDGEOT/PIDGEOTITE",
   "PINSIR/PINSIRITE",
-  "RAYQUAZA/RAYQUAZITE",
   "SABLEYE/SABLENITE",
   "SALAMENCE/SALAMENCITE",
   "SCEPTILE/SCEPTILITE",
@@ -88,7 +90,9 @@ local OFFICIAL_PAIRS = {
   "VENUSAUR/VENUSAURITE",
 }
 
-T.eq(#OFFICIAL_PAIRS, 48, "the list this suite checks against holds 48 pairs")
+-- 47, not the real games' 48 -- Mega Rayquaza is the missing one, carried
+-- through src/dragonascent.lua rather than through this pairing table.
+T.eq(#OFFICIAL_PAIRS, 47, "the list this suite checks against holds 47 pairs")
 
 local expected = {}
 for _, pair in ipairs(OFFICIAL_PAIRS) do expected[pair] = true end
@@ -103,7 +107,7 @@ for species, byStone in pairs(official) do
       pair .. " is marked official but is not a mega the real games have")
   end
 end
-T.eq(markedCount, 48, "exactly 48 megas are marked official")
+T.eq(markedCount, 47, "exactly 47 megas are marked official")
 for _, pair in ipairs(OFFICIAL_PAIRS) do
   T.check(marked[pair],
     pair .. " is a mega the real games have but is not marked official")
@@ -113,7 +117,7 @@ local allCount = 0
 for _, byStone in pairs(megas) do
   for _ in pairs(byStone) do allCount = allCount + 1 end
 end
-T.eq(allCount, 96, "ALL selects every wired mega")
+T.eq(allCount, 95, "ALL selects every wired mega")
 
 -- ------- what each setting makes eligible ----------------------------
 

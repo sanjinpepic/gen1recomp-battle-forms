@@ -62,6 +62,13 @@ end
 -- a stone data/megas.lua actually names.  Without this, a stone could be
 -- retired from megas.lua and its permanent index would sit there forever,
 -- unnoticed, still sellable and still doing nothing.
+--
+-- RAYQUAZITE is the one deliberate exception, named outright rather than
+-- silently exempted: withdrawn in 0.30.0 (data/megas.lua's own header has
+-- the history), its byte (172) stays reserved forever precisely because it
+-- is now permanently unnamed anywhere in data/megas.lua -- the retirement
+-- this whole check exists to catch, done on purpose exactly once.
+local RETIRED = { RAYQUAZITE = true }
 local namedStones = {}
 for _, byStone in pairs(megas) do
   for stoneId in pairs(byStone) do
@@ -69,9 +76,16 @@ for _, byStone in pairs(megas) do
   end
 end
 for stoneId in pairs(indices) do
-  T.check(namedStones[stoneId], stoneId
+  T.check(namedStones[stoneId] or RETIRED[stoneId], stoneId
     .. " has a bag index in data/stones.lua but is not named in data/megas.lua")
 end
+
+-- The withdrawal itself: RAYQUAZITE keeps its byte permanently but is no
+-- longer registered as an item at all, since src/stone.lua only ever builds
+-- a record for a stone data/megas.lua still pairs with something -- exactly
+-- what a player carrying one should get: the item is inert, not gone.
+T.eq(Stone.items(megas, indices)["RAYQUAZITE"], nil,
+  "RAYQUAZITE is not registered as an item -- it pairs with nothing")
 
 -- A stone with no entry in data/stones.lua must not be registered at all --
 -- silently shipping an index-less item is exactly what a save cannot hold.
@@ -125,8 +139,13 @@ for _, setting in ipairs({ Megaset.OFFICIAL, Megaset.ALL }) do
         stoneId .. " keeps its item effect under " .. setting)
     end
   end
-  T.eq(registered, 96, "every wired stone was checked under " .. setting)
+  T.eq(registered, 95, "every wired stone was checked under " .. setting)
   T.eq(#seen.errors, 0, "no stone reports a missing bag index under " .. setting)
+
+  T.eq(seen.items.RAYQUAZITE, nil,
+    "RAYQUAZITE stays unregistered under " .. setting
+      .. " too -- the option narrows what a wired stone does, not whether "
+      .. "a withdrawn one comes back")
 
   -- Starmie's mega is one the real games never had, so its stone is inert
   -- under OFFICIAL -- inert, not absent, and it fails the way a stone used on
@@ -138,5 +157,23 @@ for _, setting in ipairs({ Megaset.OFFICIAL, Megaset.ALL }) do
   T.eq(E.stoneOf(target), setting == Megaset.ALL and "STARMIITE" or nil,
     "a refused use under " .. setting .. " stamps nothing")
 end
+
+-- ------- byte 172 is permanently reserved -----------------------------
+--
+-- data/stones.lua's own rule: a stone's byte is never renumbered, because
+-- reusing one silently turns a stone already in a player's bag into a
+-- different item.  RAYQUAZITE is withdrawn (0.30.0) but its byte still has
+-- to mean nothing else, forever -- this fails the moment anything hands 172
+-- to a second stone, whether by editing RAYQUAZITE's own line or any other.
+T.eq(indices.RAYQUAZITE, 172,
+  "byte 172 is still where RAYQUAZITE's retired entry lives")
+local holders172 = {}
+for stoneId, byteId in pairs(indices) do
+  if byteId == 172 then holders172[#holders172 + 1] = stoneId end
+end
+table.sort(holders172)
+T.eq(#holders172, 1, "byte 172 belongs to exactly one entry in data/stones.lua")
+T.eq(holders172[1], "RAYQUAZITE",
+  "and it is still RAYQUAZITE -- byte 172 was never handed to another stone")
 
 T.finish("battle_forms_stone")

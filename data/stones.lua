@@ -84,6 +84,13 @@ return {
   PYROARITE             = 169,
   RAICHUITE_X           = 170,
   RAICHUITE_Y           = 171,
+  -- Withdrawn 0.30.0.  RAYQUAZITE was this mod's invented stand-in trigger
+  -- for Mega Rayquaza before src/dragonascent.lua existed; that trigger
+  -- (knowing Dragon Ascent) is the only one left, data/megas.lua carries no
+  -- row for this stone any longer, and nothing pairs with byte 172 or ever
+  -- will again -- it is retired, not reassignable, per this file's own rule
+  -- two lines up.  tests/battle_forms_stone_test.lua pins the byte itself so
+  -- a future edit here cannot hand 172 to a new stone by accident.
   RAYQUAZITE            = 172,
   SABLENITE             = 173,
   SALAMENCITE           = 174,

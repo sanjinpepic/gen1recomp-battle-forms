@@ -1,13 +1,13 @@
--- Mega Rayquaza's real trigger: knowing Dragon Ascent, not a stone.
+-- Mega Rayquaza's trigger: knowing Dragon Ascent, not a stone.
 --
--- data/megas.lua already says why RAYQUAZITE exists at all -- Mega Rayquaza
--- has no stone in the real games, this mod invented one because a stone was
--- the only trigger it had.  This file is the second trigger, the honest one,
--- and it teaches the move as well as modelling its effect: national_dex
--- cannot flag DRAGONASCENT `effectModeled = true` on the strength of an effect
--- that lives in a mod it does not depend on, because that flag would then lie
--- whenever battle_forms is absent.  So both halves live here, where the claim
--- is always true.
+-- data/megas.lua's header tells the longer history -- an invented RAYQUAZITE
+-- stone stood in for this from this mod's early versions until 0.30.0, when
+-- wild_forms placed a wild Rayquaza and the stand-in was withdrawn.  This is
+-- now the ONLY trigger, and it teaches the move as well as modelling its
+-- effect: national_dex cannot flag DRAGONASCENT `effectModeled = true` on the
+-- strength of an effect that lives in a mod it does not depend on, because
+-- that flag would then lie whenever battle_forms is absent.  So both halves
+-- live here, where the claim is always true.
 --
 -- WHY A PATCH AND NOT A REGISTER, for both the move and the species.
 -- DRAGONASCENT and RAYQUAZA are already registered by national_dex --
@@ -34,11 +34,17 @@
 local M = {}
 
 M.SPECIES = "RAYQUAZA"
--- The key into data/megas.lua's own pairing table, so the form id this file
--- resolves to is read off that table rather than duplicated as a second
--- literal -- the exact mistake (a name instead of a record key) that shipped
--- a whole release of invisible megas in 0.2.1.
-M.STONE = "RAYQUAZITE"
+-- The National Dex record's KEY, exactly the discipline data/megas.lua's own
+-- header demands of every form id it names -- and never the record's `name`
+-- field, the exact mistake (a name instead of a record key) that shipped a
+-- whole release of invisible megas in 0.2.1.  Until 0.30.0 this was read off
+-- data/megas.lua's own RAYQUAZA row rather than written here, specifically to
+-- avoid this literal -- but that row named the withdrawn RAYQUAZITE stone as
+-- its key, and withdrawing the stone withdrew the row it was keyed under, so
+-- this is now the one place RAYQUAZA_MEGA is named.  tests/
+-- battle_forms_formids_test.lua checks it against the real national_dex
+-- record the same way it checks every other form id this mod wires.
+M.FORM = "RAYQUAZA_MEGA"
 M.MOVE = "DRAGONASCENT"
 M.LEVEL = 1
 -- Wears the mod's name for the reason every other effect id here does: a
@@ -81,13 +87,18 @@ end
 -- src/mega.lua is what keeps it from loosening the gate for anything else:
 -- this function is asked only about Rayquaza's own cell entry, never folded
 -- into src/eligibility.lua's shared formForMon.
-function M.formFor(megas, eligibility, crystals, mon)
+--
+-- Takes no `megas` argument as of 0.30.0: M.FORM is this file's own literal
+-- now, not a lookup into data/megas.lua's pairing table, because that table
+-- carries no row for Rayquaza any longer.  Callers still hold a `megas`
+-- table for the ordinary two-tier gate this function has nothing to do with
+-- (src/mega.lua's fallback, src/resolve.lua's switch-in reapply).
+function M.formFor(eligibility, crystals, mon)
   if not mon or mon.species ~= M.SPECIES then return nil end
   if not M.knows(mon) then return nil end
   local held = eligibility.stoneOf(mon)
   if held and crystals and crystals[held] then return nil end
-  local byItem = megas and megas[M.SPECIES]
-  return byItem and byItem[M.STONE]
+  return M.FORM
 end
 
 -- Dragon Ascent's whole modelled effect: the user's own Defense and Special

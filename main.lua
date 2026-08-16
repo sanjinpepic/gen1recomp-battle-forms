@@ -477,8 +477,14 @@ return function(mod)
   -- manager does not reload the mod (ManagerState:setOption writes
   -- loader.modOptions in place), so a captured value would mean the switch
   -- only ever took effect on the next boot.
+  -- dragonascent and zcrystals are the same two values src/mega.lua's own
+  -- exemption reads, handed here too so the trace reports the MEGA cell's
+  -- real decision for Rayquaza rather than only its stone-based half -- see
+  -- src/diag.lua's own header on `trigger()` for why the stone-only version
+  -- of this report used to look exactly like a failure for a working mega.
   diag.bind({ mod = mod, registry = registry, overlay = overlay, state = state,
               eligibility = eligibility, megas = megas, keyitems = keyitems,
+              dragonascent = dragonascent, zcrystals = zcrystals,
               enabled = function()
                 return mod.options:get("debug_trace") == "on"
               end })

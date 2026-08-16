@@ -3,6 +3,37 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.30.0
+
+### Removed
+
+- **RAYQUAZITE is withdrawn; Dragon Ascent is Mega Rayquaza's only trigger
+  now.** The stone was always a stand-in for the real trigger, kept alive
+  only because Rayquaza had no way into any save; wild_forms 0.2.0 placed one
+  at Indigo Plateau, so that blocking condition is gone and 0.29.0's own
+  promise to withdraw the stone once it was is kept. `data/megas.lua` carries
+  no row for Rayquaza any longer, so `src/dragonascent.lua` can no longer
+  read `RAYQUAZA_MEGA` off that table the way it did through 0.29.0 -- it now
+  names the record's own key as its own literal, checked against National
+  Dex directly by `tests/battle_forms_formids_test.lua` the same way every
+  other form id here is. A Rayquaza already holding a Rayquazite from an
+  earlier version keeps it: the item is simply no longer registered, so it
+  neither triggers anything nor vanishes from the bag. Byte 172 stays
+  permanently reserved in `data/stones.lua`, as this file's own rule requires
+  of every stone byte once assigned.
+
+### Fixed
+
+- **DEBUG TRACE now reports Mega Rayquaza's real reason.** The trace's menu
+  line answered mega eligibility purely through the held-stone path, so a
+  Dragon-Ascent-triggered Mega Rayquaza -- which stamps no item at all --
+  always read `stone=nil form=nil`, indistinguishable from a mega that had
+  simply failed. Now that RAYQUAZITE is gone, Dragon Ascent is the only path
+  Rayquaza has, so that misreading would have become the sole answer this
+  tool ever gave for it. The line now also names `trigger=`, `dragonascent`
+  or `stone`, and reports whichever form actually resolved rather than only
+  the stone-based half.
+
 ## 0.29.0
 
 ### Added

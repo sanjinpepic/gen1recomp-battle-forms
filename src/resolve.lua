@@ -49,22 +49,28 @@ function M.onBattlerSwitched(ev)
   local battler = ev and ev.battler
   local mon = battler and battler.mon
   if not battle or not mon or not mon.form then return end
-  -- A species this table names no mega for cannot be marked with a mega's
-  -- form, so the mark belongs to another transformation type with a switch-in
-  -- handler of its own (primal reversion has one).  Reapplying is not this
-  -- path's job then, and neither is complaining that it cannot.
-  if not deps.megas[mon.species] then return end
 
-  -- Rayquaza's own trigger stamps no stone at all, so the ordinary
-  -- stone-based lookup below would find nothing for a Mega Rayquaza that
-  -- got there through Dragon Ascent and report it as no longer eligible --
-  -- reverting nothing, but also never reapplying the stat/type override, so
-  -- it would come back from the bench with the mega's picture and species
-  -- and its BASE stats. Asked first, the same order src/mega.lua checks in.
-  local formId = (deps.dragonascent
-      and deps.dragonascent.formFor(deps.megas, deps.eligibility,
-        deps.zcrystals, mon))
-    or deps.eligibility.formForMon(deps.megas, mon)
+  -- Rayquaza's own trigger stamps no stone at all and, as of 0.30.0, has no
+  -- row in data/megas.lua either -- it is asked FIRST, ahead of the table
+  -- guard below, for exactly the reason src/mega.lua asks it first: a
+  -- species this function never finds in `deps.megas` is not necessarily a
+  -- species with no mega, and Rayquaza is the one standing case of that.
+  -- Skipping this would find nothing for a Mega Rayquaza that got there
+  -- through Dragon Ascent and report it as no longer eligible -- reverting
+  -- nothing, but also never reapplying the stat/type override, so it would
+  -- come back from the bench with the mega's picture and species and its
+  -- BASE stats.
+  local formId = deps.dragonascent
+    and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon)
+  if not formId then
+    -- A species this table names no mega for cannot be marked with a mega's
+    -- form, so the mark belongs to another transformation type with a
+    -- switch-in handler of its own (primal reversion has one).  Reapplying
+    -- is not this path's job then, and neither is complaining that it
+    -- cannot -- unless Rayquaza's own trigger already answered above.
+    if not deps.megas[mon.species] then return end
+    formId = deps.eligibility.formForMon(deps.megas, mon)
+  end
   if not formId then
     -- The stone was removed, or the mega table changed, between the mon
     -- transforming and this switch-in -- vanishingly unlikely in a single

@@ -67,31 +67,40 @@ local function mon(species, moves, held)
   return { species = species, moves = moves or {}, [E.STAMP] = held }
 end
 
-T.eq(DragonAscent.formFor(megas, E, crystals,
+T.eq(DragonAscent.formFor(E, crystals,
   mon("RAYQUAZA", { { id = "DRAGONASCENT" } })), "RAYQUAZA_MEGA",
   "a Rayquaza that knows Dragon Ascent and holds nothing gets the mega form")
 
-T.eq(DragonAscent.formFor(megas, E, crystals,
+T.eq(DragonAscent.formFor(E, crystals,
   mon("RAYQUAZA", { { id = "REST" } })), nil,
   "a Rayquaza that has not learned the move gets nothing")
 
-T.eq(DragonAscent.formFor(megas, E, crystals,
+T.eq(DragonAscent.formFor(E, crystals,
   mon("CHARIZARD", { { id = "DRAGONASCENT" } })), nil,
   "knowing the move means nothing for a species that is not Rayquaza")
 
-T.eq(DragonAscent.formFor(megas, E, crystals,
+T.eq(DragonAscent.formFor(E, crystals,
   mon("RAYQUAZA", { { id = "DRAGONASCENT" } }, "FIRIUM_Z")), nil,
   "a Rayquaza holding a type Z-Crystal is refused, per the Gen 7 rule")
 
-T.eq(DragonAscent.formFor(megas, E, crystals,
+T.eq(DragonAscent.formFor(E, crystals,
   mon("RAYQUAZA", { { id = "DRAGONASCENT" } }, "ULTRANECROZIUM_Z")), nil,
   "and so is one holding Ultranecrozium Z")
 
-T.eq(DragonAscent.formFor(megas, E, crystals,
+-- The withdrawn stone -- still a legal string to be holding, since a stone
+-- already in a bag or stamped on a mon before 0.30.0 does not vanish -- is
+-- not a Z-Crystal and does not block the trigger either.
+T.eq(DragonAscent.formFor(E, crystals,
   mon("RAYQUAZA", { { id = "DRAGONASCENT" } }, "RAYQUAZITE")), "RAYQUAZA_MEGA",
-  "holding the mega stone itself is not a Z-Crystal and does not block it")
+  "holding the withdrawn stone does not block the trigger")
 
-T.eq(DragonAscent.formFor(megas, E, crystals, nil), nil, "no mon at all gets nothing")
+T.eq(DragonAscent.formFor(E, crystals, nil), nil, "no mon at all gets nothing")
+
+-- M.FORM is this file's own literal as of 0.30.0 (data/megas.lua carries no
+-- RAYQUAZA row to read it off any longer) -- pinned so a typo here cannot
+-- silently repeat the 0.2.1 mistake with nothing left to catch it.
+T.eq(DragonAscent.FORM, "RAYQUAZA_MEGA",
+  "M.FORM still names the National Dex record's own key")
 
 -- ---------------------------------------------------------------------
 -- The effect: lands on the USER, lowers Defense and Special one stage each,
@@ -288,20 +297,22 @@ do
     "a Rayquaza holding a Z-Crystal is not offered the cell")
 end
 
--- A Rayquaza that has NOT learned Dragon Ascent falls straight back to the
--- ordinary two-tier gate -- byte 172 is still good for something.
+-- A Rayquaza that has NOT learned Dragon Ascent has no path to the cell any
+-- longer.  Through 0.29.0 this fell back to the ordinary two-tier gate,
+-- because RAYQUAZITE still paired with the mega in data/megas.lua; 0.30.0
+-- withdrew that row, so the fallback now finds nothing for RAYQUAZA at all,
+-- Key Stone or not, byte 172 already in the bag or not.
 do
   local entry = entryFor(nil)
   local noKeyStone = makeBattle("RAYQUAZA", { { id = "REST" } }, "RAYQUAZITE", {})
   T.eq(entry.available(noKeyStone), false,
-    "without the move, the Key Stone is required exactly as for any other mega")
+    "no move, no Key Stone: not offered, as ever")
 
   local withKeyStone = makeBattle("RAYQUAZA", { { id = "REST" } }, "RAYQUAZITE",
     { [KeyItems.KEY_STONE] = 1 })
-  T.eq(entry.available(withKeyStone), true,
-    "and with both the Key Stone and the stone, the old trigger still works")
-  T.eq(entry.activate(withKeyStone), true, "and still activates")
-  T.eq(withKeyStone.player.mon.form, "MEGA", "into the same Mega Rayquaza")
+  T.eq(entry.available(withKeyStone), false,
+    "a Key Stone plus the withdrawn stone is no longer enough -- "
+      .. "data/megas.lua carries no pairing for either to resolve through")
 end
 
 -- Every OTHER mega: the exemption must not have loosened anything.  A

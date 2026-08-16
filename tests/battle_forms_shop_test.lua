@@ -60,15 +60,29 @@ for _, id in ipairs(VANILLA_STOCK) do
   T.check(sells(mart, id), "the floor still sells " .. id)
 end
 
+-- RAYQUAZITE keeps a permanent bag byte in data/stones.lua (see that file's
+-- own header) but is withdrawn from data/megas.lua as of 0.30.0, so the
+-- shelf -- stocked from megaset.stoneIds(megas), which reads the pairing
+-- table and not the byte table -- must not offer it under any setting.
+local RETIRED = { RAYQUAZITE = true }
+
 for stoneId in pairs(indices) do
-  T.check(sells(mart, stoneId), stoneId .. " is on the shelf")
+  if RETIRED[stoneId] then
+    T.check(not sells(mart, stoneId),
+      stoneId .. " is withdrawn and must not be on the shelf")
+  else
+    T.check(sells(mart, stoneId), stoneId .. " is on the shelf")
+  end
 end
 
 local stoneCount = 0
-for _ in pairs(indices) do stoneCount = stoneCount + 1 end
+for stoneId in pairs(indices) do
+  if not RETIRED[stoneId] then stoneCount = stoneCount + 1 end
+end
 
 T.eq(#mart, #VANILLA_STOCK + stoneCount,
-  "only the original stock plus exactly the wired stones ends up on the shelf")
+  "only the original stock plus exactly the wired, non-retired stones ends "
+    .. "up on the shelf")
 
 -- The base table itself is never touched -- a second mod patching the same
 -- floor must see its own stones, not ours baked into what it thinks is vanilla.
@@ -97,8 +111,8 @@ for stoneId in pairs(indices) do
   end
 end
 
-T.eq(offeredCount, 48, "the shelf offers the 48 official stones under OFFICIAL")
-T.eq(#officialMart, #VANILLA_STOCK + 48,
+T.eq(offeredCount, 47, "the shelf offers the 47 official stones under OFFICIAL")
+T.eq(#officialMart, #VANILLA_STOCK + 47,
   "and nothing else -- the extended stones are not quietly still on it")
 
 T.finish("battle_forms_shop")

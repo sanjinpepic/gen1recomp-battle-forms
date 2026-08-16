@@ -29,8 +29,12 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local DragonAscent = dofile(MOD .. "/src/dragonascent.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local primals = dofile(MOD .. "/data/primals.lua")
+local crystalIndices = dofile(MOD .. "/data/crystals.lua")
+local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
+local zcrystals = DragonAscent.crystalSet(crystalIndices, ultraCrystalIndices)
 
 local DATA = { pokemon = {
   CHARIZARD = { baseStats = { hp = 78, attack = 84, defense = 78,
@@ -45,6 +49,12 @@ local DATA = { pokemon = {
   GROUDON_PRIMAL = { baseStats = { hp = 100, attack = 180, defense = 160,
                                    speed = 90, special = 150 },
                      types = { "GROUND", "FIRE" }, form = "PRIMAL" },
+  RAYQUAZA = { baseStats = { hp = 105, attack = 150, defense = 90,
+                             speed = 95, special = 150 },
+              types = { "DRAGON", "FLYING" } },
+  RAYQUAZA_MEGA = { baseStats = { hp = 105, attack = 180, defense = 100,
+                                  speed = 115, special = 180 },
+                    types = { "DRAGON", "FLYING" }, form = "MEGA" },
 } }
 
 local function newMon(species, held)
@@ -105,7 +115,11 @@ end
 -- A whole diagnostic, freshly compiled, wired to a fresh recorder.  dofile
 -- rather than one shared module because every throttle in it is module state:
 -- two cases sharing an instance would each be testing the other's leftovers.
-local function newDiag(mod)
+--
+-- `extra` merges into the bind table -- used below to hand the diagnostic
+-- dragonascent and zcrystals the same way main.lua does, without disturbing
+-- every other call site that has no reason to care about either.
+local function newDiag(mod, extra)
   local Diag = dofile(MOD .. "/src/diag.lua")
   local Overlay = dofile(MOD .. "/src/overlay.lua")
   local Arm = dofile(MOD .. "/src/arm.lua")
@@ -114,9 +128,11 @@ local function newDiag(mod)
     megas = megas, keyitems = KeyItems }))
   Overlay.bind({ registry = registry })
   local state = Arm.new()
-  Diag.bind({ mod = mod, registry = registry, overlay = Overlay, state = state,
-              eligibility = E, megas = megas, keyitems = KeyItems,
-              enabled = function() return mod.option == "on" end })
+  local bind = { mod = mod, registry = registry, overlay = Overlay, state = state,
+                 eligibility = E, megas = megas, keyitems = KeyItems,
+                 enabled = function() return mod.option == "on" end }
+  for k, v in pairs(extra or {}) do bind[k] = v end
+  Diag.bind(bind)
   return { diag = Diag, overlay = Overlay, state = state, registry = registry,
            registered = registered, why = why }
 end
@@ -257,6 +273,78 @@ do
     "an arm state that never cached a battle is named as such")
   T.check(starved:find("offered=0", 1, true) ~= nil,
     "and nothing is on offer, which is the cell being absent")
+end
+
+-- ---------------------------------------------------------------------
+-- The blind spot this suite exists to close (0.30.0).  A Mega Rayquaza
+-- reached through Dragon Ascent stamps no item at all, so `stone=` alone
+-- always read nil for it -- indistinguishable, before this fix, from a mega
+-- that had simply failed.  Now that RAYQUAZITE is withdrawn, Dragon Ascent
+-- is Rayquaza's ONLY path, so this was about to become the sole answer this
+-- diagnostic ever gave for it.  Bound with dragonascent and zcrystals the
+-- way main.lua binds them, which is the one piece the plain newDiag() calls
+-- above do not exercise.
+-- ---------------------------------------------------------------------
+do
+  local mod = fakeMod()
+  mod.option = "on"
+  local kit = newDiag(mod, { dragonascent = DragonAscent, zcrystals = zcrystals })
+
+  local rayquaza = newMon("RAYQUAZA", nil)
+  rayquaza.moves = { { id = "DRAGONASCENT", pp = 5 } }
+  local battle = { phase = "menu", queue = {}, data = DATA, menuIndex = 1,
+                   player = { mon = rayquaza, isPlayer = true },
+                   game = { save = { inventory = {} },
+                            input = { wasPressed = function() return false end } } }
+  kit.state:onBattleStarted({ battle = battle })
+  kit.diag.menu(battle)
+
+  local line = firstMatching(mod, "menu: ")
+  T.check(line ~= nil, "a working Dragon-Ascent mega still produces a line")
+  T.check(line:find("stone=nil", 1, true) ~= nil,
+    "the stone-based half correctly reports nothing held -- Rayquaza's own "
+      .. "trigger stamps no item")
+  T.check(line:find("trigger=dragonascent", 1, true) ~= nil,
+    "but the real reason is named rather than left to look like a failure")
+  T.check(line:find("form=RAYQUAZA_MEGA", 1, true) ~= nil,
+    "and the form the cell will actually use is reported")
+  T.check(line:find("record=true", 1, true) ~= nil,
+    "with whether that form has a species record backing it")
+
+  -- The ordinary stone path still reports as itself when it is the one that
+  -- actually fired -- this fix must not make every mega look Dragon-Ascended.
+  local mod2 = fakeMod()
+  mod2.option = "on"
+  local kit2 = newDiag(mod2, { dragonascent = DragonAscent, zcrystals = zcrystals })
+  local battle2 = eligibleBattle()
+  kit2.state:onBattleStarted({ battle = battle2 })
+  kit2.diag.menu(battle2)
+  local line2 = firstMatching(mod2, "menu: ")
+  T.check(line2:find("trigger=stone", 1, true) ~= nil,
+    "an ordinary stone-triggered mega still reports its own path")
+  T.check(line2:find("form=CHARIZARD_MEGA_X", 1, true) ~= nil,
+    "with its own form, unaffected by Rayquaza's special case")
+
+  -- A Rayquaza holding a Z-Crystal is refused by Dragon Ascent's own rule and
+  -- has no stone-based path either (it never had one) -- the trace has to
+  -- say "no path fired", not misreport the refused trigger as the answer.
+  local mod3 = fakeMod()
+  mod3.option = "on"
+  local kit3 = newDiag(mod3, { dragonascent = DragonAscent, zcrystals = zcrystals })
+  local blocked = newMon("RAYQUAZA", "FIRIUM_Z")
+  blocked.moves = { { id = "DRAGONASCENT", pp = 5 } }
+  local battle3 = { phase = "menu", queue = {}, data = DATA, menuIndex = 1,
+                    player = { mon = blocked, isPlayer = true },
+                    game = { save = { inventory = {} },
+                             input = { wasPressed = function() return false end } } }
+  kit3.state:onBattleStarted({ battle = battle3 })
+  kit3.diag.menu(battle3)
+  local line3 = firstMatching(mod3, "menu: ")
+  T.check(line3:find("trigger=stone", 1, true) ~= nil,
+    "refused by the Z-Crystal rule, the trace falls back to naming the "
+      .. "stone path it then also finds nothing through")
+  T.check(line3:find("form=nil", 1, true) ~= nil,
+    "and reports no form at all, honestly")
 end
 
 -- ---------------------------------------------------------------------

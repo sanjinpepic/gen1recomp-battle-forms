@@ -31,19 +31,23 @@
 -- otherwise land in whichever set the default happened to be, and be wrong
 -- without anyone hearing about it.
 --
--- One official row still carries a trigger the real games do not have.
--- Mega Rayquaza has no stone in the mainline games -- it megas by knowing
--- Dragon Ascent -- and RAYQUAZITE was this mod's invention from the days
--- when a stone was the only trigger implemented here.  0.29.0 added the real
--- one (src/dragonascent.lua): a Rayquaza that knows Dragon Ascent reaches
--- the MEGA cell with no Key Stone and no stone at all, refused only by a
--- held Z-Crystal, per the Gen 7 rule.  RAYQUAZITE still works and this row
--- still needs its officialness marker -- Rayquaza is not placed in any
--- encounter, gift or trade yet, so the stone is the only carrier the mega
--- has until one exists -- but it is transitional and will be withdrawn once
--- it is not.  Byte 172 stays reserved either way; data/stones.lua's own rule
--- is that a stone's byte is never renumbered, because reusing one silently
--- turns a stone already in a player's bag into a different item.
+-- Mega Rayquaza has no row here, and that is deliberate history rather than
+-- an oversight.  Mega Rayquaza has no stone in the mainline games -- it
+-- megas by knowing Dragon Ascent -- but this mod had no such trigger for its
+-- first several versions, so RAYQUAZITE was invented as a stand-in: a stone
+-- like any other, blocked only by Rayquaza being unobtainable anywhere in
+-- the game.  0.29.0 built the real trigger (src/dragonascent.lua) and kept
+-- RAYQUAZITE running alongside it, transitionally, because that blocking
+-- condition still held.  wild_forms 0.2.0 placed a wild Rayquaza at Indigo
+-- Plateau, and 0.30.0 withdrew RAYQUAZITE as promised: Mega Rayquaza has no
+-- row here any longer and needs none, because the OFFICIAL/ALL split this
+-- table exists to mark never applied to it in the first place -- the real
+-- games have this mega unconditionally, and src/dragonascent.lua now grants
+-- it unconditionally too, through no pairing table at all.  Byte 172 stays
+-- reserved regardless in data/stones.lua, which explains why: reusing a bag
+-- byte silently turns a stone already in a player's bag into a different
+-- item, and that rule does not stop applying just because the item behind
+-- the byte was withdrawn.
 local function official(form) return { form = form, official = true } end
 local function extended(form) return { form = form, official = false } end
 
@@ -121,7 +125,6 @@ return {
   PYROAR       = { PYROARITE = extended "PYROAR_MEGA" },
   RAICHU       = { RAICHUITE_X = extended "RAICHU_MEGA_X",
                    RAICHUITE_Y = extended "RAICHU_MEGA_Y" },
-  RAYQUAZA     = { RAYQUAZITE = official "RAYQUAZA_MEGA" },
   SABLEYE      = { SABLENITE = official "SABLEYE_MEGA" },
   SALAMENCE    = { SALAMENCITE = official "SALAMENCE_MEGA" },
   SCEPTILE     = { SCEPTILITE = official "SCEPTILE_MEGA" },

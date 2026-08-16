@@ -214,12 +214,28 @@ end
 -- rather than merely tested for nil: the cell asks the state, so a state
 -- holding SOME battle that is not this one fails exactly as quietly as one
 -- holding none.
+-- The form the MEGA cell would actually use, and which path answered --
+-- "dragonascent" or "stone" -- asked in the exact order src/mega.lua asks
+-- them in.  Read separately from `stone=` below rather than folded into it:
+-- Rayquaza's own trigger stamps no item at all, so a working Mega Rayquaza
+-- always reports stone=nil, and reporting only the stone-based form there
+-- (as this did through 0.29.0) made a mega that fired through Dragon Ascent
+-- look exactly like one that had failed.  Once 0.30.0 withdrew RAYQUAZITE,
+-- Dragon Ascent became the only path Rayquaza has, so that misreading would
+-- have been the ONLY answer this ever gave for it.
+local function trigger(mon)
+  local dragonForm = deps.dragonascent
+    and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon)
+  if dragonForm then return dragonForm, "dragonascent" end
+  return deps.eligibility.formForMon(deps.megas, mon), "stone"
+end
+
 local function describe(battle)
   local cached = deps.state:current()
   local where = cached == nil and "none"
     or (cached == battle and "this battle" or "another battle")
   local mon = battle.player and battle.player.mon
-  local formId = deps.eligibility.formForMon(deps.megas, mon)
+  local formId, how = trigger(mon)
   local pokemon = battle.data and battle.data.pokemon
   local queue = battle.queue
   local spent = {}
@@ -237,11 +253,11 @@ local function describe(battle)
       tostring(deps.keyitems.held(battle, itemId)))
   end
   return ("menu: armState=%s phase=%s queueEmpty=%s species=%s stone=%s "
-    .. "form=%s record=%s keys[%s] used[%s] offered=%d"):format(
+    .. "trigger=%s form=%s record=%s keys[%s] used[%s] offered=%d"):format(
     where, tostring(battle.phase),
     tostring(queue == nil or next(queue) == nil),
     tostring(mon and mon.species), tostring(deps.eligibility.stoneOf(mon)),
-    tostring(formId),
+    how, tostring(formId),
     tostring(formId ~= nil and pokemon ~= nil and pokemon[formId] ~= nil),
     table.concat(carried, " "),
     table.concat(spent, " "), #deps.overlay.offered(deps.state))

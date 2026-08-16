@@ -52,8 +52,7 @@ function M.entry(deps)
       local pokemon = battle.data and battle.data.pokemon
 
       local exemptForm = deps.dragonascent
-        and deps.dragonascent.formFor(deps.megas, deps.eligibility,
-          deps.zcrystals, mon)
+        and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon)
       if exemptForm then
         return pokemon ~= nil and pokemon[exemptForm] ~= nil
       end
@@ -73,8 +72,7 @@ function M.entry(deps)
       local battler = battle.player
       local mon = battler and battler.mon
       local formId = (deps.dragonascent
-          and deps.dragonascent.formFor(deps.megas, deps.eligibility,
-            deps.zcrystals, mon))
+          and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon))
         or deps.eligibility.formForMon(deps.megas, mon)
       if not formId then return false end
 

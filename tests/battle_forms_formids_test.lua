@@ -18,6 +18,7 @@ local T = require("tests.modkit")
 local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local DragonAscent = dofile(MOD .. "/src/dragonascent.lua")
 -- The whole roster: every check below holds for any wired mega, and the
 -- OFFICIAL/ALL split is pinned in the eligibility suite.  The primal table
 -- needs no selecting -- it is already the plain shape select() produces --
@@ -104,6 +105,18 @@ table.sort(conditionalSpecies)
 table.sort(gigantamaxSpecies)
 
 T.check(#formIds > 0, "the wired tables name at least one form")
+
+-- Mega Rayquaza's own form id, named outright for a stronger reason than the
+-- primals below: it does not even appear in the sweep above.  As of 0.30.0
+-- data/megas.lua carries no RAYQUAZA row at all -- src/dragonascent.lua
+-- names RAYQUAZA_MEGA as its own literal (M.FORM) rather than reading it off
+-- a pairing table -- so this is the one place left that would ever catch a
+-- typo there.
+T.eq(DragonAscent.FORM, "RAYQUAZA_MEGA",
+  "src/dragonascent.lua still names Mega Rayquaza's own form id")
+T.check(isRecordKey(DragonAscent.FORM), DragonAscent.FORM
+  .. " is a record KEY in national.lua (src/dragonascent.lua must name the "
+  .. "record's key, not its `name` field)")
 
 -- The two primal ids are also named outright: a pairing quietly dropped from
 -- data/primals.lua would only make the sweep above one shorter, and nothing

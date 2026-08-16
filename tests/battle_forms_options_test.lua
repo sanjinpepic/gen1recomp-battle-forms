@@ -136,18 +136,30 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local data = load(case.stored)
 
   -- Save safety, and the reason this suite exists.  Whatever the option
-  -- says, every stone keeps its item record and its effect: a stone can
-  -- already be in a bag when the option changes, and a bag byte with no
+  -- says, every WIRED stone keeps its item record and its effect: a stone
+  -- can already be in a bag when the option changes, and a bag byte with no
   -- record behind it is a save the game can no longer read back.
+  --
+  -- RAYQUAZITE is the one deliberate exception: withdrawn from
+  -- data/megas.lua in 0.30.0, it keeps its bag byte permanently reserved
+  -- (data/stones.lua's own header) but is registered by nothing -- see
+  -- tests/battle_forms_stone_test.lua for that behaviour pinned directly.
+  local RETIRED = { RAYQUAZITE = true }
   local registered = 0
   for stoneId in pairs(indices) do
-    registered = registered + 1
-    T.check(data.items and data.items[stoneId] ~= nil,
-      stoneId .. " is a registered item with the option " .. case.label)
-    T.check(data.item_effects and data.item_effects[stoneId] ~= nil,
-      stoneId .. " has its item effect with the option " .. case.label)
+    if RETIRED[stoneId] then
+      T.eq(data.items and data.items[stoneId], nil,
+        stoneId .. " stays unregistered with the option " .. case.label)
+    else
+      registered = registered + 1
+      T.check(data.items and data.items[stoneId] ~= nil,
+        stoneId .. " is a registered item with the option " .. case.label)
+      T.check(data.item_effects and data.item_effects[stoneId] ~= nil,
+        stoneId .. " has its item effect with the option " .. case.label)
+    end
   end
-  T.eq(registered, 96, "all 96 stones were checked with the option " .. case.label)
+  T.eq(registered, 95, "all 95 wired stones were checked with the option "
+    .. case.label)
 
   -- The shelf is where the option is allowed to take a stone away.
   local mart = martOf(data)
@@ -155,7 +167,7 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   for _, id in ipairs(mart) do sold[id] = true end
   T.eq(#mart,
     #FLOOR_STOCK + #KeyItems.ITEMS + crystalCount + ultraCrystalCount
-      + speciesZCrystalCount + applianceCount + (case.all and 96 or 48),
+      + speciesZCrystalCount + applianceCount + (case.all and 95 or 47),
     "the Celadon shelf holds the floor's own stock, every key item, every "
       .. "crystal, Ultranecrozium Z, every species crystal, every appliance "
       .. "and " .. (case.all and "every" or "only the official")
