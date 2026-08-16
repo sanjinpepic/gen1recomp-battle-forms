@@ -3,6 +3,68 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.36.0
+
+### Fixed
+
+- **Ten of the fourteen species Z-Crystals shipped in 0.27.0 permanently
+  unreachable.** Pikashunium Z, Snorlium Z, Incinium Z, Primarium Z,
+  Lycanium Z, Mimikium Z, Kommonium Z, Solganium Z, Lunalium Z and
+  Marshadium Z each key off a base move (Volt Tackle, Giga Impact, Darkest
+  Lariat, Sparkling Aria, Stone Edge, Play Rough, Clanging Scales, Sunsteel
+  Strike, Moongeist Beam) National Dex registers with `effectModeled =
+  false`, and that flag permanently bars a move from any learnset National
+  Dex builds, MOVES=ALL included -- so nothing could ever be taught them.
+  `src/speciesbasemoves.lua` now models each move's real effect -- Volt
+  Tackle's one-third recoil and 10% paralysis chance, Giga Impact's forced
+  recharge (repointed at the engine's own native `HYPER_BEAM_EFFECT` rather
+  than a copy of it, since that already is Giga Impact's real effect),
+  Darkest Lariat's damage ignoring the target's Defense stage, Sparkling
+  Aria curing the target's burn, Stone Edge's high critical-hit ratio
+  (the move record's own `highCrit` field, needing no handler at all),
+  Play Rough's 10% Attack-lowering chance, and Clanging Scales' own
+  Defense drop -- flags each honestly modelled, and teaches it to its
+  species directly, the same reachability fix 0.29.0 gave Dragon Ascent
+  and 0.34.0 gave Tera Blast. Sunsteel Strike and Moongeist Beam are
+  taught as plain damage: their whole real effect beyond that is ignoring
+  the target's ability, and this engine has none at all, so there is
+  nothing left over for a handler to add.
+- **Marshadium Z (Spectral Thief) is fixed the same way**, stealing every
+  positive stat stage the target is carrying onto the user before the hit,
+  across every stage this engine tracks, capped at +6 -- and happening
+  whether or not the hit goes on to land, matching the real move.
+- **Mewnium Z never registered its Z-Move and logged a warning on every
+  boot.** `data/speciesz.lua` named the base move `PSYCHIC`, but National
+  Dex registers Psychic under `PSYCHIC_M` -- pokered's own constant name
+  for the move, kept because the plain `PSYCHIC` id already belongs to
+  something else in this engine -- so the lookup found nothing and Genesis
+  Supernova never built. Fixed to name the real id. No teaching patch was
+  needed alongside it: TM29 is Psychic in Gen 1, Mew can learn every TM in
+  the real games, and National Dex leaves an id the cart already owns
+  alone rather than overriding it, so an ordinary save already has Mew
+  knowing Psychic under this same id with NATIONAL DEX off and no help
+  from this mod at all.
+
+### Known
+
+- **Decidium Z (Spirit Shackle) is refused, not merely unfinished.** Spirit
+  Shackle's real effect beyond damage prevents the target switching out,
+  and this Gen 1 engine has no seam a mod can reach to block a switch
+  decision -- no event fires before one, and nothing on a battler tracks
+  it, unlike Gen 2's own trapping moves. Building one would mean changing
+  engine code, which is out of reach here, and shipping it as plain damage
+  with an honest-modelled flag would be exactly the stub this reachability
+  fix exists to refuse elsewhere. Decidueye's crystal stays exactly as
+  unreachable as it has been since 0.27.0.
+- **Almost everything on this mod's list needs National Dex's own NATIONAL
+  DEX option turned on, not merely National Dex installed.** Every species
+  and form pseudo-record beyond Kanto's own 151 -- every mega, every
+  primal, every persistent held-item form, both fusions, Ultra Burst and
+  eleven of these fourteen species Z-Crystals' own species -- lives in
+  National Dex's `national.lua`, which its `main.lua` only loads when that
+  option reads `on`, and it defaults to `off`. `mod.card` advertised the
+  whole feature list with no mention of this; it now says so plainly.
+
 ## 0.35.0
 
 ### Fixed

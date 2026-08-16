@@ -154,7 +154,7 @@ local MOVES = {
   VOLTTACKLE = { id = "VOLTTACKLE", type = "ELECTRIC", power = 120, pp = 15 },
   THUNDERBOLT = { id = "THUNDERBOLT", type = "ELECTRIC", power = 90, pp = 15 },
   GIGAIMPACT = { id = "GIGAIMPACT", type = "NORMAL", power = 150, pp = 5 },
-  -- PSYCHIC, SPIRITSHACKLE and the rest are deliberately absent, so the
+  -- PSYCHIC_M, SPIRITSHACKLE and the rest are deliberately absent, so the
   -- registration test below also proves the "no record" refusal.
 }
 
@@ -183,7 +183,7 @@ do
     "and an animation, so it is not silent")
 
   T.eq(mod.registered.moves[SpeciesZ.idFor("GENESISSUPERNOVA")], nil,
-    "Mewnium Z's own move never registers -- PSYCHIC has no record in this stub")
+    "Mewnium Z's own move never registers -- PSYCHIC_M has no record in this stub")
 end
 
 -- ---------------------------------------------------------------------

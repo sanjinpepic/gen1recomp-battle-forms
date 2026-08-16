@@ -81,7 +81,7 @@ return function(mod)
                   "src/stone.lua", "src/keyitems.lua", "src/shop.lua",
                   "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dragonascent.lua",
-                  "src/terablasttm.lua",
+                  "src/terablasttm.lua", "src/speciesbasemoves.lua",
                   "src/dynamax.lua",
                   "src/substitute.lua", "src/maxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
@@ -259,6 +259,15 @@ return function(mod)
   local terablasttm = m["src/terablasttm.lua"]
   local tmIndices = m["data/tm171.lua"]
   terablasttm.install(mod, tmIndices)
+
+  -- The eleven species Z-Crystals' own base moves, beside Tera Blast's fix
+  -- for the same reason: every one of them shipped in 0.27.0 registered
+  -- `effectModeled = false`, which national_dex's own MOVES=ALL widening
+  -- permanently refuses, so nothing could ever be taught the move each
+  -- crystal converts. Ten get a real effect and an honest flag; the
+  -- eleventh (Spirit Shackle) is refused rather than faked -- see
+  -- src/speciesbasemoves.lua's own header for why.
+  m["src/speciesbasemoves.lua"].install(mod)
 
   m["src/stone.lua"].bind(eligibility, persistent)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)

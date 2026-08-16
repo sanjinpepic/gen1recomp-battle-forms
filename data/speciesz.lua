@@ -5,7 +5,7 @@
 -- data/zmoves.lua's own header called these unbuildable -- "every one of
 -- them keys off a base move Gen 1 does not have" -- and that was true when it
 -- was written.  It is not true now: National Dex 0.15.0 registered all 833
--- modern moves, and VOLTTACKLE, THUNDERBOLT, GIGAIMPACT, PSYCHIC,
+-- modern moves, and VOLTTACKLE, THUNDERBOLT, GIGAIMPACT, PSYCHIC_M,
 -- SPIRITSHACKLE, DARKESTLARIAT, SPARKLINGARIA, STONEEDGE, PLAYROUGH,
 -- CLANGINGSCALES, SUNSTEELSTRIKE, MOONGEISTBEAM and SPECTRALTHIEF are all
 -- among them, and every species below is a real record too.  The premise the
@@ -69,7 +69,20 @@ return {
   { crystal = "SNORLIUM_Z", species = { "SNORLAX" }, move = "GIGAIMPACT",
     stem = "PULVERIZINGPANCAKE", name = "PULVERIZING PANCAKE",
     menu = "PANCAKE", power = 210 },
-  { crystal = "MEWNIUM_Z", species = { "MEW" }, move = "PSYCHIC",
+  -- PSYCHIC_M, not PSYCHIC: pokered's own move constant for Psychic is
+  -- PSYCHIC_M (game/tools/rom_manifest.json carries it under that name),
+  -- because the plain PSYCHIC id was already spoken for elsewhere in this
+  -- engine, and National Dex's own registry follows that same naming.  A
+  -- row here spelling it "PSYCHIC" looked up nothing -- src/speciesz.lua's
+  -- own M.install skips a row with no registered base move and says so --
+  -- so Genesis Supernova never registered and this crystal logged a
+  -- warning on every boot for the whole time it was wrong.  The fix needs
+  -- no learnset patch of its own: TM29 is Psychic in Gen 1, Mew can learn
+  -- every TM/HM in the real games, and PSYCHIC_M is the cart's own
+  -- natively-implemented move under national_dex's "an id the cart owns is
+  -- left alone" rule (src/moves.lua), so Mew already knows it on an
+  -- ordinary save with no NATIONAL DEX option and no patch from this mod.
+  { crystal = "MEWNIUM_Z", species = { "MEW" }, move = "PSYCHIC_M",
     stem = "GENESISSUPERNOVA", name = "GENESIS SUPERNOVA",
     menu = "SUPERNOVA", power = 185 },
   { crystal = "DECIDIUM_Z", species = { "DECIDUEYE" }, move = "SPIRITSHACKLE",
