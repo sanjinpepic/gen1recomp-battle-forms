@@ -184,7 +184,7 @@ local function stubEngine()
   local SummaryMenu = {
     PINK_PAGE = PINK_PAGE, GREEN_PAGE = GREEN_PAGE, BLUE_PAGE = BLUE_PAGE,
     TYPE_NAMES = { PSYCHIC_TYPE = "PSYCHIC" },
-    draw = function(self)
+    drawPanel = function(self)
       calls.vanillaDraw = (calls.vanillaDraw or 0) + 1
     end,
   }
@@ -238,7 +238,7 @@ do
   local rotom = persistentMon("ROTOM", "WASHING_MACHINE")
 
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = rotom, page = PINK_PAGE, game = { data = DATA } })
   end)
 
@@ -263,7 +263,7 @@ do
   local expected = Mon.stats(DATA.pokemon.ROTOM_WASH.baseStats, {}, 55, nil)
 
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = rotom, page = BLUE_PAGE, game = { data = DATA } })
   end)
 
@@ -293,7 +293,7 @@ do
   T.eq(zacian.form, "CROWNED", "precondition: the marker landed")
 
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = zacian, page = PINK_PAGE, game = { data = DATA } })
   end)
 
@@ -312,7 +312,7 @@ do
   T.eq(mon.form, "SOLO", "precondition: the marker landed")
 
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = mon, page = PINK_PAGE, game = { data = DATA } })
   end)
 
@@ -335,7 +335,7 @@ do
   T.eq(kyurem.form, "WHITE", "precondition: the fusion marker landed")
 
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = kyurem, page = PINK_PAGE, game = { data = DATA } })
   end)
 
@@ -351,7 +351,7 @@ do
   Gen2FormView.install(fakeMod())
   local rotom = persistentMon("ROTOM", "WASHING_MACHINE")
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = rotom, page = GREEN_PAGE, game = { data = DATA } })
   end)
   T.eq(#calls.prints, 0, "no overlay text is drawn on the green page")
@@ -367,7 +367,7 @@ do
   Gen2FormView.install(fakeMod())
   local rotom = persistentMon("ROTOM", "WASHING_MACHINE")
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = rotom, page = BLUE_PAGE, moveDetail = true, game = { data = DATA } })
   end)
   T.eq(#calls.prints, 0, "no overlay is drawn while the move-detail view is open")
@@ -379,7 +379,7 @@ do
   local rotom = persistentMon("ROTOM", "WASHING_MACHINE")
   rotom.isEgg = true
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = rotom, page = PINK_PAGE, game = { data = DATA } })
   end)
   T.eq(#calls.prints, 0, "no overlay is drawn for an egg")
@@ -393,7 +393,7 @@ do
   local _, _, calls = stubEngine()
   Gen2FormView.install(fakeMod())
   withRectSpy(calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
       mon = { species = "PIDGEY" }, page = PINK_PAGE, game = { data = DATA } })
   end)
   T.eq(#calls.prints, 0, "an unformed Pokemon gets no overlay")
@@ -401,7 +401,7 @@ do
 
   calls.prints, calls.rects = {}, {}
   local ok = pcall(withRectSpy, calls, function()
-    package.loaded["src.ui.gen2.SummaryMenu"].draw({ mon = nil, page = PINK_PAGE,
+    package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({ mon = nil, page = PINK_PAGE,
       game = { data = DATA } })
   end)
   T.check(ok, "a nil mon does not throw")
@@ -433,7 +433,7 @@ do
 
     for _, page in ipairs({ PINK_PAGE, BLUE_PAGE }) do
       withRectSpy(calls, function()
-        package.loaded["src.ui.gen2.SummaryMenu"].draw({
+        package.loaded["src.ui.gen2.SummaryMenu"].drawPanel({
           mon = mon, page = page, game = { data = DATA } })
       end)
     end
@@ -455,14 +455,14 @@ end
 -- ---------------------------------------------------------------------
 do
   local SummaryMenu = stubEngine()
-  local vanillaDraw = SummaryMenu.draw
+  local vanillaDraw = SummaryMenu.drawPanel
 
   T.eq(Gen2FormView.install(fakeMod()), true, "first install succeeds")
-  T.check(SummaryMenu.draw ~= vanillaDraw, "SummaryMenu.draw was wrapped")
+  T.check(SummaryMenu.drawPanel ~= vanillaDraw, "SummaryMenu.drawPanel was wrapped")
 
-  local wrappedDraw = SummaryMenu.draw
+  local wrappedDraw = SummaryMenu.drawPanel
   T.eq(Gen2FormView.install(fakeMod()), true, "a second install still reports success")
-  T.eq(SummaryMenu.draw, wrappedDraw, "and wraps SummaryMenu.draw no further")
+  T.eq(SummaryMenu.drawPanel, wrappedDraw, "and wraps SummaryMenu.drawPanel no further")
 end
 
 -- ---------------------------------------------------------------------
@@ -470,10 +470,10 @@ end
 -- ---------------------------------------------------------------------
 do
   stubEngine()
-  package.loaded["src.ui.gen2.SummaryMenu"] = { draw = "not a function" }
+  package.loaded["src.ui.gen2.SummaryMenu"] = { drawPanel = "not a function" }
   local mod = fakeMod()
   T.eq(Gen2FormView.install(mod), false,
-    "a SummaryMenu.draw that is not a function refuses rather than patching it")
+    "a SummaryMenu.drawPanel that is not a function refuses rather than patching it")
   local found = false
   for _, line in ipairs(mod.logged) do
     if line.msg:find("battle_forms:", 1, true) then found = true end
@@ -502,7 +502,7 @@ end
 do
   local SummaryMenu, _, calls = stubEngine()
   Gen2FormView.install(fakeMod())
-  local ok = pcall(SummaryMenu.draw, { mon = persistentMon("ROTOM", "WASHING_MACHINE"),
+  local ok = pcall(SummaryMenu.drawPanel, { mon = persistentMon("ROTOM", "WASHING_MACHINE"),
     page = PINK_PAGE, game = nil })
   T.check(ok, "a missing game/game.data does not throw")
   T.eq(calls.vanillaDraw, 1, "and the vanilla draw still ran")

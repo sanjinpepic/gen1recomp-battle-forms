@@ -111,6 +111,7 @@ return function(mod)
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/menu.lua", "src/boxmark.lua",
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
+                  "src/gen2shop.lua",
                   "src/zmovemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
@@ -329,6 +330,21 @@ return function(mod)
   for itemId, index in pairs(memoryIndices) do persistentIndices[itemId] = index end
   for itemId, index in pairs(driveIndices) do persistentIndices[itemId] = index end
   persistent.install(mod, persistentRows, persistentIndices)
+  -- Gold's own two mart shelves for the persistent-form family -- src/shop.lua's
+  -- registry patch cannot reach either one (see src/gen2shop.lua's own header
+  -- for why), so this wraps MartMenu.inventory instead. Indigo Plateau's table
+  -- merges the same four held-form families the Gen 1 lobby counter sells
+  -- (heldFormIndices, plateIndices, memoryIndices, driveIndices); Celadon 4F
+  -- gets only the appliances, matching M.installAppliances' own Gen 1 shelf.
+  -- Gen 1 only -- there is no MartMenu on that boot to patch.
+  if gen2 then
+    local indigoIndices = {}
+    for itemId, index in pairs(heldFormIndices) do indigoIndices[itemId] = index end
+    for itemId, index in pairs(plateIndices) do indigoIndices[itemId] = index end
+    for itemId, index in pairs(memoryIndices) do indigoIndices[itemId] = index end
+    for itemId, index in pairs(driveIndices) do indigoIndices[itemId] = index end
+    m["src/gen2shop.lua"].install(mod, applianceIndices, indigoIndices)
+  end
   -- Its own install for a stronger version of the appliances' reason: this item
   -- does not stamp the Pokemon it is used on, it moves a second one into the PC.
   fusion.install(mod, fusionRows, fuserIndices)

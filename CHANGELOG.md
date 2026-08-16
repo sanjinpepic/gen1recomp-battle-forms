@@ -3,6 +3,17 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.38.0
+
+### Added
+
+- **Persistent held-item forms are buyable, usable and confirmed working on a real Gold boot -- the manifest now declares `gen2`.** Neither of Gold's mart registries (`text_pointers`, `map_scripts`) has a Gen 2 home, and `data/generated/marts.lua` is a bare, unnamed 1-based array in ROM order, so nothing in this source checkout said which numeric id was which real shop. The two ids came from a live ROM import instead: `data/generated/maps.lua`'s `CELADON_DEPT_STORE_4F` and `INDIGO_PLATEAU_POKECENTER_1F` each name a `SPRITE_CLERK` object with a `scriptKey`, and that key's row in `data/generated/scripts.lua` decodes to `pokemart 0, 26` and `pokemart 0, 32` -- cross-checked against that same cache's own `marts.lua`, whose list 27 sells POKé DOLL / LOVELY MAIL / SURF MAIL and list 33 sells ULTRA BALL / MAX REPEL / HYPER POTION / MAX POTION / FULL RESTORE / REVIVE / FULL HEAL, both exactly the real games' own shelves. A new `src/gen2shop.lua` wraps `MartMenu.inventory` -- the one function every dialog kind's buy list already calls through -- and appends the appliances at id 26 and the other six held-item forms, the Plates, the Memories and the Drives at id 32, wrap-and-delegate and idempotent like every other engine patch here. Confirmed end to end against a real Gold boot: bought a Griseous Orb at the Indigo Plateau counter, used it on a Giratina, watched Origin Forme apply on send-in, survive a real switch out and back, survive a real faint and a real battle end, and show its own types and stats on the SUMMARY screen.
+- **Fixed the SUMMARY screen overlay never drawing on Gold, which the 0.37.0 headless suite could not have caught.** `src/gen2formview.lua` wrapped `SummaryMenu.draw`, and `SummaryMenu:draw()` is defined as nothing but `self:drawPanel()` -- but the real render pipeline never calls `:draw()` at all; every Gen 2 screen in this engine, this class included, is driven by whatever owns the frame calling `:drawPanel()` directly, with `:draw()` left an unused alias. A fixture harness that calls `SummaryMenu.draw(fakeSelf)` by hand cannot tell the two apart, so the previous suite installed cleanly, passed every check, and never painted a single pixel in a real game -- caught only by counting live calls through a real START -> POKeMON -> STATS navigation on an actual Gold boot, which saw `drawPanel` invoked every frame and `draw` not once. The wrap now targets `drawPanel`; the suite now proves the same class does, and a live screenshot of Giratina's SUMMARY page after the fix shows ORIGIN's own ATTACK/DEFENSE/etc. and GHOST/DRAGON typing rather than the base species'.
+
+### Known
+
+- **Every other mechanic here -- mega evolution, primal reversion, Dynamax, Terastallization, Z-Moves, fusion, Ultra Burst, the condition-driven forms -- still has no menu cell and no shop stock on Gold.** The persistent held-item forms needed no menu cell, which is what made them buildable first; the battle menu's fifth entry and the rest of `src/shop.lua`'s eleven other shelves are unbuilt for Gold and stay Red/Blue/Yellow only.
+
 ## 0.37.0
 
 ### Added

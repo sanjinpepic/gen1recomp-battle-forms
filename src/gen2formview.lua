@@ -157,6 +157,20 @@ end
 -- against a second install patching an already-patched class -- the same
 -- discipline src/formview.lua and src/gen2forms.lua both keep. A guard that
 -- refuses must say so out loud (project rule #6).
+--
+-- Wraps drawPanel, not draw -- confirmed against a real, live Gold boot
+-- rather than assumed from the class's own shape.  SummaryMenu:draw() is
+-- defined as nothing but `self:drawPanel()` (SummaryMenu.lua:1121-1123), and
+-- a fixture harness calling SummaryMenu.draw(fakeSelf) directly cannot tell
+-- the two apart -- but the real render path never calls :draw() at all: a
+-- driver that counted live calls through a full START -> POKeMON -> STATS
+-- navigation saw drawPanel invoked on every frame and draw not once, the
+-- same way every other Gen 2 screen in this engine (MartMenu, PartyMenu,
+-- BoxMenu, ...) is driven through its own drawPanel by whatever owns the
+-- frame, with draw (where a class bothers to define one at all) left an
+-- unused alias.  Wrapping draw wraps a method the engine never calls, so the
+-- earlier version of this file installed cleanly, passed every fixture
+-- check, and never painted a single pixel in a real game.
 function M.install(mod)
   local okSummary, SummaryMenu = pcall(require, "src.ui.gen2.SummaryMenu")
   if not okSummary or type(SummaryMenu) ~= "table" then
@@ -174,13 +188,13 @@ function M.install(mod)
       .. "wrapped nothing and the wrapper in place belongs to an earlier load")
     return true
   end
-  if type(SummaryMenu.draw) ~= "function" then
-    record("gen2formview: SummaryMenu.draw is not a function -- the SUMMARY "
-      .. "screen overlay is disabled")
+  if type(SummaryMenu.drawPanel) ~= "function" then
+    record("gen2formview: SummaryMenu.drawPanel is not a function -- the "
+      .. "SUMMARY screen overlay is disabled")
     if mod.log then
-      mod.log:error("battle_forms: src.ui.gen2.SummaryMenu.draw has changed "
-        .. "shape -- a Gen 2 formed Pokemon's types and stats will not show "
-        .. "on the SUMMARY screen")
+      mod.log:error("battle_forms: src.ui.gen2.SummaryMenu.drawPanel has "
+        .. "changed shape -- a Gen 2 formed Pokemon's types and stats will "
+        .. "not show on the SUMMARY screen")
     end
     return false
   end
@@ -194,16 +208,16 @@ function M.install(mod)
   GreenPage = SummaryMenu.GREEN_PAGE or GreenPage
   TypeNames = SummaryMenu.TYPE_NAMES or {}
 
-  local vanillaDraw = SummaryMenu.draw
+  local vanillaDraw = SummaryMenu.drawPanel
   SummaryMenu._battleFormsGen2FormView = true
-  SummaryMenu.draw = function(self)
+  SummaryMenu.drawPanel = function(self)
     vanillaDraw(self)
     local ok, err = pcall(M.drawSummary, self)
     if not ok then
-      record("gen2formview: SummaryMenu.draw overlay failed (%s)", tostring(err))
+      record("gen2formview: SummaryMenu.drawPanel overlay failed (%s)", tostring(err))
     end
   end
-  record("gen2formview: install: wrapped SummaryMenu.draw")
+  record("gen2formview: install: wrapped SummaryMenu.drawPanel")
   return true
 end
 
