@@ -180,6 +180,85 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- The REAL, unstubbed game/src/ui/gen2/SummaryMenu.lua, constructed and
+-- drawn exactly the way game/src/ui/gen2/PartyMenu.lua's own openStats()
+-- pushes it (party + index, never `mon` directly) -- the "hand-built
+-- fixture passes while the real screen does nothing" trap has already cost
+-- this repo twice (0.38.0's draw/drawPanel alias, and the Gen 2 menu cell),
+-- so this section exists to make a third occurrence here impossible rather
+-- than assumed away. Gen2FormView.install patches the module-global class,
+-- so this must install before anything below stubs it out from under this
+-- test.
+-- ---------------------------------------------------------------------
+do
+  -- gen2 = true: the real held-item read (mon.item), the same precondition
+  -- the "held item alone" section above states plainly is the whole reason
+  -- this module's formIdFor does not gate on mon.form.
+  Persistent.bind({ eligibility = Eligibility, rows = persistentRows, gen2 = true })
+  local RealSummaryMenu = require("src.ui.gen2.SummaryMenu")
+  T.eq(Gen2FormView.install({ log = nil }), true,
+    "install succeeds against the real engine class")
+
+  local mon = { species = "ROTOM", level = 50, dvs = {}, statExp = {},
+                hp = 50, item = "WASHING_MACHINE", moves = {} }
+  local save = { party = { mon } }
+  local game = { data = DATA, save = save }
+
+  -- PartyMenu:openStats() pushes { party = self.party, index = self.index },
+  -- and mon.form is deliberately never set here -- src/ui/gen2/
+  -- HeldItemMenu.lua's real GIVE writes only mon.item and fires no event
+  -- this mod can hook, so a mon can reach this screen freshly given the
+  -- item with mon.form still nil (this file's own header, above).
+  local summary = RealSummaryMenu.new(game, { party = save.party, index = 1 })
+  T.eq(summary.mon, mon, "the real constructor resolves party[index] to the live mon")
+  T.eq(mon.form, nil,
+    "precondition: SummaryMenu.new alone never marks the mon (Mon.refreshStats "
+      .. "recomputes mon.stats/mon.types from the BASE species and touches "
+      .. "neither mon.item nor mon.form)")
+
+  local prints = {}
+  local Chrome = require("src.ui.gen2.Chrome")
+  local realPrint = Chrome.print
+  Chrome.print = function(text, tx, ty)
+    prints[#prints + 1] = { text = text, tx = tx, ty = ty }
+    return realPrint(text, tx, ty)
+  end
+  local function printedAt(tx, ty)
+    for i = #prints, 1, -1 do
+      if prints[i].tx == tx and prints[i].ty == ty then return prints[i].text end
+    end
+    return nil
+  end
+
+  local okPink, errPink = pcall(function() summary:drawPanel() end)
+  Chrome.print = realPrint
+  T.check(okPink, "the real drawPanel runs without error on the pink page: "
+    .. tostring(errPink))
+  T.eq(printedAt(1, 15), "ELECTRIC", "TYPE1 through the real class")
+  T.eq(printedAt(1, 16), "WATER",
+    "TYPE2 through the real class reads the form's own WATER, not base GHOST -- "
+      .. "the exact number the bug report says is wrong outside battle")
+
+  prints = {}
+  summary.page = 3 -- SummaryMenu.BLUE_PAGE
+  Chrome.print = function(text, tx, ty)
+    prints[#prints + 1] = { text = text, tx = tx, ty = ty }
+    return realPrint(text, tx, ty)
+  end
+  local okBlue, errBlue = pcall(function() summary:drawPanel() end)
+  Chrome.print = realPrint
+  T.check(okBlue, "the real drawPanel runs without error on the blue page: "
+    .. tostring(errBlue))
+  local expectedDefense = tostring(Mon.stats(DATA.pokemon.ROTOM_WASH.baseStats,
+    mon.dvs, mon.level, mon.statExp).defense)
+  T.eq((printedAt(17, 11) or ""):gsub("^%s+", ""), expectedDefense,
+    "DEFENSE through the real class reads the form's own number, not base -- "
+      .. "the exact number the bug report says is wrong outside battle")
+
+  Persistent.bind({ eligibility = Eligibility, rows = persistentRows })
+end
+
+-- ---------------------------------------------------------------------
 -- The draw wrap: the engine class stubbed the same way
 -- battle_forms_formview_test.lua stubs Gen 1's, so nothing here touches the
 -- real game/src/ui/gen2/SummaryMenu.lua.

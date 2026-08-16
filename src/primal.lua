@@ -40,6 +40,16 @@ function M.bind(modules) deps = modules end
 -- is optional for the same reason deps.log is, and every early return reports
 -- because each of them is a different reason for a Groudon that stays
 -- ordinary.
+-- deps.gen2 reads the real held item (mon.item) rather than the Gen 1 bag
+-- stamp, the identical substitution src/mega.lua's own Gen 2 branch already
+-- makes and for the same reason: GIVE (the party ITEM row's real GIVE,
+-- Gold's own held-item slot, and the ONLY working trigger there -- USE
+-- cannot reach src/stone.lua's own item_effects at all, confirmed as of
+-- 0.39.0) writes mon.item directly and never touches eligibility.STAMP, so
+-- formForMon always answered nil for a Groudon genuinely holding the Red
+-- Orb on Gold. That is the whole of the bug report this branch exists to
+-- fix: primal reversion looked broken because its only real trigger was
+-- never read.
 local function transform(battle, battler, source)
   local mon = deps.battlerof.mon(battler)
   if not mon then
@@ -48,7 +58,12 @@ local function transform(battle, battler, source)
     end
     return
   end
-  local formId = deps.eligibility.formForMon(deps.primals, mon)
+  local formId
+  if deps.gen2 then
+    formId = deps.eligibility.formFor(deps.primals, mon.species, mon.item)
+  else
+    formId = deps.eligibility.formForMon(deps.primals, mon)
+  end
   if not formId then
     if deps.diag then
       deps.diag.primal(source, battle, mon, nil, nil,
@@ -69,7 +84,12 @@ local function transform(battle, battler, source)
   local already = record ~= nil and record.form ~= nil
     and mon.form == record.form
 
-  local ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
+  local ok, reason
+  if deps.gen2 then
+    ok, reason = deps.gen2forms.becomeForm(battle.data, mon, formId)
+  else
+    ok, reason = deps.forms.becomeForm(battle.data, battler, formId, battle)
+  end
   if deps.diag then
     deps.diag.primal(source, battle, mon, formId, ok, reason)
   end
@@ -77,7 +97,11 @@ local function transform(battle, battler, source)
   -- has: there is no animation by design and a primal keeps its species name,
   -- so before this the whole mechanic rested on one back sprite being present.
   if ok and not already and deps.announce then
-    deps.announce.primal(battle, battler)
+    if deps.gen2 then
+      deps.announce.gen2Primal(battle, mon)
+    else
+      deps.announce.primal(battle, battler)
+    end
   end
   if not ok and deps.log then
     -- A guard that refuses must say so out loud.  There is no player action

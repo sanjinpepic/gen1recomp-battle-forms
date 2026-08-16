@@ -414,4 +414,25 @@ do
   T.eq(labels(state), "MEGA,DYNAMAX", "and the Band the Dynamax, beside it")
 end
 
+-- ---------------------------------------------------------------------
+-- Gen 2: these carry no `use` effect at all, so a dead USE verb on Gold's
+-- PACK explains nothing and looks like a broken mechanic -- the report that
+-- prompted this fix. NOUSE only when the boot actually is Gen 2.
+-- ---------------------------------------------------------------------
+do
+  local mod = { items = {}, log = { error = function() end } }
+  mod.content = { items = { register = function(_, id, rec) mod.items[id] = rec end } }
+  KeyItems.install(mod, keyIndices, true)
+  T.eq(mod.items[KeyItems.KEY_STONE].fieldMenu, "ITEMMENU_NOUSE",
+    "on Gen 2 the Key Stone's fieldMenu takes the dead USE verb off")
+  T.eq(mod.items[KeyItems.KEY_STONE].battleMenu, "ITEMMENU_NOUSE",
+    "and off the battle pocket too")
+
+  local mod1 = { items = {}, log = { error = function() end } }
+  mod1.content = { items = { register = function(_, id, rec) mod1.items[id] = rec end } }
+  KeyItems.install(mod1, keyIndices)
+  T.eq(mod1.items[KeyItems.KEY_STONE].fieldMenu, nil,
+    "on Gen 1, USE is that game's real (working) mechanism and stays untouched")
+end
+
 T.finish("battle_forms_keyitems")

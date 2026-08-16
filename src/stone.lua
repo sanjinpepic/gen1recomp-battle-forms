@@ -23,6 +23,7 @@ local M = {}
 
 local eligibility = nil
 local persistent = nil
+local gen2 = nil
 
 -- Injected rather than required: a mod's siblings are not on package.path, so
 -- main.lua hands the loaded module in.
@@ -34,9 +35,14 @@ local persistent = nil
 -- standing -- appliance art with base stats behind it until the next battle
 -- ended.  Every write to the stamp below therefore re-derives, and a build
 -- without the module bound simply has no persistent forms to re-derive.
-function M.bind(eligibilityModule, persistentModule)
+--
+-- The third argument is the same flag every other Gen 2 branch in this mod
+-- reads, and it decides M.items' own fieldMenu/battleMenu fields below --
+-- see that function's own header for why.
+function M.bind(eligibilityModule, persistentModule, gen2Flag)
   eligibility = eligibilityModule
   persistent = persistentModule
+  gen2 = gen2Flag
 end
 
 -- The Celadon evolution-stone shelf sells its stones at 2100; what unlocks a
@@ -63,6 +69,21 @@ end
 -- index cannot be represented in a Gen 1 save (GenSave.lua builds its
 -- id-to-byte maps only from records that have one), so registering it would
 -- ship something a player could pick up and then silently lose.
+--
+-- On Gen 2, fieldMenu/battleMenu = "ITEMMENU_NOUSE" take the USE verb off
+-- both PACK pockets, the identical treatment src/persistent.lua's own
+-- registration already gives every held-item form -- and for the identical
+-- reason: Gold's own PACK dispatcher (Game2:usePartyItem) calls
+-- ItemEffects.partyAction(itemId) with no `data` argument, so it can only
+-- ever resolve the engine's own built-in item_effects table and never
+-- reaches this module's `use` closure below, on any item, regardless of
+-- what it registers (confirmed as of 0.39.0). Leaving USE on screen here
+-- would show a verb that silently does nothing -- exactly the report that
+-- prompted this fix, a player who tried USE on the Red Orb and read the
+-- resulting no-op as primal reversion being broken rather than as GIVE
+-- being the only real trigger. GIVE writes mon.item directly and is
+-- unaffected; src/mega.lua's and src/primal.lua's own Gen 2 branches read
+-- it, never this file's own `use`.
 function M.items(pairings, indices)
   local out = {}
   for _, byItem in pairs(pairings) do
@@ -76,6 +97,8 @@ function M.items(pairings, indices)
           index = index,
           effect = itemId,
           needsTarget = true,
+          fieldMenu = gen2 and "ITEMMENU_NOUSE" or nil,
+          battleMenu = gen2 and "ITEMMENU_NOUSE" or nil,
         }
       end
     end

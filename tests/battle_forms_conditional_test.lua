@@ -561,4 +561,50 @@ Conditional.onMoveUsed({})
 Conditional.onBattlerSwitched({})
 T.check(true, "empty and one-sided payloads are survived rather than indexed")
 
+-- ---------------------------------------------------------------------
+-- Gen 2: these need no item and no gate at all, so unlike mega or primal
+-- there is no eligibility read to substitute -- the ONLY thing that was
+-- wrong is that `enter`/`leave` called src/forms.lua's Gen 1 becomeForm/
+-- revertForm, built on a battler.mon wrapper Gold's raw mon never has, so
+-- every one of the eight silently refused ("no_target") on that game. This
+-- is the Aegislash report: a stance change that fires the right event,
+-- computes the right row, and calls a primitive that finds no target.
+-- ---------------------------------------------------------------------
+local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local Mon2 = require("src.battle.gen2.Mon")
+
+local GEN2_DATA = { pokemon = {
+  AEGISLASH = DATA.pokemon.AEGISLASH, AEGISLASH_BLADE = DATA.pokemon.AEGISLASH_BLADE,
+} }
+GEN2_DATA.pokemon.AEGISLASH.baseStats = { hp = 60, attack = 50, defense = 140,
+  speed = 60, specialAttack = 50, specialDefense = 140 }
+GEN2_DATA.pokemon.AEGISLASH_BLADE.baseStats = { hp = 60, attack = 140, defense = 50,
+  speed = 60, specialAttack = 140, specialDefense = 50 }
+
+local function gen2Aegislash()
+  local mon = { species = "AEGISLASH", level = 50, dvs = {}, statExp = {}, hp = 200 }
+  mon.stats = Mon2.stats(GEN2_DATA.pokemon.AEGISLASH.baseStats, {}, 50, {})
+  return mon
+end
+
+do
+  Conditional.bind({ forms = Forms, rows = rows, battlerof = Battlerof,
+                      gen2 = true, gen2forms = Gen2Forms })
+  local mon = gen2Aegislash()
+  local battle = { data = GEN2_DATA }
+  local baseAttack = mon.stats.attack
+
+  Conditional.onMoveUsed({ battle = battle, user = mon, move = { power = 80 } })
+  T.eq(mon.form, "BLADE", "an attacking move draws the blade through the real Gen 2 primitive")
+  T.check(mon.stats.attack ~= baseAttack, "and rewrites the real mon.stats field")
+  T.same(mon.formTypes, GEN2_DATA.pokemon.AEGISLASH_BLADE.types,
+    "and populates mon.formTypes for the speciesDef seam")
+
+  Conditional.onMoveUsed({ battle = battle, user = mon, move = { power = 0 } })
+  T.eq(mon.form, nil, "a status move shields again, reverting through the real Gen 2 primitive")
+  T.eq(mon.stats.attack, baseAttack, "and the real stats field is restored too")
+
+  Conditional.bind({ forms = Forms, rows = rows, battlerof = Battlerof })
+end
+
 T.finish("battle_forms_conditional")

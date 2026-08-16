@@ -45,6 +45,15 @@ local function wearing(battle, mon, row)
   return suffix ~= nil and mon.form == suffix
 end
 
+-- deps.gen2/deps.gen2forms pick the primitive the exact way every other
+-- form-changing module in this mod does. Nothing here needed an eligibility
+-- substitution the way mega/primal did -- these forms carry no item and no
+-- gate at all, so there is no Gen 1 bag stamp to have been reading in the
+-- first place -- the ONLY thing wrong on Gold was the primitive itself:
+-- deps.forms.becomeForm/revertForm are built on a battler.mon wrapper Gold's
+-- raw mon never has, so `enter`/`leave` silently refused ("no_target") on
+-- every one of the eight species this table names, event correctly
+-- received, row correctly resolved, primitive finding nothing to write to.
 local function enter(battle, battler, row)
   local mon = deps.battlerof.mon(battler)
   -- A conditional form only ever dresses a mon that is in its base form.
@@ -54,7 +63,12 @@ local function enter(battle, battler, row)
   -- something the player only gets once.
   if mon.form and not wearing(battle, mon, row) then return end
 
-  local ok, reason = deps.forms.becomeForm(battle.data, battler, row.form, battle)
+  local ok, reason
+  if deps.gen2 then
+    ok, reason = deps.gen2forms.becomeForm(battle.data, mon, row.form)
+  else
+    ok, reason = deps.forms.becomeForm(battle.data, battler, row.form, battle)
+  end
   if not ok and deps.log then
     -- A guard that refuses must say so out loud.  There is no player action
     -- behind any of these, so a silent refusal would show as a Darmanitan
@@ -71,8 +85,13 @@ end
 -- wearing it because another transformation type put it there, and unwinding
 -- that is not this module's to do.
 local function leave(battle, battler, row)
-  if not wearing(battle, deps.battlerof.mon(battler), row) then return end
-  deps.forms.revertForm(battler, battle.data, battle)
+  local mon = deps.battlerof.mon(battler)
+  if not wearing(battle, mon, row) then return end
+  if deps.gen2 then
+    deps.gen2forms.revertMon(mon, battle.data)
+  else
+    deps.forms.revertForm(battler, battle.data, battle)
+  end
 end
 
 -- nil means the question cannot be answered -- a mon with no stat block or no

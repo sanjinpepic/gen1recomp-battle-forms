@@ -144,6 +144,17 @@ return function(mod)
   local state = m["src/arm.lua"].new()
   local diag = m["src/diag.lua"]
 
+  -- Computed early, ahead of everything below that reads it (starting with
+  -- src/keyitems.lua's own registration a few lines down) -- `generation` is
+  -- read once here, at load, the way national_dex's own src/gen2shape.lua
+  -- reads it, and `gen2` is the flag every Gen 2 branch in this file uses,
+  -- never which fields a payload happens to carry (HANDOFF's own Gen 2
+  -- trap). src/gen2forms.lua is handed in unconditionally; only the flag
+  -- decides whether it is ever called.
+  local generation = generationOf(mod)
+  local gen2 = generation == 2
+  local gen2forms = m["src/gen2forms.lua"]
+
   for _, pair in ipairs(megaset.problems(rawMegas)) do
     mod.log:error("data/megas.lua: %s carries no officialness marker -- wrap "
       .. "its form id in official() or extended(); until then it is in "
@@ -168,7 +179,12 @@ return function(mod)
   -- has to stay nameable no matter what any gate later says about it.
   local keyitems = m["src/keyitems.lua"]
   local keyIndices = m["data/keyitems.lua"]
-  keyitems.install(mod, keyIndices)
+  -- gen2 takes the dead USE verb off these on Gold: they carry no `use`
+  -- effect at all (the gate is a live bag read, src/keyitems.lua's own
+  -- M.held), so a USE row that reaches Game2:usePartyItem's data-less
+  -- dispatch and does nothing looked like a broken mechanic rather than an
+  -- item with no field action to begin with.
+  keyitems.install(mod, keyIndices, gen2)
 
   -- The third family that goes through the same stamp, and the one with no
   -- pairing table: a Z-Crystal fits every species, so what it is checked
@@ -234,14 +250,10 @@ return function(mod)
   -- Gen 2 has no battler wrapper at all -- battle.player/battle.enemy ARE the
   -- mon (src/battlerof.lua's own header) -- so src/persistent.lua's M.apply
   -- cannot call src/forms.lua's becomeForm, which assumes one, on that game.
-  -- `generation` is read once here, at load, the way national_dex's own
-  -- src/gen2shape.lua reads it, and `gen2` is the flag M.apply branches on --
-  -- never which fields a payload happens to carry (HANDOFF's own Gen 2 trap).
-  -- src/gen2forms.lua is handed in unconditionally; only the flag decides
-  -- whether it is ever called.
-  local generation = generationOf(mod)
-  local gen2 = generation == 2
-  local gen2forms = m["src/gen2forms.lua"]
+  -- generation/gen2/gen2forms are computed earlier now (see that block's own
+  -- header, above megaset.problems) -- persistent needed nothing before this
+  -- point that those depend on, so this bind is still the first place they
+  -- are actually consumed.
   persistent.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                     rows = persistentRows, log = mod.log,
                     price = m["src/stone.lua"].PRICE, battlerof = battlerof,
@@ -317,7 +329,12 @@ return function(mod)
   -- src/speciesbasemoves.lua's own header for why.
   m["src/speciesbasemoves.lua"].install(mod)
 
-  m["src/stone.lua"].bind(eligibility, persistent)
+  -- gen2 decides whether M.items() takes the dead USE verb off a stone, an
+  -- orb or Ultranecrozium Z -- see src/stone.lua's own header on M.items
+  -- for why: Gold's own PACK dispatcher cannot reach any of these through
+  -- USE regardless, so leaving the verb on screen would show a player an
+  -- action that silently does nothing.
+  m["src/stone.lua"].bind(eligibility, persistent, gen2)
   m["src/stone.lua"].install(mod, allMegas, megas, indices)
   m["src/stone.lua"].install(mod, primals, primals, orbIndices)
   m["src/stone.lua"].install(mod, ultraRows, ultraRows, ultraCrystalIndices)
@@ -658,19 +675,31 @@ return function(mod)
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,
   -- so it has no way to reach the armed flag or the once-per-battle limit.
+  -- gen2/gen2forms: the real held item (mon.item) rather than the Gen 1 bag
+  -- stamp, the identical substitution src/mega.lua's own Gen 2 branch
+  -- already makes -- see src/primal.lua's own header on why this was the
+  -- whole of a real bug report (a Groudon genuinely holding the Red Orb on
+  -- Gold, given through the party ITEM row's real GIVE, was never primal at
+  -- all, because eligibility.STAMP is a field GIVE never touches).
   local primal = m["src/primal.lua"]
   primal.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                 primals = primals, log = mod.log, diag = diag,
-                announce = announce, battlerof = battlerof })
+                announce = announce, battlerof = battlerof,
+                gen2 = gen2, gen2forms = gen2forms })
 
   -- Condition-driven forms are wired the same way and for the same reason:
   -- the forms primitive, their own pairing table, and nothing else.  They
   -- carry no item, so they are not handed eligibility either -- there is no
   -- stamp for them to read.
+  -- gen2/gen2forms pick the primitive only -- these carry no item and no
+  -- gate, so there was never an eligibility read to substitute the way
+  -- mega's and primal's own Gen 2 branches needed; deps.forms.becomeForm's
+  -- battler.mon wrapper simply does not exist on Gold, and that alone was
+  -- the whole of the Aegislash report.
   local conditional = m["src/conditional.lua"]
   conditional.bind({ forms = m["src/forms.lua"],
                      rows = m["data/conditional.lua"], log = mod.log,
-                     battlerof = battlerof })
+                     battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms })
 
   -- Decision only: overlay says which registered transformations are on offer
   -- and what the cell should call the one it is showing, and the menu cell is

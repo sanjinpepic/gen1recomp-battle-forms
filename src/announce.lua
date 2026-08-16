@@ -281,6 +281,17 @@ local function gen2Push(battle, line)
   return ok == true
 end
 
+-- Primal reversion, Gen 2-shaped. One page, matching Gen 1's own M.primal --
+-- and unlike M.primal, this needs no say/sayNext distinction at all:
+-- Battle:emit only ever appends, the same behaviour Gen 1's `say` (not
+-- `sayNext`) was chosen for at this exact call site, so there is no insert-
+-- cursor semantics left to pick between on Gen 2.
+function M.gen2Primal(battle, mon)
+  local name = gen2Name(battle, mon)
+  if not name then return false end
+  return gen2Push(battle, text(PRIMAL, name))
+end
+
 -- Terastallization's own two pages, Gen 2-shaped: the mon read straight
 -- (Gold hands the raw mon, never a battler wrapper -- src/battlerof.lua's
 -- own header), the message queued through `emit` rather than `sayNext`.

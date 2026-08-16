@@ -450,4 +450,65 @@ T.check(not sells(lobby, "VENUSAURITE"), "no mega stone reached the lobby")
 T.eq(lobby[#lobby - 1], "RED_ORB", "the orbs are shelved in bag-index order")
 T.eq(lobby[#lobby], "BLUE_ORB", "with the Blue Orb after the Red")
 
+-- ---------------------------------------------------------------------
+-- Gen 2: the real held item (mon.item), not the Gen 1 bag stamp -- the
+-- identical substitution src/mega.lua's own Gen 2 branch already makes,
+-- and the one src/persistent.lua's own header explains at length. Before
+-- this, a Groudon actually HOLDING the Red Orb on Gold (the party ITEM
+-- row's real GIVE, the only working trigger there -- USE cannot reach this
+-- module's own item_effects at all) was never primal at all: formForMon
+-- read eligibility.STAMP, a field GIVE never touches.
+-- ---------------------------------------------------------------------
+local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local Mon2 = require("src.battle.gen2.Mon")
+
+local GEN2_DATA = { pokemon = {
+  GROUDON = { baseStats = { hp = 100, attack = 150, defense = 140, speed = 90,
+                            specialAttack = 100, specialDefense = 100 },
+              types = { "GROUND" } },
+  GROUDON_PRIMAL = { baseStats = { hp = 100, attack = 180, defense = 160,
+                                   speed = 90, specialAttack = 150,
+                                   specialDefense = 90 },
+                     types = { "GROUND", "FIRE" }, form = "PRIMAL" },
+} }
+
+local function gen2Groudon()
+  local mon = { species = "GROUDON", level = 50, dvs = {}, statExp = {},
+                item = "RED_ORB" }
+  mon.stats = Mon2.stats(GEN2_DATA.pokemon.GROUDON.baseStats, {}, 50, {})
+  return mon
+end
+
+do
+  Primal.bind({ forms = Forms, eligibility = E, primals = primals,
+                battlerof = Battlerof, gen2 = true, gen2forms = Gen2Forms })
+  local mon = gen2Groudon()
+  local baseAttack = mon.stats.attack
+  local battle = { data = GEN2_DATA, player = mon, enemy = nil, events = {} }
+
+  Primal.onBattleStarted({ battle = battle })
+  T.eq(mon.form, "PRIMAL",
+    "holding the Red Orb on Gen 2 reverts Groudon through the real primitive")
+  T.check(mon.stats.attack ~= baseAttack,
+    "and rewrites the real mon.stats field the save writes")
+  T.same(mon.formTypes, GEN2_DATA.pokemon.GROUDON_PRIMAL.types,
+    "and populates mon.formTypes, the seam gen2forms.install's speciesDef wrap reads")
+
+  -- No item, no reversion.
+  local plain = gen2Groudon()
+  plain.item = nil
+  local plainBattle = { data = GEN2_DATA, player = plain, events = {} }
+  Primal.onBattleStarted({ battle = plainBattle })
+  T.eq(plain.form, nil, "with no Red Orb held, Groudon stays plain on Gen 2 too")
+
+  -- Switching in reapplies it, mirroring the Gen 1 becomeForm reapply.
+  local switched = gen2Groudon()
+  local switchBattle = { data = GEN2_DATA, player = switched, events = {} }
+  Primal.onBattlerSwitched({ battle = switchBattle, battler = switched })
+  T.eq(switched.form, "PRIMAL", "switching in reverts a Red-Orb-holding Groudon too")
+
+  Primal.bind({ forms = Forms, eligibility = E, primals = primals,
+                battlerof = Battlerof })
+end
+
 T.finish("battle_forms_primal")

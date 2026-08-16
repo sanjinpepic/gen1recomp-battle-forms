@@ -176,4 +176,28 @@ T.eq(#holders172, 1, "byte 172 belongs to exactly one entry in data/stones.lua")
 T.eq(holders172[1], "RAYQUAZITE",
   "and it is still RAYQUAZITE -- byte 172 was never handed to another stone")
 
+-- ---------------------------------------------------------------------
+-- Gen 2: USE cannot reach a mod's own item_effects record at all
+-- (Game2:usePartyItem's own data-less ItemEffects.partyAction call, the gap
+-- src/persistent.lua's own 0.39.0 fix already found and worked around), so
+-- an item registered here must take the dead USE verb off Gold's PACK the
+-- identical way a held-item form's own record already does -- fieldMenu/
+-- battleMenu = "ITEMMENU_NOUSE" -- or a player sees a USE option that does
+-- nothing and has no way to know GIVE is the real trigger.
+-- ---------------------------------------------------------------------
+do
+  Stone.bind(E, nil, true)
+  local gen2Items = Stone.items(megas, indices)
+  T.eq(gen2Items.CHARIZARDITE_X.fieldMenu, "ITEMMENU_NOUSE",
+    "on Gen 2, a stone's fieldMenu takes the USE verb off the field pocket")
+  T.eq(gen2Items.CHARIZARDITE_X.battleMenu, "ITEMMENU_NOUSE",
+    "and off the battle pocket too")
+
+  Stone.bind(E)
+  local gen1Items = Stone.items(megas, indices)
+  T.eq(gen1Items.CHARIZARDITE_X.fieldMenu, nil,
+    "on Gen 1, no NOUSE field is set at all -- USE is that game's only mechanism")
+  T.eq(gen1Items.CHARIZARDITE_X.battleMenu, nil, "battleMenu is untouched too")
+end
+
 T.finish("battle_forms_stone")

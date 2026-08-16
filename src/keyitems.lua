@@ -41,7 +41,19 @@ M.ITEMS = { M.KEY_STONE, M.DYNAMAX_BAND, M.TERA_ORB, M.Z_RING }
 -- division by zero, and an item worth nothing is one a player walks past.
 M.PRICE = 200
 
-local function record(itemId, index)
+-- gen2 gates fieldMenu/battleMenu below the same way src/stone.lua's own
+-- registration does, for the same reason: these carry no `use` effect at
+-- all -- there is nothing to use one ON, so nothing here ever registered
+-- one -- and Gold's own PACK still offers a USE row for any item that does
+-- not explicitly refuse it, which reaches Game2:usePartyItem's data-less
+-- dispatch and, on an item with no engine-builtin record, does nothing.
+-- Before this a Key Stone showed a dead USE verb on Gold with nothing to
+-- explain it; a player who tried it (reasonably, since these gate a
+-- mechanic and look actionable) got silence and no way to tell a real
+-- refusal from a broken one. These items gate a mechanic through the bag
+-- alone -- src/keyitems.lua's own M.held reads straight off the inventory
+-- -- so there was never a USE action to lose.
+local function record(itemId, index, gen2)
   return {
     id = itemId,
     name = itemId:gsub("_", " "),
@@ -55,6 +67,8 @@ local function record(itemId, index)
     -- switch a whole mechanic off with nothing in battle to say why.
     keyItem = true,
     tossable = false,
+    fieldMenu = gen2 and "ITEMMENU_NOUSE" or nil,
+    battleMenu = gen2 and "ITEMMENU_NOUSE" or nil,
   }
 end
 
@@ -65,7 +79,7 @@ end
 -- two is optional in the first place -- there is no option that turns a key
 -- item off -- but the reason to state it is that the GATE is conditional and
 -- the registration must never learn that.
-function M.install(mod, indices)
+function M.install(mod, indices, gen2)
   for _, itemId in ipairs(M.ITEMS) do
     local index = indices and indices[itemId]
     if not index then
@@ -73,7 +87,7 @@ function M.install(mod, indices)
         .. "until then the item cannot exist in a save and the mechanic it "
         .. "gates can never be switched on", itemId)
     else
-      mod.content.items:register(itemId, record(itemId, index))
+      mod.content.items:register(itemId, record(itemId, index, gen2))
     end
   end
 end
