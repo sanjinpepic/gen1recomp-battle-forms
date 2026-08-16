@@ -46,7 +46,7 @@ local function wearing(battle, mon, row)
 end
 
 local function enter(battle, battler, row)
-  local mon = battler.mon
+  local mon = deps.battlerof.mon(battler)
   -- A conditional form only ever dresses a mon that is in its base form.
   -- Greninja is both a Battle Bond species and an extended mega, so a
   -- knockout can land on a mon that already spent the trainer's one mega for
@@ -71,7 +71,7 @@ end
 -- wearing it because another transformation type put it there, and unwinding
 -- that is not this module's to do.
 local function leave(battle, battler, row)
-  if not wearing(battle, battler.mon, row) then return end
+  if not wearing(battle, deps.battlerof.mon(battler), row) then return end
   deps.forms.revertForm(battler, battle.data, battle)
 end
 
@@ -92,7 +92,7 @@ end
 -- seeded from the base species, so a mon whose condition still holds needs the
 -- override applied again even though it already reads as wearing the form.
 local function syncHp(battle, battler, force)
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   local row = rowFor(mon)
   if not row or row.trigger ~= "hp" then return end
   -- A fainting mon is the faint handler's; dressing it on the way down would
@@ -113,7 +113,7 @@ end
 -- every other row is only reapplied, because its trigger is an event that
 -- happened once and cannot be asked again.
 local function onEnterField(battle, battler)
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   local row = rowFor(mon)
   if not row then return end
   if row.trigger == "hp" then
@@ -142,7 +142,7 @@ end
 function M.onMoveUsed(ev)
   local battle = ev and ev.battle
   local user = ev and ev.user
-  local mon = user and user.mon
+  local mon = deps.battlerof.mon(user)
   local row = battle and rowFor(mon)
   if not row or row.trigger ~= "move_kind" then return end
   if (mon.hp or 0) <= 0 then return end
@@ -162,7 +162,7 @@ function M.onDamageDealt(ev)
   if not battle then return end
 
   local target = ev.target
-  local hurt = target and target.mon
+  local hurt = deps.battlerof.mon(target)
   if hurt and (hurt.hp or 0) > 0 then
     syncHp(battle, target)
     local row = rowFor(hurt)
@@ -177,7 +177,7 @@ function M.onDamageDealt(ev)
   -- knocked out -- and battle.fainted, the only other candidate, names the
   -- mon that fell but never the one that felled it.
   local user = ev.user
-  local dealer = user and user.mon
+  local dealer = deps.battlerof.mon(user)
   if dealer and hurt and (hurt.hp or 0) <= 0 and (dealer.hp or 0) > 0 then
     local row = rowFor(dealer)
     if row and row.trigger == "knockout_dealt" and not wearing(battle, dealer, row) then
@@ -187,7 +187,7 @@ function M.onDamageDealt(ev)
 end
 
 local function endOfTurn(battle, battler)
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   local row = rowFor(mon)
   if not row or (mon.hp or 0) <= 0 then return end
   if row.trigger == "hp" then

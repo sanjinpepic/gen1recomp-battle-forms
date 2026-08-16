@@ -147,7 +147,7 @@ end
 -- fusion is the baseline a battle form is laid over, not something that
 -- outranks one.
 function M.apply(battle, battler)
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   if not mon or not battle then return end
   local formId = M.formIdFor(mon)
   if not formId then return end

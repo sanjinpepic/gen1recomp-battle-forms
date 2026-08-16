@@ -18,6 +18,7 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local T = require("tests.modkit")
 local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local Persistent = dofile(MOD .. "/src/persistent.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
 local Resolve = dofile(MOD .. "/src/resolve.lua")
 local Stone = dofile(MOD .. "/src/stone.lua")
@@ -108,9 +109,9 @@ end
 
 local warnings, log = recorder()
 Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
-                  price = Stone.PRICE })
+                  price = Stone.PRICE, battlerof = Battlerof })
 Resolve.bind({ forms = Forms, eligibility = E, megas = megas,
-               persistent = Persistent })
+               persistent = Persistent, battlerof = Battlerof })
 Stone.bind(E, Persistent)
 
 -- ------- the data table names all four outright -----------------------

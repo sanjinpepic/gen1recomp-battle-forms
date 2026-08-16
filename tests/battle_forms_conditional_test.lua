@@ -22,6 +22,7 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local rows = dofile(MOD .. "/data/conditional.lua")
 -- The whole mega roster: what these forms must stay clear of is every mega,
 -- not the option's current selection.
@@ -77,14 +78,15 @@ local DATA = { pokemon = {
                        types = { "FIRE", "DRAGON" }, form = "MEGA_X" },
 } }
 
-Conditional.bind({ forms = Forms, rows = rows })
+Conditional.bind({ forms = Forms, rows = rows, battlerof = Battlerof })
 -- Mega evolution reaches the menu and turn resolution through the registry,
 -- with nothing else registered -- exactly the shape the shipping mod wires.
 local registry = Transforms.new()
 registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                               keyitems = KeyItems, animId = "TESTANIM" }))
+                               keyitems = KeyItems, animId = "TESTANIM",
+                               battlerof = Battlerof }))
 Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-               megas = megas })
+               megas = megas, battlerof = Battlerof })
 Overlay.bind({ registry = registry })
 
 local function newMon(species, level, held)

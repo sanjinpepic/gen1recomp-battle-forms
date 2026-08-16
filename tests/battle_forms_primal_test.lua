@@ -20,6 +20,7 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local primals = dofile(MOD .. "/data/primals.lua")
 local orbIndices = dofile(MOD .. "/data/orbs.lua")
 local stoneIndices = dofile(MOD .. "/data/stones.lua")
@@ -86,16 +87,18 @@ local function makeBattle(playerMon, enemyMon)
   }
 end
 
-Primal.bind({ forms = Forms, eligibility = E, primals = primals })
+Primal.bind({ forms = Forms, eligibility = E, primals = primals,
+              battlerof = Battlerof })
 -- Mega evolution reaches the menu and turn resolution through the registry,
 -- with nothing else registered -- exactly the shape the shipping mod wires.
 -- Primal reversion is not in it, which is half of what this suite is about.
 local registry = Transforms.new()
 registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                               keyitems = KeyItems, animId = "TESTANIM" }))
+                               keyitems = KeyItems, animId = "TESTANIM",
+                               battlerof = Battlerof }))
 local function bindResolve(log)
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas, log = log })
+                 megas = megas, log = log, battlerof = Battlerof })
 end
 bindResolve(nil)
 Overlay.bind({ registry = registry })

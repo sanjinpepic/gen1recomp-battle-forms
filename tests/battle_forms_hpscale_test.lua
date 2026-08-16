@@ -13,9 +13,10 @@ local Dynamax = dofile(MOD .. "/src/dynamax.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local Announce = dofile(MOD .. "/src/announce.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 
 Dynamax.bind({ forms = Forms, gigantamax = {}, keyitems = KeyItems,
-               announce = Announce })
+               announce = Announce, battlerof = Battlerof })
 
 -- ---------------------------------------------------------------------
 -- The equivalence, proven by algebraic invariant across many sequences.

@@ -30,6 +30,7 @@ local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local ROWS = dofile(MOD .. "/data/zmoves.lua")
 local CRYSTALS = dofile(MOD .. "/data/crystals.lua")
 local MAXROWS = dofile(MOD .. "/data/maxmoves.lua")
@@ -75,7 +76,8 @@ end
 
 local function bindZMoves(mod)
   ZMoves.bind({ substitute = Substitute, keyitems = KeyItems, eligibility = E,
-                announce = Announce, anim = Anim, log = mod and mod.log })
+                announce = Announce, anim = Anim, log = mod and mod.log,
+                battlerof = Battlerof })
 end
 
 -- ---------------------------------------------------------------------
@@ -337,7 +339,7 @@ end
 -- The battle: arming, using, and every path that takes it back off.
 -- ---------------------------------------------------------------------
 ZMoves.bind({ substitute = Substitute, keyitems = KeyItems, eligibility = E,
-              announce = Announce, anim = Anim, log = nil })
+              announce = Announce, anim = Anim, log = nil, battlerof = Battlerof })
 
 local function newMon(crystal)
   local moves = {
@@ -592,14 +594,14 @@ end
 -- Without the mechanism bound at all there is no roster, no cell and nothing
 -- to unwind -- a degraded mod rather than a broken one.
 do
-  ZMoves.bind({ keyitems = KeyItems, eligibility = E })
+  ZMoves.bind({ keyitems = KeyItems, eligibility = E, battlerof = Battlerof })
   local state = ZMoves.new()
   T.eq(state.moves, nil, "no substitution record without the mechanism")
   local entry = ZMoves.entry(state, { byCrystal = {}, rows = ROWS })
   T.eq(entry.available(makeBattle(newMon(ELECTRIUM))), false,
     "and nothing is offered")
   ZMoves.bind({ substitute = Substitute, keyitems = KeyItems, eligibility = E,
-                announce = Announce, anim = Anim })
+                announce = Announce, anim = Anim, battlerof = Battlerof })
 end
 
 -- ---------------------------------------------------------------------
@@ -610,14 +612,15 @@ do
   local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
   local state = ZMoves.new()
   T.eq(registry:register(Mega.entry({ eligibility = E, megas = megas,
-                                      keyitems = KeyItems, forms = Forms })),
+                                      keyitems = KeyItems, forms = Forms,
+                                      battlerof = Battlerof })),
     true, "mega evolution registers first, as it ships")
   T.eq(registry:register(ZMoves.entry(state, CATALOG)), true,
     "and the Z-Move takes a place of its own on the same cell")
 
   Overlay.bind({ registry = registry })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas })
+                 megas = megas, battlerof = Battlerof })
   -- The wiring main.lua does, and the whole reason the arm state knows the
   -- registry: arming has to reach the entry that substitutes.
   Arm.bind({ registry = registry })
@@ -670,7 +673,7 @@ do
   registry:register(ZMoves.entry(state, CATALOG))
   Overlay.bind({ registry = registry })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = {} })
+                 megas = {}, battlerof = Battlerof })
   Arm.bind({ registry = registry })
 
   local arm = Arm.new()
@@ -711,6 +714,7 @@ do
   for id, record in pairs(maxMod.registered.moves) do DATA.moves[id] = record end
   Dynamax.bind({ forms = Forms, gigantamax = {}, keyitems = KeyItems,
                  announce = Announce, substitute = Substitute,
+                 battlerof = Battlerof,
                  maxMoves = function(data)
                    return MaxMoves.picker(maxCatalog, data)
                  end })
@@ -851,7 +855,8 @@ do
   -- ZMoves without it, on purpose, so those sections prove the type catalog
   -- works with no species catalog bound at all.
   ZMoves.bind({ substitute = Substitute, keyitems = KeyItems, eligibility = E,
-                announce = Announce, anim = Anim, speciesz = SpeciesZ, log = nil })
+                announce = Announce, anim = Anim, speciesz = SpeciesZ, log = nil,
+                battlerof = Battlerof })
   local speciesRows = {
     { crystal = "PIKASHUNIUM_Z", species = { "PIKACHU" }, move = "VOLTTACKLE",
       stem = "CATASTROPIKA", name = "CATASTROPIKA", menu = "CATASTROPIKA",

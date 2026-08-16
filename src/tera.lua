@@ -260,7 +260,7 @@ function M.entry(state, catalog)
       if not deps.keyitems.held(battle, deps.keyitems.TERA_ORB) then
         return false
       end
-      local mon = battle.player and battle.player.mon
+      local mon = deps.battlerof.mon(battle.player)
       if not mon or not mon.species then return false end
       local id, why = M.chosenType(battle)
       if not id then
@@ -299,7 +299,7 @@ function M.entry(state, catalog)
 
     activate = function(battle)
       local battler = battle.player
-      local mon = battler and battler.mon
+      local mon = deps.battlerof.mon(battler)
       if not mon then return false end
       local id, name = M.chosenType(battle)
       if not id then return false end
@@ -330,7 +330,7 @@ end
 -- than one being entered again.
 function M.onBattlerSwitched(state, ev)
   local battler = ev and ev.battler
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   if not mon or state.mon ~= mon or not state.type then return end
   state.was = battler.curTypes
   battler.curTypes = { state.type }
@@ -359,7 +359,7 @@ local function finish(state, battler)
   local restore = state.was
   local mon = state.mon
   clear(state)
-  if not mon or not battler or battler.mon ~= mon then return false end
+  if not mon or not battler or deps.battlerof.mon(battler) ~= mon then return false end
   if restore ~= nil then battler.curTypes = restore end
   return true
 end
@@ -369,7 +369,7 @@ end
 -- here marks the mon -- so the two handlers cannot collide over curTypes.
 function M.onFainted(state, ev)
   local battler = ev and ev.battler
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   if not mon or state.mon ~= mon then return end
   finish(state, battler)
 end
@@ -381,7 +381,7 @@ end
 -- the whole of the work.
 function M.onBattleEnded(state, ev)
   local battler = ev and ev.battle and ev.battle.player
-  if battler and battler.mon == state.mon then
+  if deps.battlerof.mon(battler) == state.mon then
     finish(state, battler)
   else
     clear(state)

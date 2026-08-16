@@ -9,6 +9,7 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 -- The whole roster: every check below holds for any wired mega, and the
 -- OFFICIAL/ALL split is pinned in the eligibility suite.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
@@ -18,7 +19,7 @@ local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local function bindMegas(set)
   local registry = Transforms.new()
   T.eq(registry:register(Mega.entry({ eligibility = E, megas = set,
-    keyitems = KeyItems })), true, "the mega entry registers")
+    keyitems = KeyItems, battlerof = Battlerof })), true, "the mega entry registers")
   Overlay.bind({ registry = registry })
 end
 
@@ -125,7 +126,7 @@ T.eq(Overlay.shouldOffer(s7), true,
 do
   local registry = Transforms.new()
   T.eq(registry:register(Mega.entry({ eligibility = E, megas = megas,
-    keyitems = KeyItems })), true, "the mega entry registers")
+    keyitems = KeyItems, battlerof = Battlerof })), true, "the mega entry registers")
   local other = { id = "other", label = "OTHER",
                   available = function() return true end,
                   activate = function() return true end }

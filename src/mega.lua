@@ -48,7 +48,7 @@ function M.entry(deps)
     -- not an eligible Rayquaza it answers nil and the two-tier gate below
     -- runs exactly as it always has.
     available = function(battle)
-      local mon = battle.player and battle.player.mon
+      local mon = deps.battlerof.mon(battle.player)
       local pokemon = battle.data and battle.data.pokemon
 
       local exemptForm = deps.dragonascent
@@ -70,7 +70,7 @@ function M.entry(deps)
     -- so they keep the option for the rest of the fight.
     activate = function(battle)
       local battler = battle.player
-      local mon = battler and battler.mon
+      local mon = deps.battlerof.mon(battler)
       local formId = (deps.dragonascent
           and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon))
         or deps.eligibility.formForMon(deps.megas, mon)

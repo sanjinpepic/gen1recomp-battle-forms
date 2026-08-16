@@ -47,7 +47,7 @@ end
 function M.onBattlerSwitched(ev)
   local battle = ev and ev.battle
   local battler = ev and ev.battler
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   if not battle or not mon or not mon.form then return end
 
   -- Rayquaza's own trigger stamps no stone at all and, as of 0.30.0, has no
@@ -152,9 +152,10 @@ function M.onFainted(ev)
   -- form is what a Rotom looks like, where this one is a Pokemon with another
   -- Pokemon in the PC behind it, and the party menu is exactly where a player
   -- would see it claiming to be plain again.
-  if deps.fusion and deps.fusion.settle(battle.data, ev.battler.mon) then return end
+  local mon = deps.battlerof.mon(ev.battler)
+  if deps.fusion and deps.fusion.settle(battle.data, mon) then return end
   if deps.persistent then
-    deps.persistent.settle(battle.data, ev.battler.mon)
+    deps.persistent.settle(battle.data, mon)
   end
 end
 

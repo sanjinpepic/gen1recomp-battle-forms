@@ -23,6 +23,7 @@ local Anim = dofile(MOD .. "/src/anim.lua")
 local Announce = dofile(MOD .. "/src/announce.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local TYPES = dofile(MOD .. "/data/terablast.lua")
 
 local Damage = require("src.battle.Damage")
@@ -108,7 +109,7 @@ end
 
 local function bindTera(chosen, log)
   Tera.bind({ keyitems = KeyItems, announce = Announce, log = log,
-              substitute = Substitute, anim = Anim,
+              substitute = Substitute, anim = Anim, battlerof = Battlerof,
               chosen = function() return chosen end })
 end
 

@@ -30,6 +30,7 @@ local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local DragonAscent = dofile(MOD .. "/src/dragonascent.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local primals = dofile(MOD .. "/data/primals.lua")
 local crystalIndices = dofile(MOD .. "/data/crystals.lua")
@@ -125,11 +126,12 @@ local function newDiag(mod, extra)
   local Arm = dofile(MOD .. "/src/arm.lua")
   local registry = Transforms.new()
   local registered, why = registry:register(Mega.entry({ eligibility = E,
-    megas = megas, keyitems = KeyItems }))
+    megas = megas, keyitems = KeyItems, battlerof = Battlerof }))
   Overlay.bind({ registry = registry })
   local state = Arm.new()
   local bind = { mod = mod, registry = registry, overlay = Overlay, state = state,
                  eligibility = E, megas = megas, keyitems = KeyItems,
+                 battlerof = Battlerof,
                  enabled = function() return mod.option == "on" end }
   for k, v in pairs(extra or {}) do bind[k] = v end
   Diag.bind(bind)
@@ -388,7 +390,7 @@ do
   local Primal = dofile(MOD .. "/src/primal.lua")
   local Forms = dofile(MOD .. "/src/forms.lua")
   Primal.bind({ forms = Forms, eligibility = E, primals = primals,
-                diag = kit.diag })
+                diag = kit.diag, battlerof = Battlerof })
 
   local mon = newMon("GROUDON", "RED_ORB")
   local battle = { data = DATA, player = { mon = mon, isPlayer = true } }
@@ -416,7 +418,7 @@ do
   local kit2 = newDiag(mod2)
   local Primal2 = dofile(MOD .. "/src/primal.lua")
   Primal2.bind({ forms = dofile(MOD .. "/src/forms.lua"), eligibility = E,
-                 primals = primals, diag = kit2.diag })
+                 primals = primals, diag = kit2.diag, battlerof = Battlerof })
   local orphan = newMon("GROUDON", "RED_ORB")
   Primal2.onBattleStarted({ battle = { data = { pokemon = {} },
                                        player = { mon = orphan } } })
@@ -433,7 +435,7 @@ do
   local kit3 = newDiag(mod3)
   local Primal3 = dofile(MOD .. "/src/primal.lua")
   Primal3.bind({ forms = dofile(MOD .. "/src/forms.lua"), eligibility = E,
-                 primals = primals, diag = kit3.diag })
+                 primals = primals, diag = kit3.diag, battlerof = Battlerof })
   Primal3.onBattleStarted({ battle = { data = DATA,
     player = { mon = newMon("GROUDON", nil) } } })
   T.check(firstMatching(mod3, "no pairing in data/primals.lua") ~= nil,
@@ -446,7 +448,7 @@ do
   local kit4 = newDiag(mod4)
   local Primal4 = dofile(MOD .. "/src/primal.lua")
   Primal4.bind({ forms = dofile(MOD .. "/src/forms.lua"), eligibility = E,
-                 primals = primals, diag = kit4.diag })
+                 primals = primals, diag = kit4.diag, battlerof = Battlerof })
   local switcher = newMon("GROUDON", "RED_ORB")
   local switchBattle = { data = DATA }
   for _ = 1, 10 do

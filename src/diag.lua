@@ -234,7 +234,7 @@ local function describe(battle)
   local cached = deps.state:current()
   local where = cached == nil and "none"
     or (cached == battle and "this battle" or "another battle")
-  local mon = battle.player and battle.player.mon
+  local mon = deps.battlerof.mon(battle.player)
   local formId, how = trigger(mon)
   local pokemon = battle.data and battle.data.pokemon
   local queue = battle.queue

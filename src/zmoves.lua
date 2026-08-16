@@ -444,7 +444,7 @@ function M.entry(state, catalog, speciesCatalog)
         return false
       end
       local battler = battle.player
-      local mon = battler and battler.mon
+      local mon = deps.battlerof.mon(battler)
       if not mon or not mon.species then return false end
       local crystal = deps.eligibility.stoneOf(mon)
       if not crystal then return false end
@@ -458,7 +458,7 @@ function M.entry(state, catalog, speciesCatalog)
     arm = function(battle)
       if not deps.substitute then return false end
       local battler = battle and battle.player
-      local mon = battler and battler.mon
+      local mon = deps.battlerof.mon(battler)
       local crystal = mon and deps.eligibility.stoneOf(mon)
       if not crystal then return false end
 
@@ -506,7 +506,7 @@ function M.entry(state, catalog, speciesCatalog)
     activate = function(battle)
       if not state.mon then return false end
       local battler = battle and battle.player
-      if not battler or battler.mon ~= state.mon then return false end
+      if not battler or deps.battlerof.mon(battler) ~= state.mon then return false end
       if deps.announce then deps.announce.zPower(battle, battler) end
       return true
     end,
@@ -533,7 +533,7 @@ end
 function M.onMoveUsed(state, ev)
   if not state.mon or state.spent then return end
   local user = ev and ev.user
-  if not user or user.mon ~= state.mon then return end
+  if not user or deps.battlerof.mon(user) ~= state.mon then return end
   local id = ev.move and ev.move.id
   if not id then return end
 
@@ -575,7 +575,7 @@ end
 -- screen by the time this runs and the engine is part-way through its own
 -- send-out text.
 function M.onBattlerSwitched(state, ev)
-  local mon = ev and ev.previous and ev.previous.mon
+  local mon = deps.battlerof.mon(ev and ev.previous)
   if not mon or state.mon ~= mon then return end
   forget(state)
 end
@@ -584,7 +584,7 @@ end
 -- src/resolve.lua's faint handler to collide with -- the array is all there is
 -- to put back, and the battler it belongs to is the one in hand.
 function M.onFainted(state, ev)
-  local mon = ev and ev.battler and ev.battler.mon
+  local mon = deps.battlerof.mon(ev and ev.battler)
   if not mon or state.mon ~= mon then return end
   forget(state)
 end

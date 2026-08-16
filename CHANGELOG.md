@@ -3,6 +3,28 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.31.0
+
+### Changed
+
+- **Event handling is now generation-agnostic under the hood; nothing a
+  player sees has changed.** Gen 1 and Gen 2 fire the same Runtime event
+  names -- `battle.started`, `battle.battler_switched`, `battle.fainted`,
+  `battle.turn_ended`, `battle.move_used`, `battle.damage_dealt` and the rest
+  -- but with different payloads. Gen 1 hands every handler a battler
+  wrapper (`{ mon = ..., isPlayer = ..., curStats = ... }`); Gen 2's own
+  engine builds no such wrapper at all, so `battler`, `user`, `target` and
+  `previous` on its events, and the live `battle.player`/`battle.enemy`
+  fields, already ARE the mon. Every `battler.mon`-style read in the mod
+  used to assume Gen 1's shape and would have silently returned nil on Gold.
+  A new adapter, `src/battlerof.lua`, tells the two shapes apart from the
+  wrapper's own `mon` field -- a raw Pokemon record never carries one -- and
+  every event handler and switch-in check now reads through it instead.
+  `manifest.json` still declares `gen1` alone: the mechanics that still need
+  a real Gen 2 counterpart, chiefly the form primitive's
+  `curStats`/`curTypes` override, are unbuilt, and this step only stops the
+  next one from having to re-audit every event read by hand.
+
 ## 0.30.0
 
 ### Removed

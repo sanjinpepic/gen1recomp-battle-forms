@@ -23,6 +23,7 @@ local Arm = dofile(MOD .. "/src/arm.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local keyIndices = dofile(MOD .. "/data/keyitems.lua")
 local stoneIndices = dofile(MOD .. "/data/stones.lua")
@@ -288,12 +289,14 @@ local function makeBattle(inventory)
   }
 end
 
-Dynamax.bind({ forms = Forms, gigantamax = {}, keyitems = KeyItems })
+Dynamax.bind({ forms = Forms, gigantamax = {}, keyitems = KeyItems,
+               battlerof = Battlerof })
 
 local function newCell()
   local registry = Transforms.new()
   T.eq(registry:register(Mega.entry({ forms = Forms, eligibility = E,
-    megas = megas, keyitems = KeyItems, animId = "TESTANIM" })), true,
+    megas = megas, keyitems = KeyItems, animId = "TESTANIM",
+    battlerof = Battlerof })), true,
     "mega registers")
   T.eq(registry:register(Dynamax.entry(Dynamax.new())), true,
     "and Dynamax beside it")

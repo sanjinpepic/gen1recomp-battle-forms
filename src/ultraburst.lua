@@ -81,7 +81,7 @@ function M.entry(state)
       if not deps.keyitems.held(battle, deps.keyitems.Z_RING) then
         return false
       end
-      local mon = battle.player and battle.player.mon
+      local mon = deps.battlerof.mon(battle.player)
       if not mon then return false end
       if not deps.fusion.partnerOf(mon) then return false end
       local formId = deps.eligibility.formForMon(deps.rows, mon)
@@ -95,7 +95,7 @@ function M.entry(state)
     -- nothing happened, so they keep the option for the rest of the fight.
     activate = function(battle)
       local battler = battle.player
-      local mon = battler and battler.mon
+      local mon = deps.battlerof.mon(battler)
       if not mon then return false end
       local formId = deps.eligibility.formForMon(deps.rows, mon)
       if not formId then return false end
@@ -144,7 +144,7 @@ end
 function M.onBattlerSwitched(state, ev)
   local battle = ev and ev.battle
   local battler = ev and ev.battler
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   if not battle or not mon or state.mon ~= mon then return end
 
   local formId = deps.eligibility.formForMon(deps.rows, mon)
@@ -176,7 +176,7 @@ end
 -- Dusk Mane or Dawn Wings suffix through src/fusion.lua's own settle -- so
 -- this only has to drop the reference tracking which mon was mid-Ultra-Burst.
 function M.onFainted(state, ev)
-  local mon = ev and ev.battler and ev.battler.mon
+  local mon = deps.battlerof.mon(ev and ev.battler)
   if not mon or state.mon ~= mon then return end
   clear(state)
 end

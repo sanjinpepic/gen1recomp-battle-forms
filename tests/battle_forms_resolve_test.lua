@@ -9,6 +9,7 @@ local Arm = dofile(MOD .. "/src/arm.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 -- The whole roster: every check below holds for any wired mega, and the
 -- OFFICIAL/ALL split is pinned in the eligibility suite.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
@@ -53,9 +54,10 @@ end
 local function bindResolve(log)
   local registry = Transforms.new()
   registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                                 animId = "TESTANIM", log = log }))
+                                 animId = "TESTANIM", log = log,
+                                 battlerof = Battlerof }))
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas })
+                 megas = megas, battlerof = Battlerof })
 end
 
 bindResolve(nil)

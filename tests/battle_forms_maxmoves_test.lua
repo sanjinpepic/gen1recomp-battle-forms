@@ -23,6 +23,7 @@ local Transforms = dofile(MOD .. "/src/transforms.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local ROWS = dofile(MOD .. "/data/maxmoves.lua")
 
 -- Red's fifteen, which is what the engine registers on its own; the three
@@ -365,7 +366,7 @@ end
 
 Dynamax.bind({ forms = Forms, gigantamax = { CHARIZARD = "CHARIZARD_GMAX" },
                keyitems = KeyItems, announce = Announce,
-               substitute = Substitute,
+               substitute = Substitute, battlerof = Battlerof,
                maxMoves = function(data)
                  return MaxMoves.picker(CATALOG, data)
                end })
@@ -573,7 +574,7 @@ end
 do
   Resolve.bind({ registry = Transforms.new(), forms = Forms, eligibility = E,
                  megas = Megaset.select(dofile(MOD .. "/data/megas.lua"),
-                                        Megaset.ALL) })
+                                        Megaset.ALL), battlerof = Battlerof })
   local state = Dynamax.new()
   local entry = Dynamax.entry(state)
   local battle = makeBattle("CHARIZARD")
@@ -609,7 +610,8 @@ end
 -- Moves existed: the state, the clock and the form, and no moveset change.
 do
   Dynamax.bind({ forms = Forms, gigantamax = { CHARIZARD = "CHARIZARD_GMAX" },
-                 keyitems = KeyItems, announce = Announce })
+                 keyitems = KeyItems, announce = Announce,
+                 battlerof = Battlerof })
   local state = Dynamax.new()
   local entry = Dynamax.entry(state)
   local battle = makeBattle("CHARIZARD")

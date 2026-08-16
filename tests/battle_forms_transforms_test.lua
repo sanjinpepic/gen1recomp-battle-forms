@@ -20,6 +20,7 @@ local Forms = dofile(MOD .. "/src/forms.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 -- ---------------------------------------------------------------------
@@ -138,13 +139,14 @@ end
 local function setup(refuse)
   local registry = Transforms.new()
   T.eq(registry:register(Mega.entry({ forms = Forms, eligibility = E,
-    megas = megas, keyitems = KeyItems, animId = "TESTANIM" })), true,
+    megas = megas, keyitems = KeyItems, animId = "TESTANIM",
+    battlerof = Battlerof })), true,
     "mega registers first")
   T.eq(registry:register(burstEntry(refuse)), true, "the synthetic one registers second")
   Overlay.bind({ registry = registry })
   Menu.bind({ overlay = Overlay })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas })
+                 megas = megas, battlerof = Battlerof })
   local battle = makeBattle()
   local state = Arm.new()
   state:onBattleStarted({ battle = battle })

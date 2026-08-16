@@ -77,7 +77,7 @@ return function(mod)
       choices = { { "OFF", "off" }, { "ON", "on" } } },
   })
 
-  local names = { "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
+  local names = { "src/battlerof.lua", "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
                   "src/stone.lua", "src/keyitems.lua", "src/shop.lua",
                   "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dragonascent.lua",
@@ -111,6 +111,13 @@ return function(mod)
   local rawMegas = m["data/megas.lua"]
   local indices = m["data/stones.lua"]
   local eligibility = m["src/eligibility.lua"]
+  -- Tells a Gen 1 battler wrapper (ev.battler.mon) from a Gen 2 payload,
+  -- where ev.battler already IS the mon (game/src/battle/gen2/Battle.lua
+  -- :3004).  Bound into every handler below that used to read `.mon` straight
+  -- off an event payload or a live `battle.player`/`battle.enemy` field, so
+  -- widening the manifest past "gen1" later is not also an audit of every one
+  -- of those reads.
+  local battlerof = m["src/battlerof.lua"]
   local anim = m["src/anim.lua"]
   local state = m["src/arm.lua"].new()
   local diag = m["src/diag.lua"]
@@ -190,7 +197,7 @@ return function(mod)
   local driveIndices = m["data/drives.lua"]
   persistent.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                     rows = persistentRows, log = mod.log,
-                    price = m["src/stone.lua"].PRICE })
+                    price = m["src/stone.lua"].PRICE, battlerof = battlerof })
 
   -- The fifth family, and the only one that does not go through the held-item
   -- stamp at all: a fusion is recorded by which partner went in, and the
@@ -202,7 +209,7 @@ return function(mod)
   local fusionRows = m["data/fusion.lua"]
   local fuserIndices = m["data/fusers.lua"]
   fusion.bind({ forms = m["src/forms.lua"], rows = fusionRows, log = mod.log,
-                price = m["src/stone.lua"].PRICE })
+                price = m["src/stone.lua"].PRICE, battlerof = battlerof })
 
   -- The sixth family, and the only one whose pairing table has a single row:
   -- Ultranecrozium Z fits Necrozma alone.  No option ever gates it, so `all`
@@ -325,7 +332,8 @@ return function(mod)
   local registered, why = registry:register(m["src/mega.lua"].entry({
     forms = m["src/forms.lua"], eligibility = eligibility, megas = megas,
     keyitems = keyitems, animId = anim.ID, announce = announce,
-    log = mod.log, dragonascent = dragonascent, zcrystals = zcrystals }))
+    log = mod.log, dragonascent = dragonascent, zcrystals = zcrystals,
+    battlerof = battlerof }))
   if not registered then
     mod.log:error("battle_forms: mega evolution was refused a place on the "
       .. "battle menu (%s) -- no stone can be armed until that is fixed",
@@ -350,6 +358,7 @@ return function(mod)
                  gigantamax = m["data/gigantamax.lua"], keyitems = keyitems,
                  announce = announce, log = mod.log,
                  substitute = m["src/substitute.lua"],
+                 battlerof = battlerof,
                  maxMoves = function(data)
                    return maxmoves.picker(maxCatalog, data)
                  end })
@@ -378,6 +387,7 @@ return function(mod)
   local tera = m["src/tera.lua"]
   tera.bind({ keyitems = keyitems, announce = announce, log = mod.log,
               substitute = m["src/substitute.lua"], anim = anim,
+              battlerof = battlerof,
               chosen = function() return mod.options:get("tera_type") end })
   -- TERA BLAST's own roster: one record per type the running game's chart
   -- can resolve, registered unconditionally like the Max Moves and the
@@ -408,7 +418,7 @@ return function(mod)
 
   zmoves.bind({ substitute = m["src/substitute.lua"], keyitems = keyitems,
                 eligibility = eligibility, announce = announce, anim = anim,
-                speciesz = speciesz, log = mod.log })
+                speciesz = speciesz, log = mod.log, battlerof = battlerof })
   local zCatalog = zmoves.install(mod, zrows)
   local zState = zmoves.new()
   local zOk, zWhy = registry:register(
@@ -427,7 +437,8 @@ return function(mod)
   local ultraburst = m["src/ultraburst.lua"]
   ultraburst.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                      fusion = fusion, keyitems = keyitems, rows = ultraRows,
-                     animId = anim.ID, announce = announce, log = mod.log })
+                     animId = anim.ID, announce = announce, log = mod.log,
+                     battlerof = battlerof })
   local ultraburstState = ultraburst.new()
   local ultraOk, ultraWhy = registry:register(ultraburst.entry(ultraburstState))
   if not ultraOk then
@@ -446,7 +457,8 @@ return function(mod)
   resolve.bind({ registry = registry, forms = m["src/forms.lua"],
                  eligibility = eligibility, megas = megas, log = mod.log,
                  persistent = persistent, fusion = fusion,
-                 dragonascent = dragonascent, zcrystals = zcrystals })
+                 dragonascent = dragonascent, zcrystals = zcrystals,
+                 battlerof = battlerof })
 
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,
@@ -454,7 +466,7 @@ return function(mod)
   local primal = m["src/primal.lua"]
   primal.bind({ forms = m["src/forms.lua"], eligibility = eligibility,
                 primals = primals, log = mod.log, diag = diag,
-                announce = announce })
+                announce = announce, battlerof = battlerof })
 
   -- Condition-driven forms are wired the same way and for the same reason:
   -- the forms primitive, their own pairing table, and nothing else.  They
@@ -462,7 +474,8 @@ return function(mod)
   -- stamp for them to read.
   local conditional = m["src/conditional.lua"]
   conditional.bind({ forms = m["src/forms.lua"],
-                     rows = m["data/conditional.lua"], log = mod.log })
+                     rows = m["data/conditional.lua"], log = mod.log,
+                     battlerof = battlerof })
 
   -- Decision only: overlay says which registered transformations are on offer
   -- and what the cell should call the one it is showing, and the menu cell is
@@ -485,6 +498,7 @@ return function(mod)
   diag.bind({ mod = mod, registry = registry, overlay = overlay, state = state,
               eligibility = eligibility, megas = megas, keyitems = keyitems,
               dragonascent = dragonascent, zcrystals = zcrystals,
+              battlerof = battlerof,
               enabled = function()
                 return mod.options:get("debug_trace") == "on"
               end })

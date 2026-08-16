@@ -23,6 +23,7 @@ local Forms = dofile(MOD .. "/src/forms.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 local Damage = require("src.battle.Damage")
@@ -135,6 +136,7 @@ end
 
 local function bindTera(chosen, log)
   Tera.bind({ keyitems = KeyItems, announce = Announce, log = log,
+              battlerof = Battlerof,
               chosen = function() return chosen end })
 end
 
@@ -428,14 +430,15 @@ do
   bindTera("GROUND")
   local registry = Transforms.new()
   T.eq(registry:register(Mega.entry({ forms = Forms, eligibility = E,
-    megas = megas, keyitems = KeyItems, animId = "TESTANIM" })), true,
+    megas = megas, keyitems = KeyItems, animId = "TESTANIM",
+    battlerof = Battlerof })), true,
     "mega registers")
   local teraState = Tera.new()
   T.eq(registry:register(Tera.entry(teraState)), true, "and so does Tera")
   Overlay.bind({ registry = registry })
   Menu.bind({ overlay = Overlay })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas })
+                 megas = megas, battlerof = Battlerof })
 
   local battle = makeBattle({ [KeyItems.KEY_STONE] = 1,
                               [KeyItems.TERA_ORB] = 1 })

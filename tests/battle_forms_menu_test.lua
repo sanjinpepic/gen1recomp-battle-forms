@@ -13,6 +13,7 @@ local Megaset = dofile(MOD .. "/src/megaset.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 -- The whole roster: every check below holds for any wired mega, and the
 -- OFFICIAL/ALL split is pinned in the eligibility suite.
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
@@ -22,7 +23,7 @@ local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 -- transforms suite, on a second entry that exists only there.
 local registry = Transforms.new()
 registry:register(Mega.entry({ eligibility = E, megas = megas,
-  keyitems = KeyItems }))
+  keyitems = KeyItems, battlerof = Battlerof }))
 Overlay.bind({ registry = registry })
 Menu.bind({ overlay = Overlay })
 

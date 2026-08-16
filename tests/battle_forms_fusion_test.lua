@@ -22,6 +22,7 @@ local Stone = dofile(MOD .. "/src/stone.lua")
 local Shop = dofile(MOD .. "/src/shop.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local rows = dofile(MOD .. "/data/fusion.lua")
 local fuserIndices = dofile(MOD .. "/data/fusers.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
@@ -122,8 +123,10 @@ local function recorder()
 end
 
 local messages, log = recorder()
-Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE })
-Resolve.bind({ forms = Forms, eligibility = E, megas = megas, fusion = Fusion })
+Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+              battlerof = Battlerof })
+Resolve.bind({ forms = Forms, eligibility = E, megas = megas, fusion = Fusion,
+               battlerof = Battlerof })
 
 local function fakeMod()
   local mod = { items = {}, effects = {}, errors = {} }

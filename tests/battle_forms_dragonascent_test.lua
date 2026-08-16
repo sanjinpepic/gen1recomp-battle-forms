@@ -29,6 +29,7 @@ local E = dofile(MOD .. "/src/eligibility.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 local crystalIndices = dofile(MOD .. "/data/crystals.lua")
 local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
@@ -270,7 +271,8 @@ end
 local function entryFor(log)
   return Mega.entry({ forms = Forms, eligibility = E, megas = megas,
                       keyitems = KeyItems, animId = "TESTANIM", log = log,
-                      dragonascent = DragonAscent, zcrystals = crystals })
+                      dragonascent = DragonAscent, zcrystals = crystals,
+                      battlerof = Battlerof })
 end
 
 -- Rayquaza, knowing Dragon Ascent, holding nothing, trainer carrying no Key
@@ -342,7 +344,8 @@ end
 -- behaviour rather than throw.
 do
   local entry = Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                             keyitems = KeyItems, animId = "TESTANIM" })
+                             keyitems = KeyItems, animId = "TESTANIM",
+                             battlerof = Battlerof })
   local battle = makeBattle("RAYQUAZA", { { id = "DRAGONASCENT" } }, nil, {})
   T.eq(entry.available(battle), false,
     "with no dragonascent module bound, Rayquaza is held to the ordinary gate")
@@ -361,7 +364,8 @@ do
   local registry = Transforms.new()
   registry:register(entryFor(nil))
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                megas = megas, dragonascent = DragonAscent, zcrystals = crystals })
+                megas = megas, dragonascent = DragonAscent, zcrystals = crystals,
+                battlerof = Battlerof })
 
   local battle = makeBattle("RAYQUAZA", { { id = "DRAGONASCENT" } }, nil, {})
   battle.player.mon.form = "MEGA"
@@ -505,7 +509,8 @@ end
   local KeyItemsMod = dofile(MOD .. "/src/keyitems.lua")
   local entry = Mega.entry({ forms = Forms, eligibility = E, megas = megas,
                              keyitems = KeyItemsMod, animId = "TESTANIM",
-                             dragonascent = DragonAscent, zcrystals = crystals })
+                             dragonascent = DragonAscent, zcrystals = crystals,
+                             battlerof = Battlerof })
   local liveMon = { species = "RAYQUAZA", level = 70,
                     dvs = { hp = 15, attack = 15, defense = 15, speed = 15,
                            special = 15 },

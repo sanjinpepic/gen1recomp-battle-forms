@@ -41,7 +41,7 @@ function M.bind(modules) deps = modules end
 -- because each of them is a different reason for a Groudon that stays
 -- ordinary.
 local function transform(battle, battler, source)
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   if not mon then
     if deps.diag then
       deps.diag.primal(source, battle, nil, nil, nil, "no mon on the battler")

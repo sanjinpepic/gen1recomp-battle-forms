@@ -30,6 +30,7 @@ local Substitute = dofile(MOD .. "/src/substitute.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local ultraRows = dofile(MOD .. "/data/ultraburst.lua")
 local fusionRows = dofile(MOD .. "/data/fusion.lua")
 local zRows = dofile(MOD .. "/data/zmoves.lua")
@@ -112,10 +113,12 @@ local function makeLog()
 end
 
 local function bind(log)
-  Fusion.bind({ forms = Forms, rows = fusionRows, log = log })
+  Fusion.bind({ forms = Forms, rows = fusionRows, log = log,
+                battlerof = Battlerof })
   UltraBurst.bind({ forms = Forms, eligibility = E, fusion = Fusion,
                      keyitems = KeyItems, rows = ultraRows,
-                     animId = Anim.ID, announce = Announce, log = log })
+                     animId = Anim.ID, announce = Announce, log = log,
+                     battlerof = Battlerof })
 end
 
 local ZRING = { [KeyItems.Z_RING] = 1 }
@@ -246,7 +249,8 @@ do
   }
   local catalog = ZMoves.install(mod, zRows)
   ZMoves.bind({ substitute = Substitute, keyitems = KeyItems, eligibility = E,
-                announce = Announce, anim = Anim, log = nil })
+                announce = Announce, anim = Anim, log = nil,
+                battlerof = Battlerof })
 
   local mon = newMon({ fused = "SOLGALEO", crystal = "ULTRANECROZIUM_Z" })
   mon.moves = { { id = "CONFUSION", pp = 25 } }
@@ -314,7 +318,7 @@ end
 do
   bind(nil)
   Resolve.bind({ registry = Transforms.new(), forms = Forms, eligibility = E,
-                 megas = megas, fusion = Fusion })
+                 megas = megas, fusion = Fusion, battlerof = Battlerof })
   local state = UltraBurst.new()
   local mon = newMon({ fused = "SOLGALEO", crystal = "ULTRANECROZIUM_Z" })
   local battle = makeBattle(mon, ZRING)
@@ -333,7 +337,7 @@ end
 do
   bind(nil)
   Resolve.bind({ registry = Transforms.new(), forms = Forms, eligibility = E,
-                 megas = megas, fusion = Fusion })
+                 megas = megas, fusion = Fusion, battlerof = Battlerof })
   local state = UltraBurst.new()
   local mon = newMon({ fused = "LUNALA", crystal = "ULTRANECROZIUM_Z" })
   local battle = makeBattle(mon, ZRING)
@@ -367,7 +371,8 @@ do
   bind(nil)
   local registry = Transforms.new()
   T.eq(registry:register(Mega.entry({ forms = Forms, eligibility = E,
-    megas = megas, keyitems = KeyItems, animId = "TESTANIM" })), true,
+    megas = megas, keyitems = KeyItems, animId = "TESTANIM",
+    battlerof = Battlerof })), true,
     "mega registers")
   local burstState = UltraBurst.new()
   T.eq(registry:register(UltraBurst.entry(burstState)), true,
@@ -375,7 +380,7 @@ do
   Overlay.bind({ registry = registry })
   Menu.bind({ overlay = Overlay })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas, fusion = Fusion })
+                 megas = megas, fusion = Fusion, battlerof = Battlerof })
 
   local mon = newMon({ fused = "SOLGALEO", crystal = "ULTRANECROZIUM_Z" })
   local bag = { [KeyItems.KEY_STONE] = 1, [KeyItems.Z_RING] = 1 }
@@ -399,7 +404,7 @@ do
   local registry2 = Transforms.new()
   registry2:register(UltraBurst.entry(refusing))
   Resolve.bind({ registry = registry2, forms = Forms, eligibility = E,
-                 megas = megas, fusion = Fusion })
+                 megas = megas, fusion = Fusion, battlerof = Battlerof })
   local mon2 = newMon({ fused = "SOLGALEO", crystal = "ULTRANECROZIUM_Z" })
   local battle2 = makeBattle(mon2, ZRING)
   battle2.data = { pokemon = { NECROZMA = DATA.pokemon.NECROZMA } }

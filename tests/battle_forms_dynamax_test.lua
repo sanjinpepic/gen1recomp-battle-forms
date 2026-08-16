@@ -24,6 +24,7 @@ local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Announce = dofile(MOD .. "/src/announce.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 -- CHARIZARD has a Gigantamax and a mega both, which is what makes it the right
@@ -86,7 +87,7 @@ end
 
 local function bind(log)
   Dynamax.bind({ forms = Forms, gigantamax = GIGANTAMAX, keyitems = KeyItems,
-                 announce = Announce, log = log })
+                 announce = Announce, log = log, battlerof = Battlerof })
 end
 
 bind(nil)
@@ -118,7 +119,7 @@ do
 
   local reg = Transforms.new()
   T.eq(reg:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-    keyitems = KeyItems })), true, "mega registers")
+    keyitems = KeyItems, battlerof = Battlerof })), true, "mega registers")
   T.eq(reg:register(entry), true, "and Dynamax registers beside it")
   T.eq(reg:count(), 2, "the cell now hosts two transformations")
   T.eq(reg:get("dynamax"), entry, "and the registry answers for it")
@@ -288,7 +289,7 @@ end
 -- the same primitive.  Dynamax has to be correct behind it, not just in front.
 do
   Resolve.bind({ registry = Transforms.new(), forms = Forms, eligibility = E,
-                 megas = megas })
+                 megas = megas, battlerof = Battlerof })
   local state = Dynamax.new()
   local entry = Dynamax.entry(state)
   local battle = makeBattle("CHARIZARD")
@@ -361,10 +362,10 @@ do
   local registry = Transforms.new()
   local state = Dynamax.new()
   registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                                 announce = Announce }))
+                                 announce = Announce, battlerof = Battlerof }))
   registry:register(Dynamax.entry(state))
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas })
+                 megas = megas, battlerof = Battlerof })
 
   local battle = makeBattle("CHARIZARD", "CHARIZARDITE_X")
   local arm = Arm.new()
@@ -413,11 +414,11 @@ do
   local registry = Transforms.new()
   local state = Dynamax.new()
   registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                                 announce = Announce }))
+                                 announce = Announce, battlerof = Battlerof }))
   local entry = Dynamax.entry(state)
   registry:register(entry)
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas })
+                 megas = megas, battlerof = Battlerof })
 
   local battle = makeBattle("CHARIZARD", "CHARIZARDITE_X")
   local arm = Arm.new()
@@ -466,11 +467,11 @@ end
 local function bothRegistered()
   local registry = Transforms.new()
   registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                                 keyitems = KeyItems, announce = Announce }))
+                                 keyitems = KeyItems, announce = Announce, battlerof = Battlerof }))
   registry:register(Dynamax.entry(Dynamax.new()))
   Overlay.bind({ registry = registry })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-                 megas = megas })
+                 megas = megas, battlerof = Battlerof })
   return registry
 end
 
@@ -531,7 +532,7 @@ end
 do
   local warned = {}
   Dynamax.bind({ forms = Forms, gigantamax = { CHARIZARD = "CHARIZARD_NOPE" },
-                 announce = Announce,
+                 announce = Announce, battlerof = Battlerof,
                  log = { warn = function(_, fmt, ...)
                    warned[#warned + 1] = string.format(fmt, ...)
                  end } })
@@ -562,7 +563,7 @@ do
                                DATA.pokemon.CHARIZARD.baseStats,
                                types = { "FIRE" } } } }
   Dynamax.bind({ forms = Forms, gigantamax = { CHARIZARD = "CHARIZARD_BAD" },
-                 announce = Announce,
+                 announce = Announce, battlerof = Battlerof,
                  log = { warn = function(_, fmt, ...)
                    warned[#warned + 1] = string.format(fmt, ...)
                  end } })

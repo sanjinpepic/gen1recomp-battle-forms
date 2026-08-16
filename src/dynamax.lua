@@ -126,7 +126,7 @@ local function finish(state, battle, battler)
   if deps.substitute then deps.substitute.restore(state.moves) end
   if not mon then return false end
   if form and mon.form == form then
-    if battler and battler.mon == mon then
+    if deps.battlerof.mon(battler) == mon then
       deps.forms.revertForm(battler, battle and battle.data, battle)
     else
       deps.forms.revertMon(mon)
@@ -141,7 +141,7 @@ end
 -- the mon a turn later.
 local function onField(state, battle)
   local battler = battle and battle.player
-  if battler and battler.mon == state.mon then return battler end
+  if deps.battlerof.mon(battler) == state.mon then return battler end
   return nil
 end
 
@@ -161,7 +161,7 @@ function M.entry(state)
       if not deps.keyitems.held(battle, deps.keyitems.DYNAMAX_BAND) then
         return false
       end
-      local mon = battle.player and battle.player.mon
+      local mon = deps.battlerof.mon(battle.player)
       return mon ~= nil and mon.species ~= nil
     end,
 
@@ -192,7 +192,7 @@ function M.entry(state)
     -- Dynamaxes plainly rather than not at all.
     activate = function(battle)
       local battler = battle.player
-      local mon = battler and battler.mon
+      local mon = deps.battlerof.mon(battler)
       if not mon then return false end
 
       state.mon = mon
@@ -283,7 +283,7 @@ end
 -- player is no longer looking at would land in the middle of "Go! X!" and say
 -- nothing they need.
 function M.onBattlerSwitched(state, ev)
-  local mon = ev and ev.previous and ev.previous.mon
+  local mon = deps.battlerof.mon(ev and ev.previous)
   if not mon or state.mon ~= mon then return end
   finish(state, ev.battle, nil)
 end
@@ -295,7 +295,7 @@ end
 -- with no form, and the `mon.form == form` test simply stops matching.
 function M.onFainted(state, ev)
   local battler = ev and ev.battler
-  local mon = battler and battler.mon
+  local mon = deps.battlerof.mon(battler)
   if not mon or state.mon ~= mon then return end
   finish(state, ev.battle, battler)
 end

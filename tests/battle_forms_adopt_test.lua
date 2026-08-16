@@ -22,6 +22,7 @@ local Overlay = dofile(MOD .. "/src/overlay.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
 local primals = dofile(MOD .. "/data/primals.lua")
@@ -116,16 +117,16 @@ local function messages(battle)
 end
 
 Primal.bind({ forms = Forms, eligibility = E, primals = primals,
-              announce = Announce })
-Conditional.bind({ forms = Forms, rows = rows })
+              announce = Announce, battlerof = Battlerof })
+Conditional.bind({ forms = Forms, rows = rows, battlerof = Battlerof })
 
 local registry = Transforms.new()
 registry:register(Mega.entry({ forms = Forms, eligibility = E, megas = megas,
                                keyitems = KeyItems, animId = "TESTANIM",
-                               announce = Announce }))
+                               announce = Announce, battlerof = Battlerof }))
 Overlay.bind({ registry = registry })
 Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
-               megas = megas })
+               megas = megas, battlerof = Battlerof })
 
 local function newAdopter()
   local state = Arm.new()

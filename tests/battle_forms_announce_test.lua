@@ -19,6 +19,7 @@ local Forms = dofile(MOD .. "/src/forms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local primals = dofile(MOD .. "/data/primals.lua")
 local rows = dofile(MOD .. "/data/conditional.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
@@ -198,7 +199,8 @@ do
   local battle = makeBattle(newMon("CHARIZARD", "CHARIZARDITE_X"), nil,
                             { player = "CHARIZARD" })
   local entry = Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                             animId = "TESTANIM", announce = Announce })
+                             animId = "TESTANIM", announce = Announce,
+                             battlerof = Battlerof })
   T.eq(entry.activate(battle), true, "precondition: the mega happened")
   T.eq(battle.queue[1] and battle.queue[1].text, "CHARIZARD's\nMega Evolution!",
     "the message is the first row of the turn")
@@ -214,7 +216,8 @@ do
                             { player = "CHARIZARD" })
   battle.animationsOn = function() return false end
   local entry = Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                             animId = "TESTANIM", announce = Announce })
+                             animId = "TESTANIM", announce = Announce,
+                             battlerof = Battlerof })
   entry.activate(battle)
   T.eq(#texts(battle), 1, "animations off still leaves the message")
   T.eq(battle.queue[1].anim, nil, "and queues no animation")
@@ -228,7 +231,8 @@ do
                             { player = "CHARIZARD" })
   battle.data = { pokemon = { CHARIZARD = DATA.pokemon.CHARIZARD } }
   local entry = Mega.entry({ forms = Forms, eligibility = E, megas = megas,
-                             animId = "TESTANIM", announce = Announce })
+                             animId = "TESTANIM", announce = Announce,
+                             battlerof = Battlerof })
   T.eq(entry.activate(battle), false, "precondition: the mega was refused")
   T.eq(#battle.queue, 0, "a refused mega says nothing")
 end
@@ -236,7 +240,7 @@ end
 -- ------- primal reversion through its own module ---------------------
 
 Primal.bind({ forms = Forms, eligibility = E, primals = primals,
-              announce = Announce })
+              announce = Announce, battlerof = Battlerof })
 
 do
   local mon = newMon("GROUDON", "RED_ORB")
@@ -312,7 +316,7 @@ end
 -- a threshold the HP bar can cross more than once in a fight.  Each one is
 -- proven to have actually changed the form, so silence here is a decision
 -- rather than a mechanic that failed to fire.
-Conditional.bind({ forms = Forms, rows = rows })
+Conditional.bind({ forms = Forms, rows = rows, battlerof = Battlerof })
 
 do
   local mon = newMon("AEGISLASH")

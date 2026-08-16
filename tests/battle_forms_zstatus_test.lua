@@ -23,10 +23,12 @@ local Anim = dofile(MOD .. "/src/anim.lua")
 local Announce = dofile(MOD .. "/src/announce.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
+local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local ROWS = dofile(MOD .. "/data/zmoves.lua")
 
 ZMoves.bind({ substitute = Substitute, keyitems = KeyItems, eligibility = E,
-              announce = Announce, anim = Anim, log = nil })
+              announce = Announce, anim = Anim, log = nil,
+              battlerof = Battlerof })
 
 local ELECTRIUM, NORMALIUM
 for _, row in ipairs(ROWS.types) do
