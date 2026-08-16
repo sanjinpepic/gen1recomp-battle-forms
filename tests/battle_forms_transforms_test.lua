@@ -2,10 +2,11 @@
 -- that hosts them.
 --
 -- The second transformation here is synthetic and exists only in this file.
--- Nothing but mega evolution is registered in the shipping mod, so the cycling,
--- the per-transformation spent flags and the label switching would otherwise
--- have no way to be exercised until the mechanic that needs them is written --
--- which is exactly the wrong time to find out the seam does not work.
+-- Nothing but mega evolution is registered in the shipping mod, so the
+-- submenu's multi-row list, the per-transformation spent flags and the label
+-- switching would otherwise have no way to be exercised until the mechanic
+-- that needs them is written -- which is exactly the wrong time to find out
+-- the seam does not work.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
 local T = require("tests.modkit")
@@ -14,6 +15,7 @@ local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Mega = dofile(MOD .. "/src/mega.lua")
 local Menu = dofile(MOD .. "/src/menu.lua")
 local Overlay = dofile(MOD .. "/src/overlay.lua")
+local Formmenu = dofile(MOD .. "/src/formmenu.lua")
 local Resolve = dofile(MOD .. "/src/resolve.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
@@ -144,7 +146,8 @@ local function setup(refuse)
     "mega registers first")
   T.eq(registry:register(burstEntry(refuse)), true, "the synthetic one registers second")
   Overlay.bind({ registry = registry })
-  Menu.bind({ overlay = Overlay })
+  Formmenu.bind({ overlay = Overlay })
+  Menu.bind({ overlay = Overlay, formmenu = Formmenu })
   Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
                  megas = megas, battlerof = Battlerof })
   local battle = makeBattle()
@@ -158,50 +161,63 @@ local function press(battle, state, button)
   return Menu.handleInput(battle, state)
 end
 
--- Both on offer, in registration order, and the cell opens on the first.
+-- Both on offer, in registration order, and the list -- not the cell's own
+-- label -- is where the player actually sees and picks between them.
 do
   local battle, state = setup(false)
   local offered = Overlay.offered(state)
   T.eq(#offered, 2, "both transformations are on offer")
   T.eq(offered[1].id, "mega", "in registration order: mega first")
   T.eq(offered[2].id, "burst", "then the synthetic one")
-  T.eq(Overlay.label(state), "MEGA", "the cell opens on the first of them")
-  -- The label alone cannot say the cell holds a second one, so the cell says
-  -- it separately.  Before this the only way to learn Dynamax was on the cell
-  -- was to press a direction there was no reason to press.
-  T.eq(Overlay.cyclable(state), true, "and says out loud that it can be cycled")
+  T.eq(Overlay.label(state), "FORM",
+    "the cell is the generic label until something is armed")
 
   T.eq(press(battle, state, "left"), true, "left at FIGHT reaches the cell")
   T.eq(Menu.isOnCell(battle), true, "and parks there")
 
-  T.eq(press(battle, state, "right"), true, "right on the cell is claimed")
-  T.eq(Menu.isOnCell(battle), true, "and does not leave it while there is more than one")
-  T.eq(Overlay.label(state), "BURST", "right cycles to the next transformation")
+  local opened, action = press(battle, state, "a")
+  T.eq(opened, true, "A on the cell opens the list")
+  T.eq(action, "open", "and reports it for the confirm sound")
+  T.eq(Formmenu.isOpen(battle), true, "which holds both rows")
+  T.eq(Formmenu.index(battle), 1, "opening on the first, mega, with nothing armed yet")
 
-  press(battle, state, "right")
-  T.eq(Overlay.label(state), "MEGA", "and wraps back round")
-  press(battle, state, "left")
-  T.eq(Overlay.label(state), "BURST", "left cycles the other way, also wrapping")
+  T.eq(press(battle, state, "down"), true, "down in the list is claimed")
+  T.eq(Formmenu.index(battle), 2, "and moves the cursor to the second row")
+  T.eq(Formmenu.isOpen(battle), true, "the list stays open -- moving the cursor never closes it")
+  T.eq(state:isArmed(), false, "and arms nothing by itself")
+
+  press(battle, state, "down")
+  T.eq(Formmenu.index(battle), 1, "down wraps back round")
+  press(battle, state, "up")
+  T.eq(Formmenu.index(battle), 2, "up moves the other way, also wrapping")
+
+  local cancelled, cancelAction = press(battle, state, "b")
+  T.eq(cancelled, true, "B cancels the list")
+  T.eq(cancelAction, "cancel", "reported for the confirm sound, the same as opening")
+  T.eq(Formmenu.isOpen(battle), false, "closing it")
+  T.eq(Menu.isOnCell(battle), true, "without leaving the cell")
+  T.eq(state:isArmed(), false, "nothing was armed by merely browsing and cancelling")
 
   T.eq(press(battle, state, "up"), true, "up is still the way back to the grid")
   T.eq(Menu.isOnCell(battle), false, "which is where the cursor goes")
   T.eq(battle.menuIndex, 1, "with the real index left exactly where it was")
 end
 
--- Arming arms the selected one and nothing else, and resolving fires that
+-- Confirming a row arms that one and nothing else, and resolving fires that
 -- one's activation.
 do
   local battle, state, registry = setup(false)
   press(battle, state, "left")
-  press(battle, state, "right")
-  T.eq(Overlay.label(state), "BURST", "precondition: the cell is showing the second one")
+  press(battle, state, "a") -- opens on mega
+  press(battle, state, "down") -- to burst
+  T.eq(Formmenu.index(battle), 2, "precondition: the cursor is on the second row")
 
   local handled, action = press(battle, state, "a")
-  T.eq(handled, true, "A on the cell is claimed")
+  T.eq(handled, true, "A on the row is claimed")
   T.eq(action, "toggle", "and reports the toggle for the confirm sound")
-  T.eq(state:armed(), "burst", "A arms the transformation the cell was showing")
+  T.eq(state:armed(), "burst", "A arms the transformation the cursor was on")
+  T.eq(Formmenu.isOpen(battle), false, "and the list closes behind it")
   T.eq(Overlay.label(state), "BURST*", "which is what the label marks")
-  T.eq(Overlay.cyclable(state), true, "and an armed cell still shows it can be cycled")
 
   local before = bursts
   Resolve.onTurnStarted(state, { battle = battle })
@@ -220,7 +236,6 @@ do
   T.eq(#Overlay.offered(state), 0, "and yet nothing at all is on offer")
   T.eq(Overlay.shouldOffer(state), false, "so the cell is gone for the battle")
   T.eq(Overlay.label(state), nil, "with no label left to draw")
-  T.eq(Overlay.cyclable(state), false, "and the cycle marker gone with it")
 
   -- Nothing can be armed through a cell that is not there, and nothing was
   -- left armed behind it either.
@@ -240,8 +255,9 @@ do
   local battle, state = setup(false)
   press(battle, state, "left")
   T.eq(Menu.isOnCell(battle), true, "precondition: the cursor is on the cell")
-  press(battle, state, "a")
-  T.eq(state:armed(), "mega", "precondition: armed while standing on it")
+  press(battle, state, "a") -- opens on mega
+  press(battle, state, "a") -- confirms it
+  T.eq(state:armed(), "mega", "precondition: armed while standing on the cell")
   T.eq(battle.menuIndex, 1, "precondition: the real index is still FIGHT")
 
   Resolve.onTurnStarted(state, { battle = battle })
@@ -251,8 +267,7 @@ do
     "the next frame is handed straight back to vanilla")
   T.eq(Menu.isOnCell(battle), false, "with the cursor no longer on a cell that is gone")
   T.eq(battle.menuIndex, 1, "and back on the real cell it left from")
-  T.eq(Overlay.cyclable(state), false, "the cycle marker went with the cell")
-  T.eq(Overlay.label(state), nil, "and so did the label")
+  T.eq(Overlay.label(state), nil, "and no label left to draw either")
 
   -- Every direction, not just the one that happened to be pressed: a stranded
   -- cursor shows as a frame claimed by a cell that is not drawn.
@@ -263,54 +278,96 @@ do
   end
 end
 
--- Down to one on offer, the cell is the 0.7.0 cell again: right leaves it
--- rather than cycling, because there is nothing to cycle to.
+-- Down to one on offer, the list still opens and holds exactly the one row --
+-- there was never a reason to special-case the count, since the list is
+-- where every count is shown the same way.
 do
   local battle, state = setup(false)
   battle.burstReady = false
   T.eq(#Overlay.offered(state), 1, "precondition: only one is on offer")
-  T.eq(Overlay.cyclable(state), false, "so the cell carries no cycle marker")
   press(battle, state, "left")
   T.eq(Menu.isOnCell(battle), true, "the cursor reaches the cell")
-  T.eq(press(battle, state, "right"), true, "right is claimed")
+  T.eq(press(battle, state, "right"), true, "right leaves the cell, as it always has")
   T.eq(Menu.isOnCell(battle), false, "and leaves the cell, as it always has")
   press(battle, state, "left")
   T.eq(press(battle, state, "left"), true, "left on the cell is claimed")
   T.eq(Menu.isOnCell(battle), true, "and stays put, as it always has")
+
+  press(battle, state, "a")
+  T.eq(Formmenu.isOpen(battle), true, "A still opens the list with only one entry")
+  T.eq(Formmenu.index(battle), 1, "on its single row")
+  press(battle, state, "a")
+  T.eq(state:armed(), "mega", "confirming the one row arms it")
 end
 
--- An availability predicate that turns false takes its entry off the cell
--- mid-battle, and the selection falls back rather than showing nothing.
-do
-  local battle, state = setup(false)
-  press(battle, state, "left")
-  press(battle, state, "right")
-  T.eq(Overlay.label(state), "BURST", "precondition: the second one is selected")
-  T.eq(Overlay.cyclable(state), true, "precondition: and the cell is a selector")
-  battle.burstReady = false
-  T.eq(Overlay.label(state), "MEGA",
-    "a selection that stops being offered falls back to what is left")
-  T.eq(Overlay.shouldOffer(state), true, "and the cell stays up")
-  -- A key item gate can turn false between turns, so the marker has to be
-  -- read off the offer each frame rather than latched when the cell appeared:
-  -- a cell still promising LEFT/RIGHT with nothing to cycle to is the same
-  -- lie as a cell hiding that it has two, pointed the other way.
-  T.eq(Overlay.cyclable(state), false, "without the cycle marker it no longer earns")
-end
-
--- Cycling away disarms: the cell shows one label, so an armed flag hiding
--- behind another one would fire without ever having been visible.
+-- An availability predicate that turns false takes its entry off the list
+-- mid-battle, and the default row falls back rather than pointing past the
+-- end of what is left.
 do
   local battle, state = setup(false)
   press(battle, state, "left")
   press(battle, state, "a")
+  press(battle, state, "down")
+  T.eq(Formmenu.index(battle), 2, "precondition: the cursor is on the second row")
+  press(battle, state, "b") -- cancel, leaving nothing armed or selected
+  battle.burstReady = false
+  T.eq(#Overlay.offered(state), 1, "the second entry drops off the list")
+  T.eq(Overlay.shouldOffer(state), true, "and the cell stays up on the one that is left")
+  press(battle, state, "a")
+  T.eq(Formmenu.index(battle), 1,
+    "re-opening finds a stale row gone and defaults back inside the list")
+end
+
+-- Re-opening the list while something is armed starts the cursor there,
+-- so switching to a different transformation or disarming the current one
+-- are both one A press away rather than requiring the player to hunt for
+-- the row that is already active.
+do
+  local battle, state = setup(false)
+  press(battle, state, "left")
+  press(battle, state, "a") -- opens on mega
+  press(battle, state, "a") -- arms mega
   T.eq(state:armed(), "mega", "precondition: armed on the first one")
-  press(battle, state, "right")
-  T.eq(state:isArmed(), false, "cycling to the next one disarms")
-  T.eq(Overlay.label(state), "BURST", "and the cell shows the new one unmarked")
+
+  press(battle, state, "a") -- re-open
+  T.eq(Formmenu.isOpen(battle), true, "re-opening while armed is allowed")
+  T.eq(Formmenu.index(battle), 1, "and starts on the row that is actually armed")
+
+  press(battle, state, "down")
+  T.eq(Formmenu.index(battle), 2, "the player can move to a different row")
+  local handled, action = press(battle, state, "a")
+  T.eq(handled, true, "and confirm it")
+  T.eq(action, "toggle", "reported the same way any other confirm is")
+  T.eq(state:armed(), "burst", "switching arms the new one")
+  T.eq(state:used("mega"), false, "without spending the one that never fired")
   Resolve.onTurnStarted(state, { battle = battle })
-  T.eq(battle.player.mon.form, nil, "so nothing fires at turn start")
+  T.eq(battle.player.mon.form, nil, "so nothing fires at turn start for mega")
   T.eq(state:used("mega"), false, "and nothing was spent")
+end
+
+-- Cancelling out of a re-opened list leaves whatever was armed on entry
+-- exactly as it was -- browsing other rows substitutes nothing behind the
+-- player's back, and B never has anything of its own to unwind.
+do
+  local battle, state = setup(false)
+  press(battle, state, "left")
+  press(battle, state, "a")
+  press(battle, state, "a") -- arms mega
+  T.eq(state:armed(), "mega", "precondition: mega is armed")
+  T.eq(battle.player.mon.form, nil,
+    "precondition: arming alone does not change the form yet -- that is turn start's job")
+
+  press(battle, state, "a") -- re-open, cursor defaults to mega (row 1)
+  press(battle, state, "down") -- preview burst, row 2 -- nothing armed by this alone
+  T.eq(state:armed(), "mega", "merely moving the cursor while browsing disarms nothing")
+  press(battle, state, "b") -- cancel
+  T.eq(Formmenu.isOpen(battle), false, "the list closes")
+  T.eq(state:armed(), "mega", "and mega is still exactly what was armed before the list opened")
+
+  Resolve.onTurnStarted(state, { battle = battle })
+  T.eq(battle.player.mon.form, "MEGA_X", "the substitution cancelling did not unwind still fires")
+  T.eq(state:used("mega"), true, "mega is what actually spent the battle's one transformation")
+  T.eq(state:used("burst"), false, "never burst, which the player only ever previewed")
 end
 
 -- A refused activation spends nothing, the same rule mega evolution has
@@ -318,7 +375,8 @@ end
 do
   local battle, state = setup(true)
   press(battle, state, "left")
-  press(battle, state, "right")
+  press(battle, state, "a")
+  press(battle, state, "down")
   press(battle, state, "a")
   T.eq(state:armed(), "burst", "precondition: the refusing one is armed")
   local before = bursts
@@ -333,7 +391,8 @@ end
 do
   local battle, state = setup(false)
   press(battle, state, "left")
-  press(battle, state, "a")
+  press(battle, state, "a") -- opens on mega
+  press(battle, state, "a") -- confirms it
   Resolve.onTurnStarted(state, { battle = battle })
   T.eq(state:used("mega"), true, "precondition: one is spent")
   state:onBattleEnded({ battle = battle })

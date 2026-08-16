@@ -47,14 +47,13 @@ T.eq(Overlay.shouldOffer(s), false, "an ineligible mon is offered nothing")
 s:onBattleStarted({ battle = eligible })
 T.eq(Overlay.shouldOffer(s), true, "an eligible mon is offered the toggle")
 
-T.eq(Overlay.label(s), "MEGA", "the indicator reads MEGA when disarmed")
--- One transformation is the shipping case and it must stay the 0.12.0 cell:
--- the label carries nothing but the label, and nothing tells the player about
--- a LEFT/RIGHT that would do nothing if pressed.
-T.eq(Overlay.cyclable(s), false, "with one on offer the cell is a label, not a selector")
+-- Unarmed, the label is the generic word rather than any one entry's own --
+-- src/formmenu.lua's own list is where a specific name is actually shown,
+-- and with more than one on offer there was never a principled reason the
+-- pre-arm label should be the first one over any other.
+T.eq(Overlay.label(s), "FORM", "one offered entry: still the generic label until armed")
 s:toggle(Mega.ID)
-T.eq(Overlay.label(s), "MEGA*", "the indicator marks the armed state")
-T.eq(Overlay.cyclable(s), false, "and arming it does not make it one either")
+T.eq(Overlay.label(s), "MEGA*", "armed, the label switches to the specific one")
 
 s:consume(Mega.ID)
 T.eq(Overlay.shouldOffer(s), false, "a battle that already changed offers nothing")
@@ -136,7 +135,7 @@ do
   local s8 = Arm.new()
   s8:onBattleStarted({ battle = ready })
   T.eq(#Overlay.offered(s8), 2, "both are on the cell")
-  T.eq(Overlay.cyclable(s8), true, "which is what makes it a selector")
+  T.eq(Overlay.label(s8), "FORM", "unarmed with two on offer, still the generic label")
 
   s8:consume(Mega.ID)
   T.eq(s8:used("other"), false, "the second entry's own flag is unspent")
@@ -145,9 +144,6 @@ do
   T.eq(Overlay.shouldOffer(s8), false, "so the cell is gone")
   T.eq(Overlay.selected(s8), nil, "with nothing for it to be showing")
   T.eq(Overlay.label(s8), nil, "no label to draw")
-  T.eq(Overlay.cyclable(s8), false, "and no cycle marker to draw beside it")
-  Overlay.cycle(s8, 1)
-  T.eq(Overlay.label(s8), nil, "and cycling an empty cell finds nothing to select")
 end
 
 T.finish("battle_forms_overlay")

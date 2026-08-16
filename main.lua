@@ -109,7 +109,7 @@ return function(mod)
                   "src/ultraburst.lua",
                   "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
-                  "src/overlay.lua", "src/menu.lua", "src/boxmark.lua",
+                  "src/overlay.lua", "src/formmenu.lua", "src/menu.lua", "src/boxmark.lua",
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
                   "src/gen2shop.lua",
                   "src/zmovemenu.lua", "src/hpscale.lua",
@@ -604,6 +604,14 @@ return function(mod)
   local overlay = m["src/overlay.lua"]
   overlay.bind({ registry = registry })
 
+  -- The submenu the cell opens: shaped like the FIGHT menu's own move list,
+  -- one row per transformation overlay.offered names right now.  Reads the
+  -- same offered/label decision overlay.lua already makes rather than
+  -- inventing a second one, so the list and the cell it opens from can never
+  -- disagree about what is on offer.
+  local formmenu = m["src/formmenu.lua"]
+  formmenu.bind({ overlay = overlay })
+
   -- Bound after everything it reads and before anything that reports through
   -- it.  The option is read live rather than captured: changing it in the
   -- manager does not reload the mod (ManagerState:setOption writes
@@ -637,7 +645,7 @@ return function(mod)
   -- decision.  Its update wrapper is also the only place the live battle
   -- reaches this mod without an event, which is why adoption rides it.
   local menu = m["src/menu.lua"]
-  menu.bind({ overlay = overlay, diag = diag, adopt = adopt })
+  menu.bind({ overlay = overlay, formmenu = formmenu, diag = diag, adopt = adopt })
   menu.install(mod, state)
 
   -- The boxed fusion partner's marker: two more engine wraps in the same

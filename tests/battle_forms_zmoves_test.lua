@@ -695,9 +695,13 @@ do
 end
 
 -- ---------------------------------------------------------------------
--- Cycling while armed, which is the sharp case: the cell hosts more than one
--- mechanic that substitutes moves, and moving between them must never leave the
--- one the player moved away from standing underneath the other's label.
+-- Selecting away while armed, which is the sharp case: the cell hosts more
+-- than one mechanic that substitutes moves, and moving the selection between
+-- them (src/formmenu.lua's list, in real play) must never leave the one the
+-- player moved away from standing underneath the other's label.  Driven
+-- directly through arm.lua's own `select` here rather than through the list,
+-- which is a UI concern src/formmenu_test.lua owns -- what is being pinned
+-- is the substitution dispatch itself.
 -- ---------------------------------------------------------------------
 do
   local Dynamax = dofile(MOD .. "/src/dynamax.lua")
@@ -739,10 +743,10 @@ do
   arm:toggle(Dynamax.ID)
   T.eq(battler.curMoves[1].id, maxId, "arming Dynamax substitutes Max Moves")
 
-  -- LEFT/RIGHT move the selection, and the selection is always what is armed,
-  -- so cycling disarms what it moved away from.
-  Overlay.cycle(arm, 1)
-  T.eq(arm:selected(), ZMoves.ID, "cycling moves the cell to the Z-Move")
+  -- The selection is always what is armed, so moving it away disarms what it
+  -- moved away from.
+  arm:select(ZMoves.ID)
+  T.eq(arm:selected(), ZMoves.ID, "selecting moves the cell to the Z-Move")
   T.eq(arm:isArmed(), false, "which leaves nothing armed")
   T.eq(battler.curMoves, mon.moves,
     "and the Max Moves went with it rather than standing under Z-MOVE")

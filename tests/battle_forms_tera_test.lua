@@ -361,7 +361,8 @@ do
   battle.game.save.inventory[KeyItems.TERA_ORB] = 1
   T.eq(Overlay.shouldOffer(armState), true,
     "buying one mid-battle brings the cell up, read live off the bag")
-  T.eq(Overlay.label(armState), "TERA", "and the cell reads TERA")
+  T.eq(Overlay.label(armState), "FORM",
+    "and the cell reads the generic label, unarmed")
 end
 
 -- ---------------------------------------------------------------------
@@ -476,7 +477,7 @@ end
 do
   local GLYPH = 8
   local ARMED = 1
-  local budget = Menu.CELL.classic.cycle - Menu.CELL.classic.label
+  local budget = Menu.CELL.classic.limit - Menu.CELL.classic.label
   local label = Tera.entry(Tera.new()).label
   T.eq(label, "TERA", "the cell reads TERA")
   T.check((#label + ARMED) * GLYPH <= budget,

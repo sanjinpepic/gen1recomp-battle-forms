@@ -430,7 +430,7 @@ end
 do
   local GLYPH = 8
   local ARMED = 1
-  local budget = Menu.CELL.classic.cycle - Menu.CELL.classic.label
+  local budget = Menu.CELL.classic.limit - Menu.CELL.classic.label
   local label = UltraBurst.entry(UltraBurst.new()).label
   T.eq(label, "BURST", "the cell reads BURST")
   T.check((#label + ARMED) * GLYPH <= budget,

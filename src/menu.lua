@@ -1,6 +1,9 @@
 -- The fifth command-menu entry, alongside FIGHT / PKMN / ITEM / RUN: one cell
--- hosting whichever manually activated transformations are on offer, reading
--- MEGA today and cycling between them when there is more than one.
+-- hosting whichever manually activated transformations are on offer.  A on
+-- the cell opens src/formmenu.lua's own list -- shaped like the FIGHT menu's
+-- own move list, one row per transformation on offer -- rather than arming
+-- directly; see that file's header for why LEFT/RIGHT cycling the cell
+-- itself was retired rather than kept for the two-or-more case.
 --
 -- Why not the battle.overlay hook overlay.lua already uses: that seam draws
 -- a label, but there is no matching seam for INPUT.  Cursor movement and the
@@ -21,10 +24,11 @@
 -- reserved and never draws in.  It sits at the same x column FIGHT/ITEM's
 -- cursor and text already use, so it reads as another row of the same menu
 -- rather than a bolted-on extra.  It is also the reason several
--- transformations share ONE cell and cycle: there was never a second row to
--- give the next mechanic, so the cell had to hold them instead -- and the
--- reason the cell has to SAY it holds them in one spare column rather than in
--- words, since the row it sits on is as wide as the box and no wider.
+-- transformations share ONE cell rather than one row apiece: there was never
+-- a second row to give the next mechanic, so the cell holds a single label
+-- -- generic until something is armed, src/overlay.lua's own `label` -- and
+-- opens src/formmenu.lua's own list, drawn in a box of its own, for anything
+-- that needs choosing among more than one.
 --
 -- Owning the WHOLE frame while the cursor sits on the cell (rather than trying
 -- to intercept one button at a time) is deliberate.  Input:wasPressed does
@@ -79,42 +83,38 @@ end
 -- Runs before BattleState:update's own body every frame.  Returns:
 --   handled  true when this frame's input belonged to this module, meaning
 --            the installed wrapper must NOT call vanilla update this frame
---   action   "toggle" when handled and the armed flag just flipped, for the
---            confirm sound; nil otherwise
+--   action   "open" when the submenu list just opened, "toggle" when handled
+--            and the armed flag just flipped, "cancel" when the list just
+--            closed without changing it -- all three want the confirm sound;
+--            nil otherwise
 function M.handleInput(battle, state)
   if not battle or battle.phase ~= "menu" or battle.demo or battle.safari then
     return false
   end
   if not deps or not deps.overlay.shouldOffer(state) or not safeToOffer(battle) then
     battle._battleFormsMenuCell = false
+    if deps and deps.formmenu then deps.formmenu.close(battle) end
     return false
   end
   local input = battle.game and battle.game.input
   if not input then return false end
 
   if M.isOnCell(battle) then
+    if deps.formmenu.isOpen(battle) then
+      return deps.formmenu.handleInput(battle, state)
+    end
+    -- A opens the submenu rather than arming directly -- see
+    -- src/formmenu.lua's own header for why every registered count, not just
+    -- two or more, goes through the same list: the cell's own label is the
+    -- generic word until something is armed, so a direct toggle here would
+    -- arm a transformation the player was never shown by name.
     if input:wasPressed("a") then
-      state:toggle(deps.overlay.selected(state).id)
-      return true, "toggle"
+      deps.formmenu.open(battle, state)
+      return true, "open"
     end
-    -- With a second transformation on offer the cell becomes a selector and
-    -- LEFT/RIGHT cycle it, which costs RIGHT its old job of leaving the cell
-    -- -- UP and DOWN still do that, and both lead back to the same column-0
-    -- cell the cursor arrived from.  Below two there is nothing to cycle
-    -- through, so this branch never runs and the cursor behaves exactly as it
-    -- did when MEGA was the only thing here.  The same predicate draws the
-    -- cycle marker, so the cell cannot advertise a direction that does
-    -- nothing or swallow one it never offered.
-    if deps.overlay.cyclable(state) then
-      if input:wasPressed("left") then
-        deps.overlay.cycle(state, -1)
-        return true
-      end
-      if input:wasPressed("right") then
-        deps.overlay.cycle(state, 1)
-        return true
-      end
-    end
+    -- RIGHT/UP/DOWN leave the cell exactly as they always have; LEFT/RIGHT no
+    -- longer carry a second meaning now that the list is where selection
+    -- among more than one happens.
     if input:wasPressed("right") or input:wasPressed("up")
         or input:wasPressed("down") then
       battle._battleFormsMenuCell = false
@@ -150,45 +150,38 @@ end
 
 -- None of these columns are new numbers.  `cursor` and `label` are the same
 -- ones FIGHT and ITEM already put their cursor and their text in (classic
--- 72/80, wide 168/176).  `cycle` is the last column inside the command box --
--- classic Font.drawBox(8, 12, 12, 6) borders tiles 8 and 19, widescreen
--- Font.drawBox(20, 13, 18, 5) borders tiles 20 and 37, so tiles 18 and 36 --
--- which is where each layout already parks its own "there is more" arrow.
--- The row is y=120, the blank spacer row between the FIGHT/PKMN line and the
--- ITEM/RUN line, empty in both templates.
+-- 72/80, wide 168/176).  `limit` is the last printable column inside the
+-- command box before its own border -- classic Font.drawBox(8, 12, 12, 6)
+-- borders tiles 8 and 19, widescreen Font.drawBox(20, 13, 18, 5) borders
+-- tiles 20 and 37, so tiles 18 and 36.  The row is y=120, the blank spacer
+-- row between the FIGHT/PKMN line and the ITEM/RUN line, empty in both
+-- templates.
 --
--- The gap from `label` to `cycle` is the entire width a label has: 64px
--- classic, 112px wide, so 8 and 14 glyphs at the font's flat 8px advance.
--- Classic binds, and DYNAMAX plus the armed '*' already spends all 8 of it.
--- That is why the affordance is ONE glyph rather than a pair around the
--- label or a count -- neither fits the widest label that ships.
+-- `limit` used to be where the cycle marker parked; the marker is gone (that
+-- job moved to src/formmenu.lua's own list, opened from this same cell), but
+-- the number survives as what it always secretly was -- the box's own right
+-- edge, one tile in from the border -- because a label run past it would
+-- print over that border rather than wrapping.
 local CELL = {
-  classic = { cursor = 72, label = 80, cycle = 144 },
-  wide = { cursor = 168, label = 176, cycle = 288 },
+  classic = { cursor = 72, label = 80, limit = 144 },
+  wide = { cursor = 168, label = 176, limit = 288 },
 }
 M.CELL = CELL
 
 local ROW_Y = 120
 
-local CURSOR_GLYPH = 0xED
-
 -- The HOLLOW arrow, not the solid one.  $ED is the cursor in every menu this
 -- engine draws, including the one this cell puts at `cursor` on the same row,
--- and a second solid arrow there would read as a second cursor.  The move
--- list already uses the pair exactly this way -- $ED for where the player is,
--- $EC for a marker that is not the player.
-local CYCLE_GLYPH = 0xEC
+-- and a second solid arrow there would read as a second cursor.
+local CURSOR_GLYPH = 0xED
 
--- Both layouts draw the same three things and differ only in which columns
+-- Both layouts draw the same two things and differ only in which columns
 -- they draw them at, so the decision of WHAT appears is made once instead of
 -- twice: a cell that gained a marker in classic alone would be a cell missing
 -- from half the game, which is the mistake src/overlay.lua's header exists to
 -- prevent for the decisions above it.
 local function drawCell(Font, state, at, onCell)
   Font.draw(deps.overlay.label(state), at.label, ROW_Y)
-  if deps.overlay.cyclable(state) then
-    Font.drawCode(CYCLE_GLYPH, at.cycle, ROW_Y)
-  end
   if onCell then Font.drawCode(CURSOR_GLYPH, at.cursor, ROW_Y) end
 end
 
@@ -201,6 +194,13 @@ local function note(battle, key, what)
   if diag then pcall(diag.note, battle, key, "wrapper: %s ran", what) end
 end
 
+-- The submenu list only ever draws while the cursor is on the cell (opening
+-- it from anywhere else is not reachable, see M.handleInput), so the vanilla
+-- draw is still called underneath it exactly as it is for the plain cell --
+-- compose, never capture, the same rule this file's own header states for
+-- the input side.  The list box is sized to fully cover the vanilla command
+-- box it draws over (src/formmenu.lua's own header on its geometry), so
+-- nothing of FIGHT/PKMN/ITEM/RUN survives visible beneath it.
 function M.drawClassic(battle, state, vanillaDraw, Font)
   note(battle, "drawTextArea", "BattleState.drawTextArea")
   if not deps or not deps.overlay.shouldOffer(state) then
@@ -210,7 +210,11 @@ function M.drawClassic(battle, state, vanillaDraw, Font)
   withHiddenCursor(battle, onCell, function() vanillaDraw(battle) end)
   if not Font then return end
   love.graphics.setColor(0, 0, 0, 1)
-  drawCell(Font, state, CELL.classic, onCell)
+  if onCell and deps.formmenu.isOpen(battle) then
+    deps.formmenu.drawClassic(battle, state, Font)
+  else
+    drawCell(Font, state, CELL.classic, onCell)
+  end
 end
 
 function M.drawWide(battle, state, vanillaDraw, Font)
@@ -222,7 +226,11 @@ function M.drawWide(battle, state, vanillaDraw, Font)
   withHiddenCursor(battle, onCell, function() vanillaDraw(battle) end)
   if not Font then return end
   love.graphics.setColor(0, 0, 0, 1)
-  drawCell(Font, state, CELL.wide, onCell)
+  if onCell and deps.formmenu.isOpen(battle) then
+    deps.formmenu.drawWide(battle, state, Font)
+  else
+    drawCell(Font, state, CELL.wide, onCell)
+  end
 end
 
 -- BattleState._battleFormsMenuPatched (and WideBattle's own copy below) is
@@ -284,7 +292,14 @@ function M.install(mod, state)
     end
     local ok, handled, action = pcall(M.handleInput, self, state)
     if ok and handled then
-      if action == "toggle" and Sound then
+      -- "open" (the submenu appearing), "toggle" (a row arming or disarming)
+      -- and "cancel" (B closing the submenu) are every action string this
+      -- module or src/formmenu.lua ever returns, and all three are a
+      -- confirm-shaped moment the same way vanilla's own A/B presses are --
+      -- plain cursor movement returns no action and stays silent, matching
+      -- the vanilla move list's own convention of a sound on commit, none on
+      -- a bare cursor step.
+      if action and Sound then
         pcall(Sound.play, self.data, "Press_AB")
       end
       self:tickFx()

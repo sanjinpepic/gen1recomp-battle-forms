@@ -7,6 +7,7 @@ local T = require("tests.modkit")
 local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local Menu = dofile(MOD .. "/src/menu.lua")
 local Overlay = dofile(MOD .. "/src/overlay.lua")
+local Formmenu = dofile(MOD .. "/src/formmenu.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local E = dofile(MOD .. "/src/eligibility.lua")
 local Megaset = dofile(MOD .. "/src/megaset.lua")
@@ -25,7 +26,8 @@ local registry = Transforms.new()
 registry:register(Mega.entry({ eligibility = E, megas = megas,
   keyitems = KeyItems, battlerof = Battlerof }))
 Overlay.bind({ registry = registry })
-Menu.bind({ overlay = Overlay })
+Formmenu.bind({ overlay = Overlay })
+Menu.bind({ overlay = Overlay, formmenu = Formmenu })
 
 -- src/core/Input.lua's wasPressed reads a per-frame set with no memory of
 -- any other frame; this double is that same shape.
@@ -85,7 +87,7 @@ do
 end
 
 -- ---------------------------------------------------------------------
--- Eligible: the cursor can reach MEGA from either column-0 cell (FIGHT,
+-- Eligible: the cursor can reach the cell from either column-0 cell (FIGHT,
 -- ITEM) and come back to exactly where it left from.  PKMN/RUN (column 1)
 -- never border it directly, matching how left/right already work.
 -- ---------------------------------------------------------------------
@@ -93,39 +95,40 @@ do
   local state = Arm.new()
   local battle = makeBattle(1, {})
   state:onBattleStarted({ battle = battle })
-  T.eq(Overlay.shouldOffer(state), true, "precondition: an eligible mon offers the toggle")
-  T.eq(Overlay.cyclable(state), false,
-    "precondition: one transformation leaves the cell a plain label")
+  T.eq(Overlay.shouldOffer(state), true, "precondition: an eligible mon offers the cell")
+  T.eq(Overlay.label(state), "FORM",
+    "precondition: the generic label, unarmed, whatever is on offer")
 
   battle.game.input = makeInput({ left = true })
   T.eq(Menu.handleInput(battle, state), true, "left at FIGHT (column 0) is claimed")
-  T.eq(Menu.isOnCell(battle), true, "the cursor is now on MEGA")
+  T.eq(Menu.isOnCell(battle), true, "the cursor is now on the cell")
   T.eq(battle.menuIndex, 1, "the real index is left exactly where it was")
 
   battle.game.input = makeInput({ right = true })
-  T.eq(Menu.handleInput(battle, state), true, "right off MEGA is claimed")
+  T.eq(Menu.handleInput(battle, state), true, "right off the cell is claimed")
   T.eq(Menu.isOnCell(battle), false, "the cursor is back on the real grid")
   T.eq(battle.menuIndex, 1, "back on FIGHT, unchanged")
 
   battle.menuIndex = 3 -- ITEM, also column 0
   battle.game.input = makeInput({ left = true })
   Menu.handleInput(battle, state)
-  T.eq(Menu.isOnCell(battle), true, "left from ITEM also reaches MEGA")
+  T.eq(Menu.isOnCell(battle), true, "left from ITEM also reaches the cell")
   battle.game.input = makeInput({ up = true })
   Menu.handleInput(battle, state)
-  T.eq(Menu.isOnCell(battle), false, "up off MEGA leaves it too, not just right")
+  T.eq(Menu.isOnCell(battle), false, "up off the cell leaves it too, not just right")
   T.eq(battle.menuIndex, 3, "back on ITEM, unchanged")
 
   battle.menuIndex = 2 -- PKMN, column 1
   battle.game.input = makeInput({ left = true })
   T.eq(Menu.handleInput(battle, state), false,
-    "left from PKMN moves within the real grid, not onto MEGA")
-  T.eq(Menu.isOnCell(battle), false, "PKMN cannot reach MEGA directly")
+    "left from PKMN moves within the real grid, not onto the cell")
+  T.eq(Menu.isOnCell(battle), false, "PKMN cannot reach the cell directly")
 end
 
 -- ---------------------------------------------------------------------
--- Selecting MEGA toggles the armed flag and takes no turn action: the
--- phase and the real index are untouched, and nothing was dispatched.
+-- A on the cell opens the submenu rather than arming directly, and
+-- confirming the one row it holds arms the toggle -- takes no turn action:
+-- the phase and the real index are untouched, and nothing was dispatched.
 -- ---------------------------------------------------------------------
 do
   local state = Arm.new()
@@ -133,17 +136,27 @@ do
   state:onBattleStarted({ battle = battle })
   battle.game.input = makeInput({ left = true })
   Menu.handleInput(battle, state)
-  T.eq(Menu.isOnCell(battle), true, "precondition: cursor parked on MEGA")
+  T.eq(Menu.isOnCell(battle), true, "precondition: cursor parked on the cell")
   T.eq(state:isArmed(), false, "starts disarmed")
 
   battle.game.input = makeInput({ a = true })
+  local opened, openAction = Menu.handleInput(battle, state)
+  T.eq(opened, true, "A on the cell is claimed")
+  T.eq(openAction, "open", "and reports that the submenu just opened")
+  T.eq(Formmenu.isOpen(battle), true, "which is the list")
+  T.eq(state:isArmed(), false, "opening the list arms nothing by itself")
+
+  battle.game.input = makeInput({ a = true })
   local handled, action = Menu.handleInput(battle, state)
-  T.eq(handled, true, "A on MEGA is claimed")
+  T.eq(handled, true, "A on the one row is claimed")
   T.eq(action, "toggle", "the wrapper is told this frame armed or disarmed it")
   T.eq(state:isArmed(), true, "A arms the toggle")
+  T.eq(Formmenu.isOpen(battle), false, "and the list closes behind it")
   T.eq(battle.phase, "menu", "the phase is untouched -- no turn was taken")
   T.eq(battle.menuIndex, 1, "no real cell was dispatched by the same press")
 
+  battle.game.input = makeInput({ a = true })
+  Menu.handleInput(battle, state) -- opens the list again, cursor on the armed row
   battle.game.input = makeInput({ a = true })
   Menu.handleInput(battle, state)
   T.eq(state:isArmed(), false, "a second A disarms it")
@@ -179,19 +192,18 @@ do
 end
 
 -- ---------------------------------------------------------------------
--- The cell's geometry.  Only one transformation is registered in this file,
--- which is what ships, so the first three checks are the 0.12.0 cell pinned
+-- The cell's geometry.  The first four checks are the 0.12.0 cell pinned
 -- where it was: the label in FIGHT/ITEM's own column and the cursor in
 -- theirs, and nothing else drawn on the row.
 --
--- The rest is the width budget the cycle marker leaves behind it.  The
--- marker sits in the last column inside the command box -- classic
--- Font.drawBox(8, 12, 12, 6) borders tiles 8 and 19, widescreen
--- Font.drawBox(20, 13, 18, 5) borders 20 and 37 -- so the gap from the label
--- column to it is every pixel a label has.  Classic is the tighter layout
--- and DYNAMAX plus the armed '*' fills it exactly; one more character in any
--- shipping label draws over the marker rather than wrapping, and there is
--- nowhere for either of them to move to.
+-- The rest is the width budget the cell's own box border leaves behind it.
+-- `limit` is the last printable column inside the command box before its
+-- border -- classic Font.drawBox(8, 12, 12, 6) borders tiles 8 and 19,
+-- widescreen Font.drawBox(20, 13, 18, 5) borders 20 and 37 -- so the gap from
+-- the label column to it is every pixel a label has.  Classic is the tighter
+-- layout and DYNAMAX plus the armed '*' fills it exactly; one more character
+-- in any shipping label draws over the border rather than wrapping, and
+-- there is nowhere for it to move to.
 -- ---------------------------------------------------------------------
 do
   local GLYPH = 8 -- the font page's flat advance (src/render/Font.lua)
@@ -202,8 +214,8 @@ do
   T.eq(Menu.CELL.wide.cursor, 168, "widescreen keeps its own cursor column")
   T.eq(Menu.CELL.wide.label, 176, "and its own label column")
 
-  T.eq(Menu.CELL.classic.cycle, 18 * 8, "the marker takes classic's last free column")
-  T.eq(Menu.CELL.wide.cycle, 36 * 8, "and widescreen's, one in from each right border")
+  T.eq(Menu.CELL.classic.limit, 18 * 8, "classic's last printable column before its border")
+  T.eq(Menu.CELL.wide.limit, 36 * 8, "and widescreen's, one in from each right border")
 
   -- Read out of the sources main.lua itself names, the way the options suite
   -- reads its file list.  A roster mirrored by hand here would keep passing
@@ -225,10 +237,10 @@ do
 
   for _, layout in ipairs({ "classic", "wide" }) do
     local at = Menu.CELL[layout]
-    local budget = at.cycle - at.label
+    local budget = at.limit - at.label
     for _, label in ipairs(labels) do
       T.check((#label + ARMED) * GLYPH <= budget,
-        ("%s: %s armed fits the %d px the marker leaves a label"):format(
+        ("%s: %s armed fits the %d px the cell's own box leaves a label"):format(
           layout, label, budget))
     end
   end

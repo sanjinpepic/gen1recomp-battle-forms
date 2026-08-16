@@ -73,44 +73,37 @@ function M.selected(state)
   return offered[1]
 end
 
--- The armed marker belongs to the cell rather than to each entry's own label
--- string, so a cell hosting several transformations marks them all the same
--- way and a new mechanic cannot invent its own notation.
-function M.label(state)
-  local entry = M.selected(state)
-  if not entry then return nil end
-  if state:armed() == entry.id then return entry.label .. "*" end
-  return entry.label
-end
+-- What the cell says before anything is armed.  A category word rather than
+-- any one registered entry's name: src/formmenu.lua is where the player
+-- actually picks among what is on offer now, so the cell itself no longer
+-- has to pre-name one of them, and naming one would be a specific promise a
+-- generic word is not -- with two or more offered there was never a
+-- principled reason the pre-arm label should be the first one over any
+-- other.
+local GENERIC_LABEL = "FORM"
+M.GENERIC_LABEL = GENERIC_LABEL
 
--- Whether the cell is a selector right now rather than a plain label, which
--- is what src/menu.lua draws its cycle marker from and what decides whether
--- LEFT/RIGHT cycle -- one predicate, so a cell that says it can be cycled and
--- a cell that can be are the same cell.
+-- What the cell says.  Armed beats everything: the cell exists to say what
+-- is ABOUT to happen or already has, and once something is armed that is
+-- always the more important fact than which ones are merely on offer.
+-- Looked up straight off the registry rather than off the offered list, so
+-- an entry that armed and then dropped off `offered` (its own predicate
+-- turning false while substituted moves are still standing) still gets
+-- named correctly instead of the cell falling silent on the one entry that
+-- most needs to keep saying what it is.
 --
--- Deliberately NOT folded into label() the way the armed '*' is.  The marker
--- is a font tile, and a tile reached through a string goes via Font.encode,
--- which hands any single non-ASCII character to the TTF in a translated build
--- instead of to the page the glyph lives on.  Keeping it out also means one
--- transformation on offer reaches Font.draw with exactly the string it always
--- has, rather than with a string that happens to come out the same.
-function M.cyclable(state)
-  return #M.offered(state) > 1
-end
-
--- Moves the selection along the offered list and wraps, so the cell reaches
--- every transformation from every other one.  Nothing to do below two: with a
--- single entry the cell is a label, not a selector, and src/menu.lua leaves
--- LEFT/RIGHT to mean what they have always meant.
-function M.cycle(state, step)
-  local offered = M.offered(state)
-  if #offered < 2 then return end
-  local current = M.selected(state)
-  local at = 1
-  for i, entry in ipairs(offered) do
-    if entry == current then at = i end
+-- The generic label, not any specific entry's, is what src/formmenu.lua's
+-- own header on the armed-state decision calls out: replacing a whole word
+-- on arming is a far bigger, more legible change than the trailing '*' alone
+-- ever was, and it costs the same one cell this mod has ever had.
+function M.label(state)
+  local armedId = state:armed()
+  if armedId then
+    local entry = deps and deps.registry and deps.registry:get(armedId)
+    if entry then return entry.label .. "*" end
   end
-  state:select(offered[(at - 1 + step) % #offered + 1].id)
+  if #M.offered(state) == 0 then return nil end
+  return GENERIC_LABEL
 end
 
 return M

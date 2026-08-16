@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.41.0
+
+### Changed
+
+- **The gimmick cell now opens a submenu instead of cycling with LEFT/RIGHT, and shows what is armed instead of a generic label.** LEFT/RIGHT used to do two jobs on the cell -- move between commands everywhere else, cycle between transformations here -- because the cell had only one spare row to show them in and cycling was the only way to fit more than one. Pressing A now opens `src/formmenu.lua`'s own list, shaped like the FIGHT menu's move list, with one row per transformation currently on offer; UP/DOWN move a cursor with no side effect, A confirms the highlighted row (arming or disarming exactly as the old toggle did, substitution and all), and B backs out leaving whatever was armed before untouched. Re-opening the list while something is armed starts the cursor on it, so switching to a different transformation or disarming outright are both one press away. The cell itself reads FORM until something is armed and then switches to that transformation's own name (MEGA*, DYNAMAX*, and so on) rather than a trailing asterisk on whatever the cursor last happened to rest on, which is a far more visible change on arming and was the whole point of the second half of this ask -- a player could arm a transformation before and have almost nothing on screen say so.
+
 ## 0.40.0
 
 ### Added

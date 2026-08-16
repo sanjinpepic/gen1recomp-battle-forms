@@ -18,6 +18,7 @@ local Mega = dofile(MOD .. "/src/mega.lua")
 local Dynamax = dofile(MOD .. "/src/dynamax.lua")
 local Transforms = dofile(MOD .. "/src/transforms.lua")
 local Overlay = dofile(MOD .. "/src/overlay.lua")
+local Formmenu = dofile(MOD .. "/src/formmenu.lua")
 local Menu = dofile(MOD .. "/src/menu.lua")
 local Arm = dofile(MOD .. "/src/arm.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
@@ -326,7 +327,8 @@ local function newCell()
   T.eq(registry:register(Dynamax.entry(Dynamax.new())), true,
     "and Dynamax beside it")
   Overlay.bind({ registry = registry })
-  Menu.bind({ overlay = Overlay })
+  Formmenu.bind({ overlay = Overlay })
+  Menu.bind({ overlay = Overlay, formmenu = Formmenu })
   return registry
 end
 
@@ -387,14 +389,18 @@ end
 -- armed from the cell, resolved at turn start, spent once.
 do
   local battle, state = cellFor({ [KeyItems.KEY_STONE] = 1 })
-  T.eq(Overlay.label(state), "MEGA", "the cell reads MEGA")
+  T.eq(Overlay.label(state), "FORM", "the cell reads the generic label, unarmed")
   battle.game.input = makeInput({ left = true })
   T.eq(Menu.handleInput(battle, state), true, "left from FIGHT reaches the cell")
   T.eq(Menu.isOnCell(battle), true, "and the cursor is on it")
   battle.game.input = makeInput({ a = true })
-  T.eq(Menu.handleInput(battle, state), true, "pressing A on the cell is claimed")
+  T.eq(Menu.handleInput(battle, state), true, "pressing A on the cell opens the list")
+  T.eq(Formmenu.isOpen(battle), true, "which holds the one row on offer")
+  battle.game.input = makeInput({ a = true })
+  T.eq(Menu.handleInput(battle, state), true, "pressing A again confirms it")
   T.eq(state:armed(), Mega.ID, "and arms the mega")
   T.eq(Overlay.label(state), "MEGA*", "which the cell marks")
+  T.eq(Formmenu.isOpen(battle), false, "and the list closed behind it")
 end
 
 -- Buying one mid-save: the gate reads the bag live, so the mechanic is
