@@ -3,6 +3,17 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.55.0
+
+### Fixed
+
+- **Dragon Ascent used PP and did nothing else on Gold, even after 0.54.0's own attempt to fix it.** That fix made the registered move effect's `run` return an empty table on Gen 2, on the reasoning that an empty effect is a harmless one -- but Gold's own dispatch (`game/src/battle/gen2/Battle.lua:1561-1566`) fires any registered handler unconditionally and before the accuracy roll, then returns: `local handler = effectRecord and effectRecord.run; if handler then handler(...); return end`. An empty table from a registered handler is still a handler, so the move never reached accuracy or damage, only PP. `src/dragonascent.lua`'s `M.install` no longer patches DRAGONASCENT's `effect` field at all on Gen 2, leaving it at whatever national_dex's own Gold registry set (`EFFECT_NORMAL_HIT`, not `NO_ADDITIONAL_EFFECT`, but equally nothing any move effect is registered under), so Gold's dispatch finds no handler and the move resolves normally. The self-lowering stat drop is unchanged, still applying through `battle.damage_dealt` once a hit has actually landed. The level-75 learnset patch that teaches Rayquaza the move was already correct as of 0.54.0 and needed no change.
+- **Persistent held-item forms other than the fusions showed their base sprite in the party and on the STATS screen until the Pokemon had been thrown into one battle.** GIVE and TAKE on Gen 2 write `mon.item` directly and fire no event this mod can hook, so `mon.form` -- applied at send-in and re-derived by the battle-end sweep -- was never written for a Pokemon that had simply been handed an item and never fought with it. `src/gen2formview.lua` and `src/formicons.lua` had each independently reasoned their way to deriving the form fresh from the held item rather than trusting `mon.form`; `src/formview.lua`'s older Gen 1 copy of the same chain still gated on `mon.form`, safely there only because Gen 1 writes it synchronously. The three near-identical copies are now one shared `src/formresolve.lua`, which never gates on `mon.form` on either game, so a future reader cannot reintroduce the Gen-1-only shortcut onto a Gen 2 screen.
+
+### Added
+
+- **Gold's FORM cell gained the diagnostic Red/Blue/Yellow's has always had.** A report that Dynamax and Z-Moves never appeared on the cell, only Mega, pointed first at `src/keyitems.lua`'s own `battle.save` fallback -- but driving the real registry, the real wrapped `BattleState.update` and the real `keyitems.lua` through the actual loader showed each mechanic offered correctly when its own key item was the only one in the bag, and multiple key items held together offering multiple entries correctly as well. The mechanism checks out; what was missing is what would have named the real cause on sight. `src/diag.lua` gained `menuGen2`, the same armState/phase/keys/offered report `M.menu` has always given Gen 1, shaped for Gold's own split between the UI `BattleState` (phase, queue) and the engine `Battle` (the mon, its held item) -- wired into `src/gen2menu.lua`'s wrapped `update`. The next report of this shape will have a `keys[DYNAMAX_BAND=... Z_RING=...]` line to check against the player's own save.
+
 ## 0.54.0
 
 ### Fixed
