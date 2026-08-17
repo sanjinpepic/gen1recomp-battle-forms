@@ -444,6 +444,288 @@ do
     "and nothing is patched onto the Gen 1 field name on a Gen 2 load")
 end
 
+-- ---------------------------------------------------------------------
+-- Item 1(a): the crash-risk class.  On Gen 2, VOLTTACKLE, SPARKLINGARIA,
+-- PLAYROUGH and CLANGINGSCALES must NOT patch `effect` at all -- the
+-- identical exemption src/dragonascent.lua's own M.install established for
+-- Dragon Ascent, verified here by DELIBERATE BREAKAGE: if M.install ever
+-- regressed to patching `effect` on Gen 2 for one of these four the way it
+-- always has for Gen 1, this block would see a non-nil `effect` and fail.
+--
+-- Item 1(b): GIGAIMPACT and STONEEDGE repoint at Gold's own differently-
+-- named mechanism instead (a raw string comparison in
+-- game/src/battle/gen2/Battle.lua, not a move_effects record at all --
+-- see M.ROWS' own header).
+--
+-- Item 1(c): DARKESTLARIAT and SPECTRALTHIEF are refused outright on Gen 2
+-- -- no patch, no teaching, named in a warning -- because Gold's dispatch
+-- never calls chooseDamage or beforeAccuracy at all.
+--
+-- Tracks BOTH move patches (unlike stubModGen2 above, which only tracks
+-- species patches) and species patches generically (unlike stubMod above,
+-- which hardcodes the Gen 1 `learnset` field and would error reading
+-- `partial.learnset.__append` off a Gen 2 `levelMoves` patch).
+-- ---------------------------------------------------------------------
+local function stubModGen2Tracked(opts)
+  opts = opts or {}
+  local registered = { move_effects = {} }
+  local patched = { moves = {}, pokemon = {} }
+  local warned = {}
+  local moveDefs = opts.moves or {}
+  local speciesDefs = opts.species or {}
+  return {
+    content = {
+      move_effects = {
+        register = function(_, id, record) registered.move_effects[id] = record end,
+      },
+      moves = {
+        get = function(_, id) return moveDefs[id] end,
+        patch = function(_, id, partial)
+          patched.moves[id] = patched.moves[id] or {}
+          for k, v in pairs(partial) do patched.moves[id][k] = v end
+        end,
+      },
+      pokemon = {
+        get = function(_, id) return speciesDefs[id] end,
+        patch = function(_, id, partial) patched.pokemon[id] = partial end,
+      },
+    },
+    log = { warn = function(_, fmt, ...) warned[#warned + 1] = fmt:format(...) end },
+    registered = registered, patched = patched, warned = warned,
+  }
+end
+
+do
+  SBM.bind({ gen2 = true })
+  local mod = stubModGen2Tracked({ moves = fullMoves(), species = fullSpecies() })
+  SBM.install(mod)
+  SBM.bind(nil)
+
+  -- The crash-risk class: effectModeled stays honest (the effect genuinely
+  -- applies, through battle.damage_dealt), but `effect` is left untouched.
+  for _, move in ipairs({ "VOLTTACKLE", "SPARKLINGARIA", "PLAYROUGH",
+                          "CLANGINGSCALES" }) do
+    T.eq(mod.patched.moves[move].effect, nil,
+      move .. " gets no effect patch on Gen 2 -- Gold's dispatch must find "
+        .. "nothing registered under its id or the registered run handler "
+        .. "would fire before the accuracy roll and crash, the identical "
+        .. "hazard src/dragonascent.lua's own 0.55.0 fix closed")
+    T.eq(mod.patched.moves[move].effectModeled, true,
+      move .. " is still honestly flagged modelled -- the effect DOES "
+        .. "apply on Gen 2, just through battle.damage_dealt")
+  end
+
+  -- The two repointed rows: a DIFFERENT id from Gen 1's own, matching
+  -- exactly what Gold's engine reads by direct string comparison.
+  T.eq(mod.patched.moves.GIGAIMPACT.effect, "EFFECT_HYPER_BEAM",
+    "GIGAIMPACT points at Gold's own literal, not Gen 1's HYPER_BEAM_EFFECT")
+  T.eq(mod.patched.moves.STONEEDGE.effect, "EFFECT_ALWAYS_CRIT",
+    "STONEEDGE points at Gold's own crit-ladder literal")
+  T.eq(mod.patched.moves.STONEEDGE.highCrit, nil,
+    "and no longer patches the highCrit field Gold never reads")
+  T.eq(mod.patched.moves.GIGAIMPACT.effectModeled, true,
+    "GIGAIMPACT is still flagged modelled -- the recharge genuinely works")
+  T.eq(mod.patched.moves.STONEEDGE.effectModeled, true,
+    "so is STONEEDGE -- the high crit ratio genuinely works")
+
+  -- The two refused rows: no patch at all, and never taught.
+  for _, entry in ipairs({ { move = "DARKESTLARIAT", species = "INCINEROAR" },
+                           { move = "SPECTRALTHIEF", species = "MARSHADOW" } }) do
+    T.eq(mod.patched.moves[entry.move], nil,
+      entry.move .. " is never patched on Gen 2 -- refused outright")
+    T.eq(mod.patched.pokemon[entry.species], nil,
+      entry.species .. " is taught nothing on Gen 2 -- the identical "
+        .. "treatment SPIRITSHACKLE gets on both games")
+    local sawWarning = false
+    for _, msg in ipairs(mod.warned) do
+      if msg:find(entry.move, 1, true) then sawWarning = true end
+    end
+    T.check(sawWarning, "the refusal names " .. entry.move .. " in a warning")
+  end
+
+  -- SUNSTEELSTRIKE and MOONGEISTBEAM: unaffected -- confirmed, not assumed.
+  for _, move in ipairs({ "SUNSTEELSTRIKE", "MOONGEISTBEAM" }) do
+    T.eq(mod.patched.moves[move].effect, nil,
+      move .. " still carries no effect id on Gen 2, exactly as on Gen 1")
+    T.eq(mod.patched.moves[move].effectModeled, true,
+      move .. " is still flagged modelled on plain damage alone")
+  end
+
+  -- The custom effect records for the crash-risk class still register --
+  -- an id nothing on Gold's own dispatch ever finds is a harmless dead
+  -- entry, the same reasoning src/dragonascent.lua's own M.install gives.
+  for _, id in ipairs({ "BATTLE_FORMS_VOLT_TACKLE_EFFECT",
+      "BATTLE_FORMS_SPARKLING_ARIA_EFFECT", "BATTLE_FORMS_PLAY_ROUGH_EFFECT",
+      "BATTLE_FORMS_CLANGING_SCALES_EFFECT" }) do
+    T.check(mod.registered.move_effects[id] ~= nil,
+      id .. " is still registered on Gen 2")
+  end
+  -- DARKESTLARIAT and SPECTRALTHIEF's own records are never registered on
+  -- Gen 2 either -- there is no point registering a record for a move this
+  -- run never patches or teaches.
+  T.check(mod.registered.move_effects.BATTLE_FORMS_DARKEST_LARIAT_EFFECT == nil,
+    "DARKESTLARIAT's own record is not registered on a refused Gen 2 row")
+  T.check(mod.registered.move_effects.BATTLE_FORMS_SPECTRAL_THIEF_EFFECT == nil,
+    "neither is SPECTRALTHIEF's")
+end
+
+-- ---------------------------------------------------------------------
+-- M.onDamageDealt: the real Gen 2 mechanism for the crash-risk class,
+-- driven against a fake Battle carrying only the fields
+-- game/src/battle/gen2/Battle.lua actually exposes as instance methods
+-- (emit, monName, sideOf, random, applyStatus, changeStage, volatile) --
+-- the same fidelity tests/battle_forms_dragonascent_test.lua's own fake
+-- ctx holds itself to for Gen 1.
+-- ---------------------------------------------------------------------
+local function fakeGen2Battle(opts)
+  opts = opts or {}
+  local emitted, applied = {}, {}
+  local rngQueue = opts.rng or { 255 } -- default: every chance roll misses
+  local rngIndex = 0
+  local volatiles = {}
+  return {
+    emit = function(_, ev) emitted[#emitted + 1] = ev end,
+    monName = function(_, mon) return mon.name or "MON" end,
+    sideOf = function(_, mon) return mon.side or "player" end,
+    random = function(n)
+      rngIndex = rngIndex + 1
+      local v = rngQueue[rngIndex] or rngQueue[#rngQueue] or (n - 1)
+      return v
+    end,
+    applyStatus = function(_, mon, status)
+      applied[#applied + 1] = { mon = mon, status = status }
+      if mon.status then return false end
+      mon.status = status
+      return true
+    end,
+    changeStage = function(_, mon, stat, delta)
+      mon.stages = mon.stages or {}
+      mon.stages[stat] = (mon.stages[stat] or 0) + delta
+    end,
+    volatile = function(_, mon)
+      volatiles[mon] = volatiles[mon] or {}
+      return volatiles[mon]
+    end,
+  }, emitted, applied, volatiles
+end
+
+-- The outer gate: nothing runs unless bound to Gen 2, the target survived
+-- and real damage was dealt -- the identical two-part gate Gen 1's own
+-- EffectRegistry.lua applies to every "secondary" effect and
+-- src/dragonascent.lua's own onDamageDealt already carries.
+do
+  local battle, emitted = fakeGen2Battle()
+  local user = { name = "USER", hp = 100 }
+  local target = { name = "TARGET", hp = 100 }
+
+  SBM.bind(nil)
+  SBM.onDamageDealt({ battle = battle, user = user, target = target,
+    moveId = "VOLTTACKLE", damage = 90 })
+  T.eq(user.hp, 100, "unbound from Gen 2, onDamageDealt does nothing at all")
+
+  SBM.bind({ gen2 = true })
+  SBM.onDamageDealt({ battle = battle, user = user, target = target,
+    moveId = "VOLTTACKLE", damage = 0 })
+  T.eq(user.hp, 100, "zero damage dealt: no recoil, no roll")
+
+  SBM.onDamageDealt({ battle = battle, user = user, target = target,
+    moveId = "VOLTTACKLE" })
+  T.eq(user.hp, 100, "no damage field at all: refused, not treated as zero")
+
+  local fainted = { name = "TARGET", hp = 0 }
+  SBM.onDamageDealt({ battle = battle, user = user, target = fainted,
+    moveId = "VOLTTACKLE", damage = 90 })
+  T.eq(user.hp, 100, "a fainted target: no recoil either, matching Gen 1's "
+    .. "own kind == \"secondary\" gate")
+
+  SBM.onDamageDealt({ battle = battle, user = user, target = target,
+    moveId = "SOMEUNRELATEDMOVE", damage = 90 })
+  T.eq(user.hp, 100, "an unrelated move id is left alone entirely")
+  SBM.bind(nil)
+end
+
+-- VOLT TACKLE: recoil always lands on a real hit; paralysis only on the
+-- 26/256 roll, on the TARGET, through the real applyStatus primitive.
+do
+  local battle = fakeGen2Battle({ rng = { 0 } })
+  local user = { name = "USER", hp = 100 }
+  local target = { name = "TARGET", hp = 100 }
+  SBM.bind({ gen2 = true })
+  SBM.onDamageDealt({ battle = battle, user = user, target = target,
+    moveId = "VOLTTACKLE", damage = 90 })
+  T.eq(user.hp, 70, "recoil is one third of 90 damage dealt, off the USER")
+  T.eq(target.status, "paralyze", "a roll under 26 paralyzes the TARGET, "
+    .. "Gold's own spelling of the status")
+  SBM.bind(nil)
+end
+
+do
+  local battle = fakeGen2Battle({ rng = { 255 } })
+  local user = { name = "USER", hp = 100 }
+  local target = { name = "TARGET", hp = 100 }
+  SBM.bind({ gen2 = true })
+  SBM.onDamageDealt({ battle = battle, user = user, target = target,
+    moveId = "VOLTTACKLE", damage = 5 })
+  T.eq(user.hp, 99, "5 damage dealt never floors recoil to zero (1 minimum)")
+  T.eq(target.status, nil, "a roll of 255 (>= 26) never paralyzes")
+  SBM.bind(nil)
+end
+
+-- SPARKLING ARIA: cures a burn unconditionally, leaves every other status
+-- (or no status) alone.
+do
+  local battle = fakeGen2Battle()
+  local user = { name = "USER", hp = 100 }
+  local burned = { name = "TARGET", hp = 100, status = "burn" }
+  SBM.bind({ gen2 = true })
+  SBM.onDamageDealt({ battle = battle, user = user, target = burned,
+    moveId = "SPARKLINGARIA", damage = 40 })
+  T.eq(burned.status, nil, "a burned target is cured")
+
+  local poisoned = { name = "TARGET", hp = 100, status = "poison" }
+  SBM.onDamageDealt({ battle = battle, user = user, target = poisoned,
+    moveId = "SPARKLINGARIA", damage = 40 })
+  T.eq(poisoned.status, "poison", "a poisoned target keeps its own status")
+  SBM.bind(nil)
+end
+
+-- PLAY ROUGH: a 10% chance to drop the target's Attack, refused outright
+-- behind a live Substitute -- read off `battle:volatile`, the same field
+-- Gold's own dealDamage checks for the identical mechanic.
+do
+  local battle = fakeGen2Battle({ rng = { 0 } })
+  local user = { name = "USER", hp = 100 }
+  local target = { name = "TARGET", hp = 100 }
+  SBM.bind({ gen2 = true })
+  SBM.onDamageDealt({ battle = battle, user = user, target = target,
+    moveId = "PLAYROUGH", damage = 40 })
+  T.eq(target.stages.attack, -1, "a roll under 26 drops Attack one stage")
+
+  local subVolBattle, _, _, volatiles = fakeGen2Battle({ rng = { 0 } })
+  local subTarget = { name = "TARGET", hp = 100 }
+  volatiles[subTarget] = { substitute = 20 }
+  SBM.onDamageDealt({ battle = subVolBattle, user = user, target = subTarget,
+    moveId = "PLAYROUGH", damage = 40 })
+  T.eq(subTarget.stages, nil,
+    "a target behind a live Substitute is never touched, even on a landing roll")
+  SBM.bind(nil)
+end
+
+-- CLANGING SCALES: unconditional self Defense drop, no roll at all.
+do
+  local battle = fakeGen2Battle({ rng = { 255 } })
+  local user = { name = "USER", hp = 100 }
+  local target = { name = "TARGET", hp = 100 }
+  SBM.bind({ gen2 = true })
+  SBM.onDamageDealt({ battle = battle, user = user, target = target,
+    moveId = "CLANGINGSCALES", damage = 30 })
+  T.eq(user.stages.defense, -1,
+    "the USER's own Defense falls one stage, unconditionally -- a maximal "
+      .. "roll (255) changes nothing because no roll is ever made")
+  T.eq(target.stages, nil, "the target is never touched")
+  SBM.bind(nil)
+end
+
 -- A move missing entirely: that row's species are never taught, and it says
 -- so once, naming the move -- the same degrade src/dragonascent.lua's own
 -- suite pins for a missing DRAGONASCENT.
@@ -615,6 +897,318 @@ do
   T.eq(#decidueye.learnset, 0,
     "but was taught nothing -- Decidium Z stays exactly as unreachable as it "
       .. "was before this version")
+end
+
+-- ---------------------------------------------------------------------
+-- The end-to-end proof, Gen 2: the REAL M.install output driven through
+-- Gold's REAL Battle:useMove dispatch (game/src/battle/gen2/Battle.lua),
+-- the identical technique tests/battle_forms_dragonascent_test.lua's own
+-- tail uses for DRAGONASCENT.  Before this version's fix, VOLTTACKLE's own
+-- patched `effect` pointed at a registered handler carrying `run`, and
+-- Gold's dispatch (`local handler = effectRecord and effectRecord.run; if
+-- handler then handler(self, attacker, defender, def, moveId, sureHit);
+-- return end`) would call it with Gold's own positional arguments instead
+-- of the Gen 1 ctx table `run` is built for -- `ctx.rng`/`ctx.inflict`
+-- answer nil on that shape and the resulting call errors outright, the
+-- identical crash Dragon Ascent's own 0.54.0 report already proved for the
+-- identical reason.  This block proves the crash is gone AND that the real
+-- mechanism (recoil, paralysis, recharge) actually applies through
+-- battle.damage_dealt.
+-- ---------------------------------------------------------------------
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local RealMon = require("src.battle.gen2.Mon")
+  local Runtime = require("src.mods.Runtime")
+
+  local BASE_VOLTTACKLE = { id = "VOLTTACKLE", name = "Volt Tackle",
+    power = 120, accuracy = 100, pp = 15, category = "physical",
+    type = "ELECTRIC", effect = "EFFECT_NORMAL_HIT" }
+  local BASE_GIGAIMPACT = { id = "GIGAIMPACT", name = "Giga Impact",
+    power = 150, accuracy = 90, pp = 5, category = "physical",
+    type = "NORMAL", effect = "EFFECT_NORMAL_HIT" }
+
+  local patched = { moves = {} }
+  local installMod = {
+    content = {
+      move_effects = { register = function() end },
+      moves = {
+        get = function(_, id)
+          if id == "VOLTTACKLE" then return BASE_VOLTTACKLE end
+          if id == "GIGAIMPACT" then return BASE_GIGAIMPACT end
+          return nil
+        end,
+        patch = function(_, id, partial) patched.moves[id] = partial end,
+      },
+      pokemon = { get = function() return nil end, patch = function() end },
+    },
+  }
+  SBM.bind({ gen2 = true })
+  SBM.install(installMod)
+  SBM.bind(nil)
+
+  -- VOLTTACKLE must come back with no `effect` patch at all -- proof the
+  -- real M.install output, not a hand-picked id, is what reaches Gold's
+  -- dispatch with nothing registered under it.
+  T.eq(patched.moves.VOLTTACKLE and patched.moves.VOLTTACKLE.effect, nil,
+    "the real M.install output patches no effect onto VOLTTACKLE on Gen 2")
+  T.eq(patched.moves.GIGAIMPACT.effect, "EFFECT_HYPER_BEAM",
+    "and the real output repoints GIGAIMPACT at Gold's own literal")
+
+  local function effective(base, id)
+    local p = patched.moves[id]
+    return (p and p.effect) or base.effect
+  end
+
+  local TYPES = {
+    ELECTRIC = { id = "ELECTRIC", index = 12, category = "special" },
+    NORMAL = { id = "NORMAL", index = 0, category = "physical" },
+  }
+  local data = {
+    pokemon = {
+      growthRates = { GROWTH_MEDIUM_FAST = { numerator = 1, denominator = 1,
+        squared = 0, linear = 0, constant = 0 } },
+      -- Overtuned defensively, the same reason SNORLAX below is: PIKACHU is
+      -- also the GIGAIMPACT block's own defending target, and a one-hit KO
+      -- there would satisfy the recharge check's own gate by accident
+      -- rather than proving the recharge volatile is genuinely set.  Its own
+      -- role as VOLTTACKLE's attacker never reads these defensive numbers.
+      PIKACHU = { id = "PIKACHU", name = "PIKACHU",
+        baseStats = { hp = 400, attack = 55, defense = 400, speed = 90,
+          specialAttack = 50, specialDefense = 400 },
+        types = { "ELECTRIC", "ELECTRIC" }, growthRate = "GROWTH_MEDIUM_FAST" },
+      -- Overtuned defensively so a 120-power STAB Volt Tackle cannot one-hit
+      -- it -- the recoil/paralysis gate below has to see a REAL survivor,
+      -- not an accidental KO.
+      SNORLAX = { id = "SNORLAX", name = "SNORLAX",
+        baseStats = { hp = 500, attack = 110, defense = 400, speed = 30,
+          specialAttack = 65, specialDefense = 400 },
+        types = { "NORMAL", "NORMAL" }, growthRate = "GROWTH_MEDIUM_FAST" },
+    },
+    moves = {
+      VOLTTACKLE = { id = "VOLTTACKLE", name = "Volt Tackle", power = 120,
+        accuracy = 100, pp = 15, category = "physical", type = "ELECTRIC",
+        effect = effective(BASE_VOLTTACKLE, "VOLTTACKLE") },
+      GIGAIMPACT = { id = "GIGAIMPACT", name = "Giga Impact", power = 150,
+        accuracy = 90, pp = 5, category = "physical", type = "NORMAL",
+        effect = effective(BASE_GIGAIMPACT, "GIGAIMPACT") },
+    },
+    type_chart = { types = TYPES, matchups = {} },
+    items = {},
+    -- The merged registry the real loader would build, carrying this file's
+    -- own record under its own id regardless of whether anything points at
+    -- it -- M.install registers it unconditionally, exactly as
+    -- src/dragonascent.lua's own does.
+    gen2MoveEffects = {
+      [SBM.PREFIX .. "VOLT_TACKLE_EFFECT"] = SBM.voltTackleEffect(),
+    },
+  }
+
+  local perfect = { attack = 15, defense = 15, speed = 15, special = 15 }
+  perfect.hp = RealMon.hpDV(perfect)
+  local player = RealMon.new(data, "PIKACHU", 50,
+    { dvs = perfect, moves = { { id = "VOLTTACKLE", pp = 15, maxPp = 15 } } })
+  local foe = RealMon.new(data, "SNORLAX", 50, { dvs = perfect, moves = {} })
+
+  local received = {}
+  local FakeEvents = { listeners = { ["battle.damage_dealt"] = true } }
+  function FakeEvents:emit(name, payload)
+    if name == "battle.damage_dealt" then
+      received[#received + 1] = payload
+      SBM.onDamageDealt(payload)
+    end
+  end
+  local savedEvents, savedHooks = Runtime.events, Runtime.hooks
+  Runtime.install(FakeEvents, Runtime.hooks, {})
+  SBM.bind({ gen2 = true })
+
+  local ok, battle = pcall(function()
+    local b = RealBattle.new({ data = data, party = { player }, wild = foe,
+      random = function() return 0 end })
+    b:useMove(player, foe, "VOLTTACKLE")
+    return b
+  end)
+
+  T.check(ok, "VOLTTACKLE's real dispatch runs without erroring: "
+    .. tostring(battle))
+  if ok then
+    T.eq(player.moves[1].pp, 14, "Volt Tackle still spends its own PP")
+    T.check(foe.hp < foe.maxHp, "and deals real damage through the ordinary "
+      .. "accuracy-then-damage path -- nothing short-circuited it")
+    T.check(foe.hp > 0, "the target survives, so the recoil/paralysis gate "
+      .. "below is not merely satisfied by a one-hit KO")
+    T.eq(#received, 1, "battle.damage_dealt fired once, off the real hit")
+    T.check(player.hp < player.maxHp,
+      "and the real recoil landed on the real attacker's own HP, through "
+        .. "M.onDamageDealt rather than the crashed early-dispatch path")
+    T.eq(foe.status, "paralyze",
+      "and the real 26/256 roll (forced to land, random always 0) "
+        .. "paralyzed the real target through battle:applyStatus")
+  end
+
+  -- GIGAIMPACT: a fresh battle, same real classes -- the recharge volatile
+  -- Gold's own next-turn check reads (Battle.lua's own `if vol.recharge
+  -- then ... end`), set only by the direct string comparison this mod's
+  -- repoint now satisfies.
+  local attacker = RealMon.new(data, "SNORLAX", 50,
+    { dvs = perfect, moves = { { id = "GIGAIMPACT", pp = 5, maxPp = 5 } } })
+  local target = RealMon.new(data, "PIKACHU", 50, { dvs = perfect, moves = {} })
+  local okGiga, gigaBattle = pcall(function()
+    local b = RealBattle.new({ data = data, party = { attacker }, wild = target,
+      random = function() return 0 end })
+    b:useMove(attacker, target, "GIGAIMPACT")
+    return b
+  end)
+  Runtime.install(savedEvents, savedHooks, nil)
+  SBM.bind(nil)
+
+  T.check(okGiga, "GIGAIMPACT's real dispatch runs without erroring: "
+    .. tostring(gigaBattle))
+  if okGiga then
+    T.check(target.hp < target.maxHp, "Giga Impact deals real damage")
+    T.check(target.hp > 0, "the target survives -- the recharge check below "
+      .. "is not merely reached by a KO's own early return")
+    local vol = gigaBattle:volatile(attacker)
+    T.eq(vol.recharge, true,
+      "and the real EFFECT_HYPER_BEAM string comparison set the real "
+        .. "recharge volatile Gold's own next-turn check reads -- the "
+        .. "recharge genuinely applies, not merely the damage")
+  end
+
+  -- STONEEDGE: the real Damage.criticalLevel, spied on through the real
+  -- Battle:hitOnce dispatch -- proof that patching `effect =
+  -- "EFFECT_ALWAYS_CRIT"` genuinely reaches Gold's own crit-ladder rule
+  -- (highCritMove raising it two rungs, Damage.CRITICAL_CHANCES[2] == 4)
+  -- rather than the `highCrit` move-record field Gold never reads at all.
+  if ok then
+    local Damage = require("src.battle.gen2.Damage")
+    local realCriticalLevel = Damage.criticalLevel
+    local seenHighCrit
+    Damage.criticalLevel = function(opts)
+      seenHighCrit = opts.highCritMove
+      return realCriticalLevel(opts)
+    end
+    local okCrit = pcall(function()
+      battle:hitOnce(player, foe,
+        { id = "STONEEDGE", type = "NORMAL", power = 80,
+          effect = "EFFECT_ALWAYS_CRIT" }, {})
+    end)
+    Damage.criticalLevel = realCriticalLevel
+    T.check(okCrit, "STONEEDGE's real hitOnce dispatch runs without erroring")
+    T.eq(seenHighCrit, true,
+      "and EFFECT_ALWAYS_CRIT genuinely reaches Damage.criticalLevel as "
+        .. "highCritMove -- the real +2 crit-ladder rungs, not a value "
+        .. "read off a highCrit field nothing in Battle.lua consults")
+  end
+end
+
+-- ---------------------------------------------------------------------
+-- DARKESTLARIAT and SPECTRALTHIEF, through the real loader on Gen 2: never
+-- patched, never taught -- proven by absence through the real merge, the
+-- same discipline the Gen 1 block above holds SPIRITSHACKLE to.
+-- ---------------------------------------------------------------------
+do
+  local function readFile(path)
+    local handle = assert(io.open(path, "rb"), "cannot open " .. path)
+    local body = handle:read("*a")
+    handle:close()
+    return body
+  end
+
+  local MAIN = readFile(MOD .. "/main.lua")
+  local shipped = { "manifest.json", "main.lua" }
+  for _, tree in ipairs({ "src", "data" }) do
+    for name in MAIN:gmatch('"(' .. tree .. '/[%w_]+%.lua)"') do
+      shipped[#shipped + 1] = name
+    end
+  end
+
+  local function moveRow(id, type_, power, category)
+    return ('  mod.content.moves:register("%s", { id = "%s", name = "%s", '
+      .. 'type = "%s", power = %d, accuracy = 100, pp = 10, category = "%s", '
+      .. 'effect = "NO_ADDITIONAL_EFFECT", effectModeled = false })\n')
+      :format(id, id, id, type_, power, category)
+  end
+
+  local function speciesRow(id)
+    return ('  mod.content.pokemon:register("%s", { id = "%s", name = "%s", '
+      .. 'dex = 1, types = { "NORMAL" }, baseStats = { hp = 80, attack = 80, '
+      .. 'defense = 80, speed = 80, special = 80, specialAttack = 80, '
+      .. 'specialDefense = 80 }, catchRate = 45, '
+      .. 'baseExp = 100, growthRate = "MEDIUM_FAST", levelMoves = {}, '
+      .. 'evolutions = {}, '
+      .. 'spriteFront = "assets/sets/placeholder/front.png", '
+      .. 'spriteBack = "assets/sets/placeholder/back.png", picSize = 5 })\n')
+      :format(id, id, id)
+  end
+
+  local body = "return function(mod)\n"
+  for _, row in ipairs(SBM.ROWS) do
+    body = body .. moveRow(row.move, "NORMAL", 90, "physical")
+    for _, species in ipairs(row.species) do
+      body = body .. speciesRow(species)
+    end
+  end
+  body = body .. "end\n"
+
+  local files = {
+    ["mods/national_dex/manifest.json"] =
+      '{"id":"national_dex","name":"National Dex","version":"0.0.0",'
+        .. '"entry":"main.lua","games":["gen1","gen2"]}',
+    ["mods/national_dex/main.lua"] = body,
+  }
+  for _, name in ipairs(shipped) do
+    files["mods/battle_forms_mod/" .. name] = readFile(MOD .. "/" .. name)
+  end
+
+  local data = T.fixtures.fresh()
+  data.gen2Constants = { generation = 2 }
+  local run = T.sdk.loadMods({ "battle_forms_mod", "national_dex" },
+    { fs = T.sdk.memfs(files), data = data, generation = 2 })
+  for _, err in ipairs(run.errors) do
+    T.check(err:find("unresolved reference to move_effects", 1, true) ~= nil
+      or err:find("text_pointers registry has no Gen 2 target", 1, true) ~= nil
+      -- HANDOFF.md's own documented gap: Schemas.GEN1 gates six registries
+      -- and growth_rates is not among them, so a fixture species (this
+      -- block's own INCINEROAR/MARSHADOW/PIKACHU/etc, none of which the
+      -- real national_dex data ships in this synthetic mod) naming a
+      -- growth rate this synthetic stub never registers is flagged the
+      -- same way -- unrelated to this row's own effect wiring.
+      or err:find("unresolved reference to growth_rates", 1, true) ~= nil,
+      "every load error is one of the three known Gen 2 gaps, not a new one: "
+        .. err)
+  end
+
+  local darkestLariat = run.data.moves.DARKESTLARIAT
+  T.check(darkestLariat ~= nil,
+    "DARKESTLARIAT itself still survived the merge -- national_dex "
+      .. "registered it, this mod simply never patches it on Gen 2")
+  T.eq(darkestLariat.effectModeled, false,
+    "and is still flagged unmodelled, exactly as national_dex left it")
+  local incineroar = run.data.pokemon.INCINEROAR
+  T.check(incineroar ~= nil, "INCINEROAR survived the merge too")
+  T.eq(#incineroar.levelMoves, 0,
+    "but was taught nothing -- Incinium Z stays as unreachable on Gold as "
+      .. "Decidium Z is on both games")
+
+  local spectralThief = run.data.moves.SPECTRALTHIEF
+  T.check(spectralThief ~= nil, "SPECTRALTHIEF itself still survived the merge")
+  T.eq(spectralThief.effectModeled, false, "and is still flagged unmodelled")
+  local marshadow = run.data.pokemon.MARSHADOW
+  T.check(marshadow ~= nil, "MARSHADOW survived the merge too")
+  T.eq(#marshadow.levelMoves, 0, "but was taught nothing on Gold")
+
+  -- Every OTHER row's species IS taught, through the real merge -- the
+  -- refusal is narrow, not a Gen 2-wide failure to teach anything at all.
+  local pikachu = run.data.pokemon.PIKACHU
+  T.check(pikachu ~= nil, "PIKACHU survived the merge")
+  local taughtVoltTackle = false
+  for _, learn in ipairs(pikachu.levelMoves) do
+    if learn.move == "VOLTTACKLE" then taughtVoltTackle = true end
+  end
+  T.check(taughtVoltTackle,
+    "and IS taught VOLTTACKLE through levelMoves, the real Gen 2 field")
+
+  run.release()
 end
 
 T.finish("battle_forms_speciesbasemoves")

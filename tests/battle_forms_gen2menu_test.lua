@@ -416,6 +416,22 @@ do
   T.check(BattleState._battleFormsGen2MenuPatched == true,
     "the real Gen 2 BattleState.update was actually wrapped by this load")
 
+  -- Item 3's own regression: src/menu.lua's Gen 1 wrapper used to install
+  -- unconditionally, so a Gold boot patched src.battle.BattleState (Gen 1's
+  -- own class, still resolvable here -- HANDOFF's own documented trap, "a
+  -- mod's require is NOT redirected on a Gold boot") ALONGSIDE the real
+  -- src.ui.gen2.BattleState wrap just proven above. A real trace showed
+  -- both wrappers' own `menu:`/`menu: gen2` lines interleaved at identical
+  -- timestamps during an actual Gold battle -- proof the Gen 1 wrapper
+  -- genuinely executed, not a misread -- so this is a real, load-bearing
+  -- assertion, not a defensive extra: main.lua now gates menu.install
+  -- behind `not gen2`, and this is what would catch that gate regressing.
+  local Gen1BattleState = require("src.battle.BattleState")
+  T.eq(Gen1BattleState._battleFormsMenuPatched, nil,
+    "src.battle.BattleState -- Gen 1's own class -- is never patched on a "
+      .. "Gold boot; src/gen2menu.lua above already covers the real class "
+      .. "Gold's own screens draw through")
+
   run.data.pokemon = run.data.pokemon or {}
   run.data.pokemon.CHARIZARD = {
     baseStats = { hp = 78, attack = 84, defense = 78, speed = 100,

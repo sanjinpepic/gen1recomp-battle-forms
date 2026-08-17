@@ -836,4 +836,49 @@ do
   kit.diag.menuGen2(nil)
 end
 
+-- ---------------------------------------------------------------------
+-- Regression: M.menu and M.menuGen2 no longer share dedup bookkeeping with
+-- each other or with M.note (and, transitively, M.primal/M.conditional/
+-- M.adopted, which all call M.note).  Before this fix all four read the
+-- SAME module-level `scope`, keyed only by battle identity -- so when both
+-- src/menu.lua's Gen 1 wrapper and src/gen2menu.lua's own installed on the
+-- same Gold boot (the bug main.lua's own header on the menu.install gate
+-- now documents), their calls alternated every frame between TWO different
+-- battle identities (Gen 1's own wrapped `self`, Gen 2's `uiBattle.battle`)
+-- and each arrival reset the shared scope back to empty before the dedup
+-- ever got to compare an answer against itself -- the real mechanism
+-- behind a real trace showing hundreds of identical `phase=intro` lines
+-- from BOTH `menu:` and `menu: gen2`.  This reproduces exactly that
+-- interleaving directly against the diagnostic, independent of whether
+-- main.lua's own gate ever regresses.
+-- ---------------------------------------------------------------------
+do
+  local mod = fakeMod()
+  mod.option = "on"
+  local kit = newDiag(mod)
+  local battle = eligibleBattle()
+  kit.state:onBattleStarted({ battle = battle })
+
+  local engineBattle = { data = DATA,
+    player = { species = "CHARIZARD", item = "CHARIZARDITE_X", hp = 100 },
+    save = { inventory = {} } }
+  local uiBattle = { phase = "menu", queue = {}, battle = engineBattle }
+
+  for _ = 1, 50 do
+    kit.diag.note(battle, "update", "wrapper: BattleState.update ran")
+    kit.diag.menu(battle)
+    kit.diag.menuGen2(uiBattle)
+  end
+
+  T.eq(countMatching(mod, "wrapper: BattleState.update ran"), 1,
+    "M.note's own per-key dedup survives fifty rounds interleaved with a "
+      .. "completely different battle identity from M.menuGen2's own")
+  T.eq(countMatching(mod, "menu: armState"), 1,
+    "Gen 1's own menu: line still collapses to one, not fifty, despite "
+      .. "M.menuGen2 reading a different battle every round in between")
+  T.eq(countMatching(mod, "menu: gen2"), 1,
+    "and Gen 2's own line collapses to one too -- neither emitter can "
+      .. "invalidate the other's bookkeeping any longer")
+end
+
 T.finish("battle_forms_diag")

@@ -259,6 +259,159 @@ function M.spectralThiefEffect()
 end
 
 -- ---------------------------------------------------------------------
+-- GOLD'S OWN DISPATCH, for every row above that registers a `run` handler.
+-- Read directly off game/src/battle/gen2/Battle.lua: `useMove` resolves
+-- `local effectRecord = Battle.moveEffectRecordFor(self.data, def.effect);
+-- local handler = effectRecord and effectRecord.run; if handler then
+-- handler(self, attacker, defender, def, moveId, sureHit); return end` --
+-- BEFORE the accuracy roll, on ANY registered record carrying a `run` field,
+-- passing Gold's own positional battle-engine arguments rather than the Gen 1
+-- ctx table every `run` above is built for.  This is the identical hazard
+-- src/dragonascent.lua's own 0.55.0 fix documents for Dragon Ascent, and it
+-- catches four more rows here: VOLTTACKLE and PLAYROUGH register `run` for
+-- their own chance effect, SPARKLINGARIA registers `run` for its burn cure,
+-- and CLANGINGSCALES registers `run` for its unconditional self-drop.  Left
+-- patched onto Gen 2, each would misfire before accuracy (or a miss) and then
+-- read `ctx.user`/`ctx.target`/`ctx.rng`/`ctx.changeStage` off a Battle
+-- instance with none of those names, erroring outright the same way Dragon
+-- Ascent's own early-dispatch crash did.
+--
+-- M.install therefore never patches `effect` for these four rows on Gen 2 --
+-- the move stays at whatever national_dex's own Gen 2 registry set it to
+-- (ordinary damage, no move_effects record any of this mod's own ids can
+-- collide with), so Gold's dispatch above finds no handler and the move
+-- resolves the ordinary way: accuracy rolled, damage dealt.  M.onDamageDealt
+-- below is the real Gen 2 mechanism for all four, reached through
+-- battle.damage_dealt once a hit has actually connected -- the identical
+-- seam src/dragonascent.lua's own M.onDamageDealt and src/zmoves.lua's own
+-- Z-status bonus already use, for the identical reason: it is the only seam
+-- left that can tell "the move connected" from "the move was merely
+-- selected" once the early registry dispatch has refused to answer that
+-- question.  DARKEST LARIAT and SPECTRAL THIEF are not in this list --
+-- neither one registers `run` at all (`chooseDamage` and `beforeAccuracy`
+-- respectively), so Gold's dispatch above never reaches either handler in
+-- the first place; see the refusal further down for why battle.damage_dealt
+-- cannot stand in for either of those two instead.
+--
+-- Every helper below is gated on `deps.gen2` and reads only the plain
+-- fields game/src/battle/gen2/Battle.lua actually exposes on its own
+-- instance (`random`, `emit`, `monName`, `sideOf`, `applyStatus`,
+-- `changeStage`, `volatile`) -- the same primitives src/dragonascent.lua's
+-- own M.onDamageDealt and src/zmoves.lua's own applyStatusBonus already
+-- call, never a free function this engine has no equivalent of.
+
+-- VOLT TACKLE's recoil, applied the same way Gold's own built-in
+-- EFFECT_RECOIL_HIT does it (Battle.lua's own dealDamage caller, further
+-- down the same file): a direct HP write plus the matching damage/message
+-- pair, since Gold has no free function shaped like Gen 1's
+-- `ctx.battle:applyDamage` to call instead.  Recoil lands on the USER.
+local function gen2VoltTackleRecoil(battle, user, dealt)
+  local recoil = math.max(1, math.floor(dealt / 3))
+  user.hp = math.max(0, (user.hp or 0) - recoil)
+  if type(battle.emit) == "function" then
+    battle:emit({ kind = "damage",
+      side = type(battle.sideOf) == "function" and battle:sideOf(user) or nil,
+      amount = recoil, hp = user.hp, anim = false })
+    local name = type(battle.monName) == "function" and battle:monName(user) or ""
+    battle:emit({ kind = "message", text = name .. "'s\nhit with recoil!" })
+  end
+end
+
+-- VOLT TACKLE's own 10% (26/256) paralysis chance, the identical threshold
+-- Gen 1's own record rolls, read off the real Gen 2 RNG stream --
+-- `battle.random(n)` answers 0..n-1, the same shape Battle.lua's own local
+-- `rand(random, n)` wraps when `random` is given, so this needs no private
+-- helper of the engine's own.  Paralysis lands on the TARGET, through
+-- `battle:applyStatus`, the identical instance method Gold's own built-in
+-- EFFECT_PARALYZE_HIT secondary effect calls (Battle.lua's own
+-- SECONDARY_EFFECTS dispatch) -- so a target already statused, or shielded
+-- by Safeguard, degrades exactly the way it would for a native paralysis-
+-- chance move, not a bespoke rule this mod invents.
+local function gen2VoltTackleParalyze(battle, target)
+  if type(battle.random) ~= "function" or type(battle.applyStatus) ~= "function" then
+    return
+  end
+  if battle.random(256) < 26 then
+    battle:applyStatus(target, "paralyze", target)
+  end
+end
+
+-- SPARKLING ARIA's burn cure, unconditional exactly as Gen 1's own record --
+-- Gold's own status field spells it "burn", not Gen 1's BRN code
+-- (Battle.lua's own RESIDUAL_ANIM/STATUS_EFFECTS tables).  Gold has no
+-- generic "cure this status" method to call, so the field is cleared
+-- directly, the same write Gen 1's own record makes onto `target.mon.status`.
+local function gen2SparklingAriaCure(battle, target)
+  if target.status ~= "burn" then return end
+  target.status = nil
+  if type(battle.emit) == "function" then
+    local name = type(battle.monName) == "function" and battle:monName(target) or ""
+    battle:emit({ kind = "message", text = name .. "'s\nburn was healed!" })
+  end
+end
+
+-- PLAY ROUGH's own 10% (26/256) chance to lower the target's Attack, checked
+-- against a live Substitute the same explicit way Gen 1's own record is
+-- (`battle:volatile(target).substitute`, Gold's own held-Substitute field --
+-- Battle.lua's own `dealDamage` reads the identical field off the identical
+-- accessor), and applied through `battle:changeStage`, the same instance
+-- method src/dragonascent.lua's own onDamageDealt and src/zmoves.lua's own
+-- applyStatusBonus already call.
+local function gen2PlayRoughDrop(battle, target)
+  if type(battle.volatile) == "function" then
+    local state = battle:volatile(target)
+    if state and (state.substitute or 0) > 0 then return end
+  end
+  if type(battle.random) ~= "function" or type(battle.changeStage) ~= "function" then
+    return
+  end
+  if battle.random(256) < 26 then
+    battle:changeStage(target, "attack", -1)
+  end
+end
+
+-- CLANGING SCALES' own unconditional self Defense drop, one stage, no roll --
+-- the identical primitive and the identical single-stat shape
+-- src/dragonascent.lua's own onDamageDealt uses for Dragon Ascent's Defense
+-- half.
+local function gen2ClangingScalesDrop(battle, user)
+  if type(battle.changeStage) == "function" then
+    battle:changeStage(user, "defense", -1)
+  end
+end
+
+-- Gold's real route for all four: battle.damage_dealt, gated on the target
+-- surviving and on real damage having been dealt, the identical two-part
+-- gate Gen 1's own EffectRegistry.lua applies to every kind == "secondary"
+-- effect and src/dragonascent.lua's own M.onDamageDealt already carries for
+-- the identical reason -- a move that faints its target applies none of
+-- these either, matching what this mod already does on Gen 1 rather than
+-- inventing a more generous rule for the other game.  Reached by move id
+-- alone, so anything that ever uses one of these four moves (Transform,
+-- Sketch, a future move pack) gets the same effect, on both games alike.
+function M.onDamageDealt(ev)
+  if not (deps and deps.gen2) then return end
+  local moveId = ev and (ev.moveId or (ev.move and ev.move.id))
+  if not moveId then return end
+  local battle, user, target = ev.battle, ev.user, ev.target
+  if type(battle) ~= "table" then return end
+  if type(user) ~= "table" or type(target) ~= "table" then return end
+  if not (type(ev.damage) == "number" and ev.damage > 0) then return end
+  if (target.hp or 0) <= 0 then return end
+
+  if moveId == "VOLTTACKLE" then
+    gen2VoltTackleRecoil(battle, user, ev.damage)
+    gen2VoltTackleParalyze(battle, target)
+  elseif moveId == "SPARKLINGARIA" then
+    gen2SparklingAriaCure(battle, target)
+  elseif moveId == "PLAYROUGH" then
+    gen2PlayRoughDrop(battle, target)
+  elseif moveId == "CLANGINGSCALES" then
+    gen2ClangingScalesDrop(battle, user)
+  end
+end
+
+-- ---------------------------------------------------------------------
 -- SPIRIT SHACKLE (Decidueye, Decidium Z) -- REFUSED, not merely
 -- unfinished.  Its real effect beyond ordinary damage is preventing the
 -- target from switching out, and unlike SUNSTEELSTRIKE/MOONGEISTBEAM
@@ -300,32 +453,94 @@ M.REFUSED = {
 -- ALREADY-registered engine-native effect rather than adding one
 -- (GIGAIMPACT); `extra` carries move-record fields beyond `effect` itself
 -- (STONEEDGE's `highCrit`).
+--
+-- `gen2` is optional per row and is read only when `deps.gen2` is true --
+-- see M.install's own header below for the full reasoning of each shape:
+--
+--   patch = { ... }   Gold names this effect DIFFERENTLY from Gen 1 (a
+--                      different move-record field, read a different way
+--                      entirely) but the effect itself DOES work there once
+--                      named correctly -- GIGAIMPACT's recharge and
+--                      STONEEDGE's high-crit ratio.
+--   onDamageDealt      Gold's own move_effects dispatch would crash on
+--                       this row's registered `run` handler, the identical
+--                       hazard src/dragonascent.lua's own 0.55.0 fix
+--                       documents -- no `effect` patch happens on Gen 2 at
+--                       all, and M.onDamageDealt above is the real
+--                       mechanism (VOLTTACKLE, SPARKLINGARIA, PLAYROUGH,
+--                       CLANGINGSCALES).
+--   refuse = "reason"  Gold's move_effects dispatch has no seam this
+--                       effect can reach at all (DARKESTLARIAT's own
+--                       `chooseDamage`, SPECTRALTHIEF's own
+--                       `beforeAccuracy` -- neither callback shape exists
+--                       anywhere in game/src/battle/gen2/Battle.lua).  The
+--                       species is not taught the move on Gen 2 at all,
+--                       the identical refusal SPIRITSHACKLE gets on both
+--                       games via M.REFUSED above -- a move whose drawback
+--                       silently does not apply is worse than one that
+--                       plainly does not exist.
+--
+-- A row naming none of the three (SUNSTEELSTRIKE, MOONGEISTBEAM) needs no
+-- Gen 2 branch at all: neither carries an effect id on either game, so
+-- there is nothing for Gold's dispatch to misfire on and nothing this mod
+-- claims that Gold cannot honour.
 M.ROWS = {
   { move = "VOLTTACKLE", species = { "PIKACHU" }, level = 1,
     effectId = M.PREFIX .. "VOLT_TACKLE_EFFECT",
-    effectRecord = M.voltTackleEffect },
+    effectRecord = M.voltTackleEffect,
+    gen2 = { onDamageDealt = true } },
+  -- GIGAIMPACT: Gold's own recharge is not a move_effects record at all --
+  -- game/src/battle/gen2/Battle.lua checks `def.effect == "EFFECT_HYPER_BEAM"`
+  -- directly, after damage resolves (`if def.effect == "EFFECT_HYPER_BEAM"
+  -- and dealt > 0 then state.recharge = true end`), the identical native
+  -- mechanism the cart's own Hyper Beam already carries and Champion
+  -- Lance's Dragonite already fire from every turn.  `HYPER_BEAM_EFFECT`
+  -- (Gen 1's own id, engine-registered there) names nothing on Gold, so the
+  -- 0.54.0 sweep's report of a wrong effect-id string was Gen 2's own
+  -- literal, not a missing mechanism.
   { move = "GIGAIMPACT", species = { "SNORLAX" }, level = 1,
-    effectId = M.GIGA_IMPACT_EFFECT_ID },
+    effectId = M.GIGA_IMPACT_EFFECT_ID,
+    gen2 = { patch = { effect = "EFFECT_HYPER_BEAM" } } },
   { move = "DARKESTLARIAT", species = { "INCINEROAR" }, level = 1,
     effectId = M.PREFIX .. "DARKEST_LARIAT_EFFECT",
-    effectRecord = M.darkestLariatEffect },
+    effectRecord = M.darkestLariatEffect,
+    gen2 = { refuse = "its real effect lives in chooseDamage, a callback "
+      .. "name game/src/battle/gen2/Battle.lua's own move_effects dispatch "
+      .. "never reads at all -- checked directly, the string does not "
+      .. "appear anywhere in that file" } },
   { move = "SPARKLINGARIA", species = { "PRIMARINA" }, level = 1,
     effectId = M.PREFIX .. "SPARKLING_ARIA_EFFECT",
-    effectRecord = M.sparklingAriaEffect },
+    effectRecord = M.sparklingAriaEffect,
+    gen2 = { onDamageDealt = true } },
+  -- STONEEDGE: Gold never reads a move record's own `highCrit` field for
+  -- its crit ladder -- game/src/battle/gen2/Battle.lua:hitOnce computes
+  -- `highCritMove = def.effect == "EFFECT_ALWAYS_CRIT"` (raising the
+  -- critical-hit ladder two rungs, Damage.criticalLevel's own high-ratio
+  -- rule), a plain string comparison against `def.effect` the identical
+  -- way EFFECT_HYPER_BEAM's recharge is -- so the 0.54.0 sweep's "wrong
+  -- field read" was `highCrit` never being consulted there at all.
   { move = "STONEEDGE",
     species = { "LYCANROC", "LYCANROC_MIDNIGHT", "LYCANROC_DUSK" }, level = 1,
-    extra = { highCrit = true } },
+    extra = { highCrit = true },
+    gen2 = { patch = { effect = "EFFECT_ALWAYS_CRIT" } } },
   { move = "PLAYROUGH", species = { "MIMIKYU" }, level = 1,
     effectId = M.PREFIX .. "PLAY_ROUGH_EFFECT",
-    effectRecord = M.playRoughEffect },
+    effectRecord = M.playRoughEffect,
+    gen2 = { onDamageDealt = true } },
   { move = "CLANGINGSCALES", species = { "KOMMO_O" }, level = 1,
     effectId = M.PREFIX .. "CLANGING_SCALES_EFFECT",
-    effectRecord = M.clangingScalesEffect },
+    effectRecord = M.clangingScalesEffect,
+    gen2 = { onDamageDealt = true } },
   { move = "SUNSTEELSTRIKE", species = { "SOLGALEO" }, level = 1 },
   { move = "MOONGEISTBEAM", species = { "LUNALA" }, level = 1 },
   { move = "SPECTRALTHIEF", species = { "MARSHADOW" }, level = 1,
     effectId = M.PREFIX .. "SPECTRAL_THIEF_EFFECT",
-    effectRecord = M.spectralThiefEffect },
+    effectRecord = M.spectralThiefEffect,
+    gen2 = { refuse = "its real effect lives in beforeAccuracy, a callback "
+      .. "name game/src/battle/gen2/Battle.lua's own move_effects dispatch "
+      .. "never reads at all -- the theft happens before the accuracy "
+      .. "roll on purpose, and Gold's dispatch has nothing before that "
+      .. "roll but the primary handler this move never registers" } },
 }
 
 -- Registers every custom effect this file needs, patches each move's
@@ -341,21 +556,55 @@ M.ROWS = {
 -- (Lycanroc's three formes) so one missing forme -- most plausibly because
 -- NATIONAL DEX is off and only some of a family registered -- never holds
 -- the other two hostage.
+--
+-- On Gen 2, `row.gen2` (see M.ROWS' own header) decides how the row's
+-- `effect` field is handled -- refuse skips the row entirely (no patch, no
+-- teaching, the identical treatment SPIRITSHACKLE gets everywhere);
+-- onDamageDealt patches nothing (M.onDamageDealt above is the real
+-- mechanism); patch overrides `effect` with Gold's own id; anything else
+-- falls through unchanged, which is what keeps SUNSTEELSTRIKE and
+-- MOONGEISTBEAM -- and every custom effectRecord's own registration --
+-- identical on both games.  The custom effect records themselves are always
+-- registered when a row carries one, gen2 or not: an id nothing on Gold's
+-- own dispatch ever finds is a harmless dead entry, the same reasoning
+-- src/dragonascent.lua's own M.install already gives for its own registered
+-- record surviving unconditionally.
 function M.install(mod)
   local moves = mod.content and mod.content.moves
   local pokemon = mod.content and mod.content.pokemon
+  local gen2 = (deps and deps.gen2) and true or false
 
   for _, row in ipairs(M.ROWS) do
     local moveBase = moves and type(moves.get) == "function"
       and moves:get(row.move)
-    if type(moveBase) == "table" then
+    local refusal = gen2 and row.gen2 and row.gen2.refuse
+    if type(moveBase) == "table" and refusal then
+      if mod.log then
+        mod.log:warn(
+          "battle_forms: %s's real effect cannot be modelled on Gold -- %s "
+            .. "-- taught nowhere on this boot rather than shipped as plain "
+            .. "damage with a drawback that silently never applies",
+          row.move, tostring(refusal))
+      end
+    elseif type(moveBase) == "table" then
       if row.effectRecord then
         mod.content.move_effects:register(row.effectId, row.effectRecord())
       end
       local patch = { effectModeled = true }
-      if row.effectId then patch.effect = row.effectId end
-      if row.extra then
-        for key, value in pairs(row.extra) do patch[key] = value end
+      local g2 = gen2 and row.gen2
+      if g2 and g2.patch then
+        for key, value in pairs(g2.patch) do patch[key] = value end
+      elseif g2 and g2.onDamageDealt then
+        -- Deliberately no `effect` patch: Gold's own move_effects dispatch
+        -- must find nothing registered under this move's id, so it falls
+        -- through to the ordinary accuracy-then-damage path and
+        -- M.onDamageDealt (bound to battle.damage_dealt in main.lua) is
+        -- what actually applies the effect once a hit connects.
+      else
+        if row.effectId then patch.effect = row.effectId end
+        if row.extra then
+          for key, value in pairs(row.extra) do patch[key] = value end
+        end
       end
       mod.content.moves:patch(row.move, patch)
 

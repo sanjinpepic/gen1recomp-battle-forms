@@ -370,9 +370,17 @@ return function(mod)
   -- gen2 alone: it is what the learnset patch reads to land on `levelMoves`
   -- instead, the identical fix src/dragonascent.lua's own bind carries and
   -- for the identical reason -- national_dex's own src/gen2shape.lua strips
-  -- `learnset` on a Gold boot.
-  m["src/speciesbasemoves.lua"].bind({ gen2 = gen2 })
-  m["src/speciesbasemoves.lua"].install(mod)
+  -- `learnset` on a Gold boot.  It is also what M.install reads to leave
+  -- four rows' own `effect` field untouched on Gen 2 (VOLTTACKLE,
+  -- SPARKLINGARIA, PLAYROUGH, CLANGINGSCALES -- the identical early-dispatch
+  -- crash risk src/dragonascent.lua's own 0.55.0 fix found and fixed for
+  -- Dragon Ascent), to repoint two more at Gold's own differently-named
+  -- mechanism (GIGAIMPACT, STONEEDGE), and to refuse two outright where
+  -- Gold's dispatch has no seam at all (DARKESTLARIAT, SPECTRALTHIEF) --
+  -- see src/speciesbasemoves.lua's own M.ROWS header for the full shape.
+  local speciesbasemoves = m["src/speciesbasemoves.lua"]
+  speciesbasemoves.bind({ gen2 = gen2 })
+  speciesbasemoves.install(mod)
 
   -- gen2 decides whether M.items() takes the dead USE verb off a stone, an
   -- orb or Ultranecrozium Z -- see src/stone.lua's own header on M.items
@@ -866,9 +874,33 @@ return function(mod)
   -- is why it is a separate module even though it reads the same shouldOffer
   -- decision.  Its update wrapper is also the only place the live battle
   -- reaches this mod without an event, which is why adoption rides it.
+  --
+  -- Gen 1 only, as of this version -- this used to install unconditionally,
+  -- and a real trace proved that was live rather than harmless: two `menu:`
+  -- lines, Gen 1's own and src/gen2menu.lua's `menu: gen2`, appeared
+  -- interleaved at identical timestamps during an actual Gold battle, which
+  -- only happens if src.battle.BattleState.update genuinely ran that frame.
+  -- Nothing in game/'s own boot chain for Gold (src/core/Game2.lua, its
+  -- src/world/gen2/World.lua) ever requires src.battle.BattleState or
+  -- src.world.OverworldController -- every reachable constructor for a real
+  -- Gen 1 BattleState instance (src/world/OverworldController.lua,
+  -- src/link/LinkBattle.lua, src/script/Commands.lua,
+  -- src/core/BattleCheckpoint.lua) sits behind modules Game2's own require
+  -- chain never touches, and src/mods/Loader.lua's own GEN1_ONLY_MODULES
+  -- table names src.battle.BattleState by exactly that description ("Loads
+  -- fine under Gold" but never the class Gold's own screens draw through).
+  -- What actually constructs the live instance the trace caught was not
+  -- pinned down beyond that, but the fix does not depend on knowing: this
+  -- module has nothing legitimate to act on during a Gold boot regardless
+  -- of where that instance came from, src/gen2menu.lua already covers the
+  -- real Gold class in full, and the two wrappers sharing src/diag.lua's
+  -- own per-battle scope tracking every frame is what turned "menu:" and
+  -- "menu: gen2" into the flood src/diag.lua's own header now documents --
+  -- see that file for the throttle fix, which this gate makes unconditional
+  -- rather than merely likely.
   local menu = m["src/menu.lua"]
   menu.bind({ overlay = overlay, formmenu = formmenu, diag = diag, adopt = adopt })
-  menu.install(mod, state)
+  if not gen2 then menu.install(mod, state) end
 
   -- Gold's own battle screen -- a different class from Gen 1's, with its own
   -- geometry and its own fixed 2x2 input grid (src/gen2menu.lua's own header
@@ -1121,6 +1153,12 @@ return function(mod)
     -- reasoning. No-ops outright on Gen 1, where the effect record already
     -- does this job.
     run("dragonascent.onDamageDealt", function() dragonascent.onDamageDealt(ev) end)
+    -- The identical seam for the four other species base moves that share
+    -- Dragon Ascent's own early-dispatch crash risk on Gen 2 -- no-ops
+    -- outright on Gen 1, where each move's own registered effect record
+    -- already does this job through EffectRegistry.
+    run("speciesbasemoves.onDamageDealt",
+      function() speciesbasemoves.onDamageDealt(ev) end)
   end)
   mod.events:on("battle.turn_ended", function(ev)
     diag.reached("battle.turn_ended", ev)

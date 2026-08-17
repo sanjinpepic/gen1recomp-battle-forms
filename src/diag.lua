@@ -168,6 +168,40 @@ local function scopeFor(battle)
   return scope
 end
 
+-- M.menu and M.menuGen2 each get their OWN scope, kept separate from the one
+-- above and from each other.  They used to share `scope` with M.note (and
+-- transitively with M.primal/M.conditional/M.adopted, which all call
+-- M.note), and on a Gold boot that briefly ran BOTH src/menu.lua's Gen 1
+-- wrapper and src/gen2menu.lua's Gen 2 one (fixed in main.lua -- see that
+-- file's own header on the menu.install gate) the two wrappers' calls
+-- alternated every frame on two DIFFERENT battle identities -- Gen 1's own
+-- wrapped `self` and Gen 2's `uiBattle.battle` -- so `scope.battle ~= battle`
+-- was true on nearly every call, resetting `notes`/`changes`/`answer` back to
+-- empty before the dedup logic ever got to compare an answer against itself.
+-- That is what turned "one line per state" into hundreds of identical
+-- `phase=intro` lines from BOTH `menu:` and `menu: gen2`: not a missing
+-- throttle, a throttle whose own bookkeeping kept getting wiped by an
+-- unrelated caller's identity.  Gating the double install closes the one
+-- known way that happens today, but this split closes the class of bug --
+-- neither menu emitter's dedup can now be invalidated by anything outside
+-- itself, including each other, regardless of what ever again calls M.note
+-- with a battle identity that is not this frame's menu battle.
+local menuScope, menuGen2Scope = nil, nil
+
+local function menuScopeFor(battle)
+  if not menuScope or menuScope.battle ~= battle then
+    menuScope = { battle = battle, changes = 0, answer = nil }
+  end
+  return menuScope
+end
+
+local function menuGen2ScopeFor(battle)
+  if not menuGen2Scope or menuGen2Scope.battle ~= battle then
+    menuGen2Scope = { battle = battle, changes = 0, answer = nil }
+  end
+  return menuGen2Scope
+end
+
 -- The first time something happens in a battle, and never again in that
 -- battle: what the wrapped seams use to say they are being called at all.
 function M.note(battle, key, fmt, ...)
@@ -186,6 +220,7 @@ function M.reached(name, ev)
   local battle = ev and ev.battle
   if name == "battle.started" and battle ~= session then
     session, reached, faulted, scope = battle, {}, {}, nil
+    menuScope, menuGen2Scope = nil, nil
   end
   if reached[name] then return end
   reached[name] = true
@@ -265,7 +300,7 @@ end
 
 function M.menu(battle)
   if not M.enabled() or battle == nil then return end
-  local at = scopeFor(battle)
+  local at = menuScopeFor(battle)
   if at.changes > MENU_CHANGES then return end
   local ok, answer = pcall(describe, battle)
   if not ok then
@@ -336,7 +371,7 @@ end
 
 function M.menuGen2(uiBattle)
   if not M.enabled() or uiBattle == nil then return end
-  local at = scopeFor(uiBattle.battle)
+  local at = menuGen2ScopeFor(uiBattle.battle)
   if at.changes > MENU_CHANGES then return end
   local ok, answer = pcall(describeGen2, uiBattle)
   if not ok then
@@ -409,6 +444,7 @@ end
 function M.onBattleEnded()
   emit("battle.ended")
   scope, session, reached, faulted = nil, nil, {}, {}
+  menuScope, menuGen2Scope = nil, nil
   flush()
 end
 
