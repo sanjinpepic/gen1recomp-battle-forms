@@ -243,10 +243,28 @@ end
 function M.install(mod)
   mod.content.move_effects:register(M.EFFECT, M.effectRecord())
 
+  -- On Gen 2, Gold's own move_effects dispatch (game/src/battle/gen2/
+  -- Battle.lua:1561-1566) fires ANY registered record's `run` unconditionally
+  -- and BEFORE the accuracy roll, then returns -- `local handler =
+  -- effectRecord and effectRecord.run; if handler then handler(...); return
+  -- end`. Patching DRAGONASCENT's `effect` field to point at M.EFFECT would
+  -- still be captured by that check even though M.effectRecord's own `run`
+  -- recognises deps.gen2 and returns {} early: an empty table from a
+  -- registered handler is still a handler, and 0.54.0 shipping exactly this
+  -- patch is why PP was spent and nothing else happened. So on Gen 2 this
+  -- patch is skipped entirely, leaving `effect` at whatever national_dex's
+  -- own gen2 registry set it to (EFFECT_NORMAL_HIT -- not
+  -- NO_ADDITIONAL_EFFECT, but equally nothing any move_effects record is
+  -- registered under), so the dispatch finds no handler and the move
+  -- resolves the ordinary way: accuracy rolled, damage dealt.
+  -- M.onDamageDealt above is the real Gen 2 mechanism, reached through
+  -- battle.damage_dealt once a hit has actually landed.
   local moves = mod.content and mod.content.moves
   local moveBase = moves and type(moves.get) == "function" and moves:get(M.MOVE)
   if type(moveBase) == "table" then
-    mod.content.moves:patch(M.MOVE, { effect = M.EFFECT })
+    if not (deps and deps.gen2) then
+      mod.content.moves:patch(M.MOVE, { effect = M.EFFECT })
+    end
   elseif mod.log then
     mod.log:warn(
       "battle_forms: %s is not a registered move -- national_dex did not "

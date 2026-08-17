@@ -217,6 +217,21 @@ do
     "teaching Dragon Ascent")
   T.eq(mod.patched.pokemon[DragonAscent.SPECIES].learnset, nil,
     "and nothing is patched onto the Gen 1 field name on a Gen 2 load")
+  -- The actual 0.55.0 fix. Gold's own move_effects dispatch
+  -- (game/src/battle/gen2/Battle.lua:1561-1566) fires ANY registered
+  -- record's `run` unconditionally and BEFORE the accuracy roll, then
+  -- returns -- so patching DRAGONASCENT's `effect` field to point at this
+  -- mod's own record would still swallow the move even though
+  -- M.effectRecord's own `run` recognises deps.gen2 and returns {} early:
+  -- an empty table is still a handler, and `if handler then ... return end`
+  -- fires on that alone. 0.54.0 shipped exactly that patch and that is why
+  -- PP was spent and nothing else happened. Leaving `effect` at whatever
+  -- national_dex's own gen2 registry set it to (EFFECT_NORMAL_HIT, which no
+  -- move_effects record is ever registered under) means the dispatch finds
+  -- no handler and the move resolves normally.
+  T.eq(mod.patched.moves[DragonAscent.MOVE], nil,
+    "on Gen 2, DRAGONASCENT's own effect field is left untouched -- "
+      .. "patching it is what let 0.54.0's dispatch swallow the whole move")
   DragonAscent.bind(nil)
 end
 
@@ -918,6 +933,129 @@ do
     "unbound from Gen 2, onDamageDealt does nothing -- Gen 1's own effect "
       .. "record already does this job through EffectRegistry")
   DragonAscent.bind({ gen2 = true })
+end
+
+-- ---------------------------------------------------------------------
+-- The end-to-end proof: the REAL M.install, folded over a base DRAGONASCENT
+-- record the way national_dex's own gen2 registry actually shapes it
+-- (registry_gen2.lua: effect = "EFFECT_NORMAL_HIT", not NO_ADDITIONAL_EFFECT
+-- and not this mod's own effect id), driven through Gold's REAL
+-- Battle:useMove dispatch (game/src/battle/gen2/Battle.lua:1337 onward,
+-- the exact function whose :1561-1566 dispatch swallowed the move in
+-- 0.54.0). This is the player's own bug, reproduced and fixed against the
+-- real classes rather than a stand-in for them: before 0.55.0's fix this
+-- block fails on every assertion below the `useMove` call -- PP is spent,
+-- the wild Pokemon's HP does not move, and the stat drop never applies,
+-- because the patched `effect` field points at a registered handler whose
+-- `run` returns an empty table and Gold's own dispatch treats that as
+-- "handled" regardless.
+-- ---------------------------------------------------------------------
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local RealMon = require("src.battle.gen2.Mon")
+  local Runtime = require("src.mods.Runtime")
+
+  -- The base record exactly as national_dex's own gen2 registry carries it.
+  local BASE_DRAGONASCENT = { id = "DRAGONASCENT", name = "Dragon Ascent",
+    power = 120, accuracy = 100, pp = 5, category = "physical",
+    type = "FLYING", effect = "EFFECT_NORMAL_HIT" }
+
+  local patched = { moves = {} }
+  local installMod = {
+    content = {
+      move_effects = { register = function() end },
+      moves = {
+        get = function(_, id)
+          return id == DragonAscent.MOVE and BASE_DRAGONASCENT or nil
+        end,
+        patch = function(_, id, partial) patched.moves[id] = partial end,
+      },
+      pokemon = { get = function() return nil end, patch = function() end },
+    },
+  }
+  DragonAscent.install(installMod)
+
+  -- Fold the patch over the base exactly the way Registry.lua's own fold()
+  -- would for the one field this patch ever touches -- proving the fix
+  -- through what M.install actually produced, not through a hand-picked
+  -- effect id.
+  local effectiveEffect = BASE_DRAGONASCENT.effect
+  local movePatch = patched.moves[DragonAscent.MOVE]
+  if movePatch and movePatch.effect then effectiveEffect = movePatch.effect end
+
+  local TYPES = {
+    DRAGON = { id = "DRAGON", index = 26, category = "physical" },
+    FLYING = { id = "FLYING", index = 2, category = "physical" },
+    NORMAL = { id = "NORMAL", index = 0, category = "physical" },
+  }
+  local data = {
+    pokemon = {
+      growthRates = { GROWTH_MEDIUM_FAST = { numerator = 1, denominator = 1,
+        squared = 0, linear = 0, constant = 0 } },
+      RAYQUAZA = { id = "RAYQUAZA", name = "RAYQUAZA",
+        baseStats = { hp = 105, attack = 150, defense = 90, speed = 95,
+          specialAttack = 150, specialDefense = 90 },
+        types = { "DRAGON", "FLYING" }, growthRate = "GROWTH_MEDIUM_FAST" },
+      -- Deliberately overtuned HP/Defense/Sp.Def relative to Rayquaza's
+      -- attack: the effect's own gate refuses to drop stats when the hit
+      -- faints its target (matching Gen 1's identical rule), so this fixture
+      -- has to SURVIVE a 120-power STAB hit for that gate to be provably
+      -- uninvolved in the assertions below, rather than accidentally
+      -- satisfied by a one-hit kill.
+      SNORLAX = { id = "SNORLAX", name = "SNORLAX",
+        baseStats = { hp = 500, attack = 110, defense = 400, speed = 30,
+          specialAttack = 65, specialDefense = 400 },
+        types = { "NORMAL", "NORMAL" }, growthRate = "GROWTH_MEDIUM_FAST" },
+    },
+    moves = { DRAGONASCENT = { id = "DRAGONASCENT", name = "Dragon Ascent",
+      power = 120, accuracy = 100, pp = 5, category = "physical",
+      type = "FLYING", effect = effectiveEffect } },
+    type_chart = { types = TYPES, matchups = {} },
+    items = {},
+    -- The merged registry the real loader would build, carrying this mod's
+    -- own record under its own id regardless of whether anything points at
+    -- it -- M.install registers it unconditionally.
+    gen2MoveEffects = { [DragonAscent.EFFECT] = DragonAscent.effectRecord() },
+  }
+
+  local perfect = { attack = 15, defense = 15, speed = 15, special = 15 }
+  perfect.hp = RealMon.hpDV(perfect)
+  local player = RealMon.new(data, "RAYQUAZA", 75,
+    { dvs = perfect, moves = { { id = "DRAGONASCENT", pp = 5, maxPp = 5 } } })
+  local wild = RealMon.new(data, "SNORLAX", 100, { dvs = perfect, moves = {} })
+
+  local received = {}
+  local FakeEvents = { listeners = { ["battle.damage_dealt"] = true } }
+  function FakeEvents:emit(name, payload)
+    if name == "battle.damage_dealt" then
+      received[#received + 1] = payload
+      DragonAscent.onDamageDealt(payload)
+    end
+  end
+  local savedEvents, savedHooks = Runtime.events, Runtime.hooks
+  Runtime.install(FakeEvents, Runtime.hooks, {})
+
+  local ok, battle = pcall(function()
+    local b = RealBattle.new({ data = data, party = { player }, wild = wild,
+      random = function() return 0 end })
+    b:useMove(player, wild, "DRAGONASCENT")
+    return b
+  end)
+
+  Runtime.install(savedEvents, savedHooks, nil)
+
+  T.check(ok, "the real dispatch runs without erroring: " .. tostring(battle))
+  T.eq(player.moves[1].pp, 4, "Dragon Ascent still spends its own PP")
+  T.check(wild.hp < wild.maxHp,
+    "and now actually deals damage -- the exact symptom the player "
+      .. "reported (\"pp is used but no move happens\") is gone")
+  T.check(wild.hp > 0, "and the target survives, so the stat-drop gate "
+    .. "below is provably not satisfied merely by a one-hit KO")
+  T.eq(#received, 1, "battle.damage_dealt fired once, off the real hit")
+  T.eq(battle.stages.player.defense, -1,
+    "the self-lowering effect still applies, through battle.damage_dealt "
+      .. "rather than through move_effects")
+  T.eq(battle.stages.player.specialDefense, -1, "both halves of it")
 end
 
 T.finish("battle_forms_dragonascent")
