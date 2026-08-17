@@ -70,20 +70,12 @@ end
 -- src/formview.lua and src/gen2formview.lua both keep for theirs.
 local Assets = nil
 
--- Identical order, identical reasoning, to src/formview.lua's and
--- src/gen2formview.lua's own formIdFor: fusion is asked first because no
--- species is both a fusion base and a persistent-form holder, so the order
--- can never actually decide an outcome by itself.  Neither gates on
--- mon.form the way src/formview.lua's Gen 1 helper safely can on its own --
--- this module is shared by both games, and Gen 2's own mon.form can lag a
--- fresh item GIVE by a whole battle (src/gen2formview.lua's identical
--- header has the full reasoning); asking fresh every time costs one cheap
--- lookup on an unformed mon's icon and is never wrong on either game.
+-- src/formresolve.lua's own shared fusion-then-persistent chain -- see that
+-- file's header for why this module never gates on mon.form: it is shared
+-- by both games, and Gen 2's own mon.form can lag a fresh item GIVE by a
+-- whole battle.
 local function formIdFor(mon)
-  if not mon then return nil end
-  local id = deps and deps.fusion and deps.fusion.formIdFor(mon)
-  if id then return id end
-  return deps and deps.persistent and deps.persistent.formIdFor(mon)
+  return deps and deps.resolve and deps.resolve.formIdFor(mon)
 end
 
 -- The form suffix a real icon file is named for (e.g. "WASH"), read off the

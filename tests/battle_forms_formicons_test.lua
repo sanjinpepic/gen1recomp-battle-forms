@@ -14,6 +14,7 @@ local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local FormIcons = dofile(MOD .. "/src/formicons.lua")
 local Persistent = dofile(MOD .. "/src/persistent.lua")
 local Fusion = dofile(MOD .. "/src/fusion.lua")
+local FormResolve = dofile(MOD .. "/src/formresolve.lua")
 local Eligibility = dofile(MOD .. "/src/eligibility.lua")
 
 -- love.graphics/love.filesystem are already stubbed globally by
@@ -59,7 +60,8 @@ persistentRows.BROKENA = { ITEM_A = "BROKENA_NOFORM" }
 
 Persistent.bind({ eligibility = Eligibility, rows = persistentRows })
 Fusion.bind({ rows = fusionRows })
-FormIcons.bind({ fusion = Fusion, persistent = Persistent })
+FormResolve.bind({ fusion = Fusion, persistent = Persistent })
+FormIcons.bind({ resolve = FormResolve })
 
 local function persistentMon(species, itemId, level, extra)
   local m = { species = species, level = level or 50, dvs = {}, statExp = {} }
@@ -311,6 +313,42 @@ do
   end
 
   -- ---------------------------------------------------------------------
+  -- The player's own report: a held-item form's party icon stays the base
+  -- species until the Pokemon is thrown into a battle, because
+  -- src/ui/gen2/HeldItemMenu.lua's real GIVE writes mon.item directly and
+  -- fires no event this mod can hook (src/persistent.lua's own header on
+  -- M.formIdFor), so mon.form is never set outside a battle. Every other
+  -- case in this section used persistentMon(), which calls Persistent.mark
+  -- and so ALWAYS leaves mon.form set -- none of them, and no case anywhere
+  -- else in this file, actually drove the Gen 2 mon.item-first read with
+  -- mon.form left nil, which is the one shape a fresh GIVE actually
+  -- produces. This is that case, and it is what src/formresolve.lua's own
+  -- "never gate on mon.form" guarantee exists to cover.
+  -- ---------------------------------------------------------------------
+  do
+    Persistent.bind({ eligibility = Eligibility, rows = persistentRows, gen2 = true })
+    local freshlyGiven = { species = "ROTOM", level = 50, dvs = {}, statExp = {},
+                           item = "WASHING_MACHINE" }
+    T.eq(freshlyGiven.form, nil,
+      "precondition: nothing has ever marked this mon -- a bare GIVE, no battle yet")
+    T.eq(freshlyGiven[Eligibility.STAMP], nil,
+      "and the Gen 1 bag stamp was never written either -- mon.item is the "
+        .. "only claim this mon carries")
+
+    local self = partyMenu()
+    local seen = drawnPaths(function()
+      RealPartyMenu.drawIcon(self, freshlyGiven, 0, 0)
+    end)
+    T.check(seen["assets/sets/icons_gen2/ROTOM_WASH.png"],
+      "the party icon shows Rotom-Wash on sight, with no battle needed first "
+        .. "-- the exact gap the player reported")
+    T.check(not seen["assets/sets/icons_gen2/ROTOM.png"],
+      "and never falls back to the base species merely because mon.form was nil")
+
+    Persistent.bind({ eligibility = Eligibility, rows = persistentRows })
+  end
+
+  -- ---------------------------------------------------------------------
   -- The regression this hook exists to catch: a form WITH a real icon must
   -- never silently draw the base species' instead.  Proven both ways --
   -- with the hook installed (passes) and with it removed, simulating
@@ -407,7 +445,7 @@ Runtime.hooks = savedHooks
 -- ---------------------------------------------------------------------
 do
   local FreshFormIcons = dofile(MOD .. "/src/formicons.lua")
-  FreshFormIcons.bind({ fusion = Fusion, persistent = Persistent })
+  FreshFormIcons.bind({ resolve = FormResolve })
   local savedAssets = package.loaded["src.render.Assets"]
   -- A shape src.render.Assets has changed into, not a require failure:
   -- simpler to stub deterministically than fighting require's own "loop or

@@ -113,7 +113,7 @@ return function(mod)
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/formmenu.lua", "src/menu.lua", "src/boxmark.lua",
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
-                  "src/formicons.lua",
+                  "src/formicons.lua", "src/formresolve.lua",
                   "src/gen2shop.lua", "src/gen2menu.lua",
                   "src/zmovemenu.lua", "src/gen2movemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
@@ -904,16 +904,25 @@ return function(mod)
   -- to patch.
   if gen2 then boxmark.installGen2(mod) end
 
+  -- The shared "what form is this mon actually entitled to wear, asked
+  -- fresh rather than trusted off mon.form" resolver -- src/formview.lua,
+  -- src/formicons.lua and src/gen2formview.lua below all read a form for
+  -- DISPLAY only, outside any battle, and previously each kept its own copy
+  -- of the identical fusion-then-persistent chain; see src/formresolve.lua's
+  -- own header for why one shared copy is what keeps a future reader from
+  -- reintroducing the mon.form gate that is safe on Gen 1 and wrong on
+  -- Gen 2. Bound once, ahead of every reader that calls it.
+  local formresolve = m["src/formresolve.lua"]
+  formresolve.bind({ fusion = fusion, persistent = persistent })
+
   -- The same STATS screen, a third reason to reach it: a persistent form or
   -- a fusion changes a Pokemon's types and stats on the battler
   -- (src/forms.lua's becomeForm), and this draws the identical numbers over
   -- the base species' own wherever the STATS screen shows them, so the
   -- party menu and the box screens stop reading a Fire-typed Arceus as
-  -- NORMAL.  Bound with both pairing modules for the same reason
-  -- src/resolve.lua's own party sweep needs both: nothing else can still be
-  -- standing on mon.form once a battle is over.
+  -- NORMAL.
   local formview = m["src/formview.lua"]
-  formview.bind({ fusion = fusion, persistent = persistent, diag = diag })
+  formview.bind({ resolve = formresolve, diag = diag })
   formview.install(mod)
 
   -- The party list's own icon, on WHICHEVER game this boot is: one shared
@@ -923,7 +932,7 @@ return function(mod)
   -- module above it uses -- see src/formicons.lua's own header for why one
   -- subscription is enough for both screens.
   local formicons = m["src/formicons.lua"]
-  formicons.bind({ fusion = fusion, persistent = persistent, diag = diag })
+  formicons.bind({ resolve = formresolve, diag = diag })
   formicons.install(mod)
 
   -- Gold's own SUMMARY screen, a separate class with a separate stats layout
@@ -935,7 +944,7 @@ return function(mod)
   -- install call is: patching a class Gen 1 never draws through would be a
   -- wrap this boot can never exercise.
   local gen2formview = m["src/gen2formview.lua"]
-  gen2formview.bind({ fusion = fusion, persistent = persistent, diag = diag })
+  gen2formview.bind({ resolve = formresolve, diag = diag })
   if gen2 then gen2formview.install(mod) end
 
   -- The Z-Move roster's own FIGHT-menu names, drawn in place of whatever

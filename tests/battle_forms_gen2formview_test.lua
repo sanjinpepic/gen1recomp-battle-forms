@@ -11,6 +11,7 @@ local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local Gen2FormView = dofile(MOD .. "/src/gen2formview.lua")
 local Persistent = dofile(MOD .. "/src/persistent.lua")
 local Fusion = dofile(MOD .. "/src/fusion.lua")
+local FormResolve = dofile(MOD .. "/src/formresolve.lua")
 local Eligibility = dofile(MOD .. "/src/eligibility.lua")
 
 -- love.graphics is already stubbed globally by tests.modkit
@@ -102,7 +103,8 @@ persistentRows.BROKENA = { ITEM_A = "BROKENA_NOTYPES" }
 
 Persistent.bind({ eligibility = Eligibility, rows = persistentRows })
 Fusion.bind({ rows = fusionRows })
-Gen2FormView.bind({ fusion = Fusion, persistent = Persistent })
+FormResolve.bind({ fusion = Fusion, persistent = Persistent })
+Gen2FormView.bind({ resolve = FormResolve })
 
 -- ---------------------------------------------------------------------
 -- Mon fixtures, built through the real mark()/settle() path -- Gen 2's own

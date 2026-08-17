@@ -15,6 +15,7 @@ local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local FormView = dofile(MOD .. "/src/formview.lua")
 local Persistent = dofile(MOD .. "/src/persistent.lua")
 local Fusion = dofile(MOD .. "/src/fusion.lua")
+local FormResolve = dofile(MOD .. "/src/formresolve.lua")
 local Eligibility = dofile(MOD .. "/src/eligibility.lua")
 local Stats = require("src.pokemon.Stats")
 
@@ -127,7 +128,8 @@ persistentRows.GHOSTSPECIES = { ITEM_G = "GHOST_NO_RECORD" }
 
 Persistent.bind({ eligibility = Eligibility, rows = persistentRows })
 Fusion.bind({ rows = fusionRows })
-FormView.bind({ fusion = Fusion, persistent = Persistent })
+FormResolve.bind({ fusion = Fusion, persistent = Persistent })
+FormView.bind({ resolve = FormResolve })
 
 -- ---------------------------------------------------------------------
 -- Mon fixtures, built through the real mark()/settle() path rather than by

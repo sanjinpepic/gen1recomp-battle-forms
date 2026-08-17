@@ -69,19 +69,16 @@ local function record(fmt, ...)
   if diag then pcall(diag.record, fmt, ...) end
 end
 
--- src/resolve.lua's own settle() asks fusion first, then persistent, for the
--- reason its header gives: no species is both a fusion base and a
--- persistent-form holder, so the order can never decide an outcome by
--- itself -- asking the stronger claim (a fusion, which stands a second
--- Pokemon in the PC) first is the order to be wrong in if that ever stops
--- being true.  Matching that order here, rather than picking either
--- arbitrarily, is what keeps this module's answer from ever disagreeing
--- with what the save itself would say the mon is.
+-- src/formresolve.lua's own shared fusion-then-persistent chain -- see that
+-- file's own header for the order (fusion first, matching src/resolve.lua's
+-- own settle()) and for why this no longer gates on mon.form the way this
+-- module's own copy once safely could.  Gen 1 write mon.form synchronously
+-- with the bag-use stamp, so that gate was never wrong here -- it was
+-- simply a Gen-1-only shortcut this module does not need to keep once the
+-- chain it shortcuts is shared with a game where the same shortcut is a
+-- bug (src/gen2formview.lua's own history; see src/formresolve.lua).
 local function formIdFor(mon)
-  if not mon or not mon.form then return nil end
-  local id = deps and deps.fusion and deps.fusion.formIdFor(mon)
-  if id then return id end
-  return deps and deps.persistent and deps.persistent.formIdFor(mon)
+  return deps and deps.resolve and deps.resolve.formIdFor(mon)
 end
 
 -- Refuses rather than half-applying, for src/forms.lua's own reason: a form
