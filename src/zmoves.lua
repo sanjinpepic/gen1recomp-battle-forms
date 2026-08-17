@@ -307,16 +307,63 @@ local SELF_RAISE_STAT = {
 -- HP has no stage and is never in this list.
 local ALL_STATS = { "attack", "defense", "speed", "special", "accuracy", "evasion" }
 
+-- Gold's own seven -- the identical six plus the split Special, minus HP.
+-- Read against src.battle.gen2.Effects below rather than SELF_RAISE_STAT,
+-- which is Gen 1's own hand-built map for an engine with no equivalent table
+-- to read it from.
+local GEN2_ALL_STATS = { "attack", "defense", "speed", "specialAttack",
+                         "specialDefense", "accuracy", "evasion" }
+
+-- Gold's own move-effect classification, reached the way src/zmovemenu.lua
+-- reaches BattleState -- required defensively, because a mod's own file is
+-- not guaranteed the shape it was built against forever.  Cached after the
+-- first call for the identical reason src/zmoves.lua's own moveEffects()
+-- below is.
+local gen2EffectsModule, gen2EffectsTried = nil, false
+local function gen2Effects()
+  if not gen2EffectsTried then
+    gen2EffectsTried = true
+    local ok, found = pcall(require, "src.battle.gen2.Effects")
+    if ok and type(found) == "table" and type(found.STAT_CHANGES) == "table" then
+      gen2EffectsModule = found
+    end
+  end
+  return gen2EffectsModule
+end
+
+-- The stat a Gen 2 move's own effect string raises on its user, or nil for
+-- everything that is not that one shape: an id with no row in the live
+-- table at all (a status-inducing move, say), and a row whose own target is
+-- "foe" rather than "self" (STAT_CHANGES carries both directions in one
+-- table, keyed the same way Gen 1's SELF_RAISE_STAT would have to be split
+-- to tell apart -- reading `row[3]` here does that splitting instead of a
+-- second hand-built map).
+local function gen2SelfRaiseStat(effectId)
+  local effects = gen2Effects()
+  local row = effects and effectId and effects.STAT_CHANGES[effectId]
+  if row and row[3] == "self" then return row[1] end
+  return nil
+end
+
 -- The stat a status move of `moveId` already raises on its user, under a
 -- crystal of `typeId` -- or nil, which covers everything that is not that
 -- one shape: a move the registry cannot resolve, a move of another type, a
 -- move that deals damage (power > 0, so it is M.fieldsFor's business and not
 -- this one's), and a status move whose effect is not a self stat-raise.
+--
+-- deps.gen2 branches which table answers the classification -- Gold's own
+-- live src.battle.gen2.Effects.STAT_CHANGES rather than Gen 1's hand-built
+-- SELF_RAISE_STAT, because the two games spell their move effects in
+-- entirely different vocabularies (ATTACK_UP2_EFFECT against
+-- EFFECT_ATTACK_UP_2) and Gold's own engine already carries the
+-- classification this needs, rather than this file inventing a second copy
+-- of a ruling the cart already makes.
 function M.statusBonusStat(data, moveId, typeId)
   if not typeId then return nil end
   local def = data and data.moves and data.moves[moveId]
   if type(def) ~= "table" or def.type ~= typeId then return nil end
   if (tonumber(def.power) or 0) > 0 then return nil end
+  if deps and deps.gen2 then return gen2SelfRaiseStat(def.effect) end
   return SELF_RAISE_STAT[def.effect]
 end
 
@@ -362,8 +409,27 @@ end
 -- on anything missing: no battle, no battler, or a build with no engine
 -- MoveEffects to reach leaves the move's own effect as the whole of what
 -- happened, which is the honest degradation and not a crash.
+-- deps.gen2 branches onto Gold's own instance method,
+-- `battle:changeStage(mon, stat, stages)` (game/src/battle/gen2/Battle.lua:
+-- 1299), which applies the change, clamps it at the cart's own ceiling and
+-- emits the cart's own "X's STAT rose!" message all by itself -- there is no
+-- free function to require the way Gen 1's src.battle.MoveEffects is, and
+-- nothing here needs one: `bonus.battle` already IS the live engine object
+-- every Gen 2 handler in this mod is handed, and `bonus.battler` is already
+-- the bare mon (never a wrapper) because M.onMoveUsed stores `ev.user`
+-- straight off the event, which Gold's own payload never wraps
+-- (src/battlerof.lua's own header).
 local function applyStatusBonus(bonus)
   if not bonus or not bonus.battle or not bonus.battler then return end
+  if deps and deps.gen2 then
+    if type(bonus.battle.changeStage) ~= "function" then return end
+    for _, stat in ipairs(GEN2_ALL_STATS) do
+      if stat ~= bonus.stat then
+        bonus.battle:changeStage(bonus.battler, stat, 1)
+      end
+    end
+    return
+  end
   local effects = moveEffects()
   if not effects then return end
   for _, stat in ipairs(ALL_STATS) do
