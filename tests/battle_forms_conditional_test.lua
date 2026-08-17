@@ -727,54 +727,111 @@ end
 do
   local FsIo = require("tests.fs_io")
   local inner = FsIo.new(".")
-  local alias = { national_dex_mod = MOD .. "/../national_dex_mod",
-                  battle_forms_mod = MOD }
   local OPTIONS_LUA =
     'return { modOptions = { national_dex = { national_dex = "on" } } }'
 
-  local function map(path)
-    if path == nil then return path end
-    for name, real in pairs(alias) do
-      local prefix = "mods/" .. name
-      if path == prefix then return real end
-      if path:sub(1, #prefix + 1) == prefix .. "/" then
-        return real .. path:sub(#prefix + 1)
+  -- battle_forms_mod's own files are read directly (plain io.open, the same
+  -- as its main.lua's own file list) rather than aliased onto the real
+  -- directory the way national_dex_mod is below. tests/fs_io.lua's Windows
+  -- directory probe self-renames a path to itself to tell a file from a
+  -- folder, and that fails with "Permission denied" against any directory
+  -- another process merely has open -- this mod's own working directory
+  -- while it is being edited, for one, which is exactly the state a
+  -- development session leaves it in. That collision, not this suite's own
+  -- logic, is the confirmed cause of the "conditional_test fails, then
+  -- passes from a clean path" pattern this file has been reported under
+  -- more than once: driving the same real loader with the real directory
+  -- aliased instead of read reproduces the exact failure this section is
+  -- shaped to catch ("conditional.bind never reached") for a reason that has
+  -- nothing to do with src/conditional.lua. Reading each file's bytes never
+  -- touches that probe at all.
+  local function readFile(path)
+    local handle = io.open(path, "rb")
+    if not handle then return nil end
+    local body = handle:read("*a")
+    handle:close()
+    return body
+  end
+  local BF_MAIN = readFile(MOD .. "/main.lua")
+  local bfFiles = {
+    ["mods/battle_forms_mod/manifest.json"] = readFile(MOD .. "/manifest.json"),
+    ["mods/battle_forms_mod/main.lua"] = BF_MAIN,
+  }
+  for _, tree in ipairs({ "src", "data" }) do
+    for name in BF_MAIN:gmatch('"(' .. tree .. '/[%w_]+%.lua)"') do
+      local key = "mods/battle_forms_mod/" .. name
+      if not bfFiles[key] then
+        bfFiles[key] = assert(readFile(MOD .. "/" .. name), name .. " missing")
       end
     end
-    return path
+  end
+
+  local NATIONAL_DEX_DIR = MOD .. "/../national_dex_mod"
+  local function mapNationalDex(path)
+    if path == nil then return nil end
+    local prefix = "mods/national_dex_mod"
+    if path == prefix then return NATIONAL_DEX_DIR end
+    if path:sub(1, #prefix + 1) == prefix .. "/" then
+      return NATIONAL_DEX_DIR .. path:sub(#prefix + 1)
+    end
+    return nil
   end
 
   -- Writes stay entirely in memory, never reaching the real tree: this
-  -- harness reads two mods' real source but must never leave a real
-  -- `options.lua` (or anything else) behind in `game/`, which an earlier
-  -- draft of this fixture did by forwarding every write straight through
-  -- `inner` -- caught by finding the stray file after a run, not by any
-  -- check here, which is why writes are captured rather than delegated now.
+  -- harness reads national_dex_mod's real source but must never leave a
+  -- real `options.lua` (or anything else) behind in `game/`, which an
+  -- earlier draft of this fixture did by forwarding every write straight
+  -- through `inner` -- caught by finding the stray file after a run, not by
+  -- any check here, which is why writes are captured rather than delegated
+  -- now.
   local written = {}
   local fs = {}
   function fs.read(path)
     if path == "options.lua" then return OPTIONS_LUA end
     if written[path] ~= nil then return written[path] end
-    return inner.read(map(path))
+    if bfFiles[path] ~= nil then return bfFiles[path] end
+    local real = mapNationalDex(path)
+    if real then return inner.read(real) end
+    return nil
   end
   function fs.write(path, body) written[path] = body return true end
   function fs.load(path)
     if path == "options.lua" then return load(OPTIONS_LUA, path) end
-    return inner.load(map(path))
+    if bfFiles[path] ~= nil then return load(bfFiles[path], "@" .. path) end
+    local real = mapNationalDex(path)
+    if real then return inner.load(real) end
+    return nil, "no file: " .. tostring(path)
   end
   function fs.getInfo(path)
-    if path == "mods" then return { type = "directory" } end
+    if path == "mods" or path == "mods/battle_forms_mod" then
+      return { type = "directory" }
+    end
     if path == "options.lua" then return { type = "file" } end
-    return inner.getInfo(map(path))
+    if bfFiles[path] ~= nil then return { type = "file" } end
+    local real = mapNationalDex(path)
+    if real then return inner.getInfo(real) end
+    return nil
   end
   function fs.getDirectoryItems(path)
-    if path == "mods" then
-      local names = {}
-      for name in pairs(alias) do names[#names + 1] = name end
-      table.sort(names)
-      return names
+    if path == "mods" then return { "national_dex_mod", "battle_forms_mod" } end
+    if path == "mods/battle_forms_mod" then
+      local seen, items = {}, {}
+      local prefix = "mods/battle_forms_mod/"
+      for key in pairs(bfFiles) do
+        if key:sub(1, #prefix) == prefix then
+          local child = key:sub(#prefix + 1):match("^[^/]+")
+          if child and not seen[child] then
+            seen[child] = true
+            items[#items + 1] = child
+          end
+        end
+      end
+      table.sort(items)
+      return items
     end
-    return inner.getDirectoryItems(map(path))
+    local real = mapNationalDex(path)
+    if real then return inner.getDirectoryItems(real) end
+    return {}
   end
 
   local data = T.fixtures.fresh()
