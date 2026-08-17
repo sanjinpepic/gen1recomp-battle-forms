@@ -242,7 +242,25 @@ function M.apply(battle, battler)
   local mon = deps.battlerof.mon(battler)
   if not mon or not battle then return end
   local formId = M.formIdFor(mon)
-  if not formId then return end
+  if not formId then
+    -- Gen 2 only, and only for a marker THIS module's own table produced.
+    -- TAKE clears mon.item with no hookable event (this function's own
+    -- header), so a send-out can find a mon no longer entitled to anything
+    -- while mon.form and mon.stats still carry whatever becomeForm last
+    -- wrote -- Gen 1 never has this gap, because its stamp mutation is
+    -- already synchronous with mon.form through M.mark. Left alone, the mon
+    -- fights the whole battle still dressed as its old form and only the
+    -- battle-END sweep (src/resolve.lua's own settle(), which this function
+    -- cannot reach) eventually corrects it -- one full battle late, which is
+    -- what a real report named outright. ownsSuffix is the same guard
+    -- M.apply's own refusal above already uses to tell this module's own
+    -- stale marker apart from a foreign mechanic's claim; a foreign marker
+    -- is left standing here exactly as it already is there.
+    if deps.gen2 and deps.gen2forms and mon.form and ownsSuffix(battle.data, mon) then
+      deps.gen2forms.revertMon(mon, battle.data)
+    end
+    return
+  end
 
   local suffix = suffixOf(battle.data, formId)
   -- See this function's own header above for what ownsSuffix narrows here

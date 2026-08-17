@@ -568,6 +568,82 @@ do
       .. "real held item names a different form")
   T.check(stale.stats.defense > 0, "and the battler's stats were recomputed")
 
+  -- The bug report this block exists to reproduce: TAKE clears mon.item with
+  -- no hookable event (this file's own header on M.formIdFor), so a Rotom
+  -- given the Wash appliance, sent into one battle, then TAKEn back out of
+  -- battle arrives at its NEXT send-out with mon.item == nil -- entitled to
+  -- nothing -- but mon.form and mon.stats still standing exactly as
+  -- becomeForm last wrote them. Before this fix M.apply's `if not formId
+  -- then return end` left both alone: the mon fought the whole battle still
+  -- dressed as Wash Rotom, and only the battle-END sweep (src/resolve.lua's
+  -- own settle(), which this module cannot reach from here) eventually put
+  -- it right -- one full battle late, exactly what the player reported for
+  -- Origin Forme Palkia.
+  do
+    local Mon = require("src.battle.gen2.Mon")
+    -- The real computed base defense at this mon's own dvs/level/statExp --
+    -- not the raw baseStats.defense (77) gen2Mon's own fixture happens to
+    -- seed mon.stats with directly, which is a fixture shortcut and not what
+    -- gen2forms.lua's own Mon.stats formula actually returns.
+    local expectedBaseDefense = Mon.stats(GEN2_DATA.pokemon.ROTOM.baseStats,
+      { hp = 15, attack = 15, defense = 15, speed = 15, special = 15 },
+      50, {}).defense
+
+    local wasWash = gen2Mon("ROTOM", nil)
+    wasWash.item = "WASHING_MACHINE"
+    Persistent.apply({ data = GEN2_DATA }, wasWash)
+    T.eq(wasWash.form, "WASH", "precondition: Wash Rotom applies the way it "
+      .. "always has")
+    T.check(wasWash.stats.defense > 77, "precondition: with its own stats")
+
+    -- TAKE, simulated the only way it can be here: mon.item goes back to
+    -- nil with nothing else touched, since the real GIVE/TAKE screen fires
+    -- no event this mod can hook.
+    wasWash.item = nil
+    Persistent.apply({ data = GEN2_DATA }, wasWash)
+    T.eq(wasWash.form, nil,
+      "a send-out with the item gone reverts a form THIS module's own "
+        .. "table produced, rather than leaving the marker standing for a "
+        .. "whole battle")
+    T.eq(wasWash.stats.defense, expectedBaseDefense,
+      "and mon.stats is recomputed back to the base species's own real "
+        .. "computed stat -- not merely the marker cleared with the "
+        .. "boosted numbers left behind")
+    T.eq(wasWash.formTypes, nil, "and the type seam clears with it")
+
+    -- The guard this revert must not loosen: a form some OTHER mechanic
+    -- applied (no row in this module's own table for it) is left standing
+    -- exactly as the earlier block in this section already proved for the
+    -- positive (apply) case -- this is the identical proof for the negative
+    -- (revert) path this fix adds.
+    local foreign = gen2Mon("ROTOM", nil)
+    foreign.form = "SOMETHING_ELSE"
+    Persistent.apply({ data = GEN2_DATA }, foreign)
+    T.eq(foreign.form, "SOMETHING_ELSE",
+      "a foreign mechanic's own form marker is never reverted by this module")
+
+    -- Gen 1 must not gain this behaviour: its stamp mutation is already
+    -- synchronous with mon.form (M.mark, this file's own header on why Gen 1
+    -- never has the gap Gen 2 does), so a revert-on-send-out here would be
+    -- pure risk for a game that never needed it. Bound with gen2forms STILL
+    -- present and only gen2 flipped to false/nil, so this exercises the
+    -- deps.gen2 check itself rather than merely deps.gen2forms being absent
+    -- the way an ordinary Gen 1 bind already leaves it.
+    Persistent.bind({ forms = Forms, gen2forms = Gen2Forms, gen2 = false,
+                      eligibility = E, rows = rows, log = log,
+                      price = Stone.PRICE, battlerof = Battlerof })
+    local gen1Mon = newMon("ROTOM", nil)
+    gen1Mon.form = "WASH"
+    Persistent.apply({ data = DATA }, { mon = gen1Mon, isPlayer = true,
+                                        curStats = {}, curTypes = {} })
+    T.eq(gen1Mon.form, "WASH",
+      "Gen 1 is untouched by this fix even with gen2forms bound -- the "
+        .. "deps.gen2 flag alone is what gates it")
+    Persistent.bind({ forms = Forms, gen2forms = Gen2Forms, gen2 = true,
+                      eligibility = E, rows = rows, log = log,
+                      price = Stone.PRICE, battlerof = Battlerof })
+  end
+
   -- restore the Gen 1 binding: nothing after this point in the file reads
   -- Persistent's bound deps, but a rebind keeps this section's fixture from
   -- leaking into whatever runs after it if the file is ever reordered.
