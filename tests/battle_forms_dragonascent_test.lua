@@ -822,4 +822,102 @@ do
       .. "this case exists to pin")
 end
 
+-- ---------------------------------------------------------------------
+-- Dragon Ascent's post-hit stat drop, Gold's own route to it.  Gold
+-- dispatches a registered move_effects record's `run` unconditionally and
+-- before the accuracy roll (game/src/battle/gen2/Battle.lua:1561-1566), so
+-- M.effectRecord's own `run` -- the Gen 1 mechanism proven above -- has to
+-- refuse itself there rather than fire early with the wrong ctx shape.
+-- ---------------------------------------------------------------------
+DragonAscent.bind({ gen2 = true })
+
+-- Simulates exactly the call shape Gold's own dispatch makes: the BATTLE
+-- instance handed positionally where a Gen 1 ctx table would be. Before
+-- this guard existed, `ctx.changeStage` read off a bare Battle instance was
+-- nil, and calling it errored outright rather than merely misbehaving.
+do
+  local record = DragonAscent.effectRecord()
+  local msgs = record.run({})
+  T.same(msgs, {},
+    "on Gen 2, the shared registry's own run does nothing rather than "
+      .. "reading ctx.user/ctx.changeStage off a battle-engine instance")
+end
+
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local user = gen2Mon("RAYQUAZA", { { id = "DRAGONASCENT" } })
+  local foe = gen2Mon("CHARIZARD", {})
+  local battle = setmetatable({
+    data = GEN2_DATA, player = user, enemy = foe,
+    stages = { player = RealBattle.newStages(), enemy = RealBattle.newStages() },
+    events = {},
+  }, { __index = RealBattle })
+
+  DragonAscent.onDamageDealt({ battle = battle, user = user, target = foe,
+                               moveId = "DRAGONASCENT", damage = 90 })
+  T.eq(battle.stages.player.defense, -1, "Defense fell one stage on the user")
+  T.eq(battle.stages.player.specialDefense, -1,
+    "and Special Defense fell one stage too")
+  T.check(#battle:takeEvents() > 0,
+    "and the engine's own stat-drop message was queued through changeStage")
+end
+
+-- Gated on real damage: a move that merely connected for 0 (a Substitute
+-- soak reads through here on Gen 1 too, opts.damage 0) drops nothing.
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local user = gen2Mon("RAYQUAZA", { { id = "DRAGONASCENT" } })
+  local foe = gen2Mon("CHARIZARD", {})
+  local battle = setmetatable({
+    data = GEN2_DATA, player = user, enemy = foe,
+    stages = { player = RealBattle.newStages(), enemy = RealBattle.newStages() },
+    events = {},
+  }, { __index = RealBattle })
+  DragonAscent.onDamageDealt({ battle = battle, user = user, target = foe,
+                               moveId = "DRAGONASCENT", damage = 0 })
+  T.eq(battle.stages.player.defense, 0, "no damage, no drop")
+end
+
+-- Gated on the target surviving, the identical rule Gen 1's own
+-- EffectRegistry.lua applies to every "secondary" effect.
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local user = gen2Mon("RAYQUAZA", { { id = "DRAGONASCENT" } })
+  local foe = gen2Mon("CHARIZARD", {})
+  foe.hp = 0
+  local battle = setmetatable({
+    data = GEN2_DATA, player = user, enemy = foe,
+    stages = { player = RealBattle.newStages(), enemy = RealBattle.newStages() },
+    events = {},
+  }, { __index = RealBattle })
+  DragonAscent.onDamageDealt({ battle = battle, user = user, target = foe,
+                               moveId = "DRAGONASCENT", damage = 90 })
+  T.eq(battle.stages.player.defense, 0,
+    "a Dragon Ascent that faints its target drops nothing, matching Gen 1")
+end
+
+-- A move that is not Dragon Ascent, and a build with the module unbound
+-- (Gen 1, or a load where M.bind was never called), touch nothing.
+do
+  local RealBattle = require("src.battle.gen2.Battle")
+  local user = gen2Mon("RAYQUAZA", { { id = "DRAGONASCENT" } })
+  local foe = gen2Mon("CHARIZARD", {})
+  local battle = setmetatable({
+    data = GEN2_DATA, player = user, enemy = foe,
+    stages = { player = RealBattle.newStages(), enemy = RealBattle.newStages() },
+    events = {},
+  }, { __index = RealBattle })
+  DragonAscent.onDamageDealt({ battle = battle, user = user, target = foe,
+                               moveId = "EXTREMESPEED", damage = 90 })
+  T.eq(battle.stages.player.defense, 0, "a different move drops nothing")
+
+  DragonAscent.bind({ gen2 = false })
+  DragonAscent.onDamageDealt({ battle = battle, user = user, target = foe,
+                               moveId = "DRAGONASCENT", damage = 90 })
+  T.eq(battle.stages.player.defense, 0,
+    "unbound from Gen 2, onDamageDealt does nothing -- Gen 1's own effect "
+      .. "record already does this job through EffectRegistry")
+  DragonAscent.bind({ gen2 = true })
+end
+
 T.finish("battle_forms_dragonascent")

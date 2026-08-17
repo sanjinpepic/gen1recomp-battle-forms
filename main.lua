@@ -1104,6 +1104,14 @@ return function(mod)
   mod.events:on("battle.damage_dealt", function(ev)
     diag.reached("battle.damage_dealt", ev)
     run("conditional.onDamageDealt", function() conditional.onDamageDealt(ev) end)
+    -- Dragon Ascent's own post-hit stat drop, Gen 2's route to it: Gold
+    -- dispatches a registered move_effects record's `run` before the
+    -- accuracy roll and returns, so the effect registered above cannot land
+    -- here the way it does through Gen 1's EffectRegistry -- see
+    -- src/dragonascent.lua's own M.onDamageDealt header for the full
+    -- reasoning. No-ops outright on Gen 1, where the effect record already
+    -- does this job.
+    run("dragonascent.onDamageDealt", function() dragonascent.onDamageDealt(ev) end)
   end)
   mod.events:on("battle.turn_ended", function(ev)
     diag.reached("battle.turn_ended", ev)

@@ -33,13 +33,13 @@
 -- from here, needs no option at all.
 local M = {}
 
--- deps.gen2 is the one thing M.install below reads -- which FIELD its
--- learnset patch has to land in.  Every other function in this file is
--- generation-agnostic (M.knows, M.crystalSet, M.formFor, M.effectRecord all
--- read a mon, a registry or a Gen 1 ctx table, never a battle).  Optional,
--- like every deps table in this mod's own convention: a build that never
--- calls M.bind (the unit suite covering the effect record and the roster/
--- species patches) gets exactly the Gen 1 behaviour this file always had.
+-- deps.gen2 is the one thing M.effectRecord's own `run` and M.onDamageDealt
+-- below both read; every other function in this file is generation-agnostic
+-- (M.knows, M.crystalSet, M.formFor, M.install all read a mon or a registry,
+-- never a battle). Optional, like every deps table in this mod's own
+-- convention: a build that never calls M.bind (the unit suite covering the
+-- effect record and the roster/species patches, none of which are Gen 2
+-- questions) gets exactly the Gen 1 behaviour this file always had.
 local deps = nil
 function M.bind(modules) deps = modules end
 
@@ -152,10 +152,28 @@ end
 -- `ctx.changeStage`'s `fromEnemy` is false on both calls: this is the user
 -- lowering its own stats, not an opponent's move reaching through Mist or a
 -- substitute, and `fromEnemy` is what gates those.
+-- Gold's own move_effects dispatch (game/src/battle/gen2/Battle.lua:
+-- 1561-1566) reads this SAME shared registry -- "Same registry NAME Gen 1
+-- fills from", that file's own comment at :2702 -- but calls `run` UNCON-
+-- DITIONALLY and BEFORE the accuracy roll, handing it positional battle-
+-- engine arguments (self, attacker, defender, def, moveId, sureHit) rather
+-- than the Gen 1 ctx table this function is built for. Left unguarded, that
+-- would fire Dragon Ascent's stat drop on a miss as readily as a hit, and
+-- would do it by reading `ctx.user`/`ctx.changeStage` off a Battle instance
+-- that has neither field under those names -- `ctx.user` answers nil and
+-- the resulting `nil.changeStage` call errors outright, not merely
+-- misbehaves. Registering nothing at all was considered and rejected: Gen 1
+-- still needs this exact record on the shared registry, and M.install's own
+-- header already refuses to let one refusal cascade into a second, unrelated
+-- one. So this stays registered for Gen 1 and simply does nothing when
+-- Gold's own dispatch reaches it -- M.onDamageDealt below is the real Gen 2
+-- mechanism, reached through battle.damage_dealt rather than through this
+-- registry at all.
 function M.effectRecord()
   return {
     kind = "secondary",
     run = function(ctx)
+      if deps and deps.gen2 then return {} end
       local msgs = {}
       for _, line in ipairs(ctx.changeStage(ctx.user, "defense", -1, false)) do
         msgs[#msgs + 1] = line
@@ -166,6 +184,46 @@ function M.effectRecord()
       return msgs
     end,
   }
+end
+
+-- Gold's real route to the same effect: battle.damage_dealt, the identical
+-- seam src/zmoves.lua's own Z-status bonus already applies through (that
+-- module's own header) because it fires once a hit has ACTUALLY landed,
+-- after Gold's own move resolution has finished -- the only seam left that
+-- can tell "the move connected" from "the move was merely selected" once
+-- M.effectRecord's own `run` has refused to answer that question early.
+--
+-- Gated on the target surviving and on real damage having been dealt, the
+-- identical two-part gate Gen 1's own EffectRegistry.lua applies to every
+-- kind == "secondary" effect (:319-320, `target.mon.hp > 0 and totalDealt >
+-- 0`) including this exact one -- so a Dragon Ascent that faints its target
+-- drops nothing here either, matching what this mod already does on Gen 1
+-- rather than inventing a more generous rule for the other game.
+--
+-- Reached by move id alone, the same as the Gen 1 effect record above: the
+-- stat drop is a property of the MOVE, not of Rayquaza specifically, so
+-- anything that ever uses Dragon Ascent (Transform, Sketch, a future move
+-- pack) drops its own Defense and Special Defense too, on both games alike.
+--
+-- `battle:changeStage(mon, stat, stages)` is Gold's own instance method
+-- (game/src/battle/gen2/Battle.lua:1299) -- the same primitive
+-- src/zmoves.lua's own applyStatusBonus already calls for the identical
+-- reason: it applies the change, clamps it at the cart's own ceiling and
+-- emits the cart's own "X's STAT fell!" message all by itself, with no free
+-- function to require the way Gen 1's src.battle.MoveEffects is.
+function M.onDamageDealt(ev)
+  if not (deps and deps.gen2) then return end
+  local moveId = ev and (ev.moveId or (ev.move and ev.move.id))
+  if moveId ~= M.MOVE then return end
+  local battle, user, target = ev.battle, ev.user, ev.target
+  if type(battle) ~= "table" or type(battle.changeStage) ~= "function" then
+    return
+  end
+  if type(user) ~= "table" then return end
+  if not (type(ev.damage) == "number" and ev.damage > 0) then return end
+  if type(target) == "table" and (target.hp or 0) <= 0 then return end
+  battle:changeStage(user, "defense", -1)
+  battle:changeStage(user, "specialDefense", -1)
 end
 
 -- Registers the effect unconditionally, the way every other effect record in
