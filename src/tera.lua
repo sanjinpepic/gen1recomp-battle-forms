@@ -139,6 +139,12 @@ end
 -- not the TERA BLAST slot, the chosen type has no variant in this catalog,
 -- or the catalog was never built at all (a build with no Tera Blast rows
 -- bound, which src/tera.lua's own unit suite exercises on purpose).
+-- deps.gen2 branches the PP-correction shape the identical way every other
+-- substitution catalog in this mod does: Gold's FIGHT menu draws
+-- move.pp/move.maxPp straight off the slot with no PP-Up arithmetic, so
+-- src/gen2substitute.lua needs the base move's own real maximum as an
+-- absolute number, not a correction meant for a second table Gen 2 never
+-- creates.
 function M.fieldsFor(catalog, data, slot, typeId)
   if not catalog or not typeId then return nil end
   if type(slot) ~= "table" or slot.id ~= M.BASE_MOVE then return nil end
@@ -146,6 +152,10 @@ function M.fieldsFor(catalog, data, slot, typeId)
   if not id then return nil end
 
   local def = data and data.moves and data.moves[M.BASE_MOVE]
+  if deps and deps.gen2 then
+    return { id = id, maxPp = (def and tonumber(def.pp)) or M.RECORD_PP }
+  end
+
   local ppUps = deps and deps.substitute and def
     and deps.substitute.menuPPUps(M.RECORD_PP, def.pp, slot.ppUps) or nil
   return { id = id, ppUps = ppUps }
@@ -176,9 +186,13 @@ end
 -- because unlike a Z-Move's substitution -- which ends on switching out --
 -- this one has to be rebuilt on every switch-IN too, from handlers that only
 -- ever receive `state`.
+-- deps.gen2 picks src/gen2substitute.lua over src/substitute.lua for the
+-- identical reason every other Gen 2 branch in this mod does: Gold has no
+-- `curMoves` array to swap, only the mon's own `moves`, mutated in place.
 function M.new()
+  local sub = deps and (deps.gen2 and deps.gen2substitute or deps.substitute)
   return { mon = nil, type = nil, was = nil, warned = false, catalog = nil,
-           moves = deps and deps.substitute and deps.substitute.new() or nil }
+           moves = sub and sub.new() or nil }
 end
 
 local function clear(state)
@@ -188,7 +202,8 @@ local function clear(state)
   -- battler-specific teardown paths below: a battle starting mid-Tera (an
   -- adopted battle, or a state left standing by a crash) must not carry a
   -- stale substitution into whatever battler turns up first.
-  if deps and deps.substitute then deps.substitute.restore(state.moves) end
+  local sub = deps and (deps.gen2 and deps.gen2substitute or deps.substitute)
+  if sub then sub.restore(state.moves) end
 end
 
 -- Every type id the RUNNING game can resolve, which is not a fixed list.  The
@@ -279,21 +294,26 @@ function M.entry(state, catalog)
     -- Terastallizing needs no Tera Blast in the moveset at all, so a mon that
     -- does not know it simply arms with nothing to substitute, exactly as it
     -- would if this whole catalog did not exist.
-    -- TERA BLAST substitution is Gen 1 only. Gen 2 has no curMoves array to
-    -- swap the way src/substitute.lua does -- a mon's moves live directly on
-    -- the object the save writes there (0.42.0's own finding on Dynamax/
-    -- Z-Moves, and the identical reason Tera Blast substitution is out of
-    -- scope for this pass rather than reopened). Arming still has to
-    -- succeed -- the cell must still work on Gold -- it just substitutes
-    -- nothing: a Gold Pokemon that knows TERA BLAST keeps it as a plain
-    -- Normal-type attack even after terastallizing.
+    -- TERA BLAST substitution reached Gold once src/gen2substitute.lua was
+    -- proven under three real consumers (Max Moves, the type Z-Moves, the
+    -- species Z-Moves) -- the "Gen 1 only" refusal that used to stand here
+    -- was written before any of that existed and is closed now rather than
+    -- inherited. deps.gen2 picks src/gen2substitute.lua and its own target
+    -- (the mon itself, already what `battle.player` IS on Gen 2), the
+    -- identical branch src/dynamax.lua's and src/zmoves.lua's own `arm`
+    -- already make. Arming still succeeds either way -- Terastallizing
+    -- needs no Tera Blast in the moveset at all -- but on Gold that success
+    -- now carries a real substitution when the mon knows the move, not a
+    -- silent no-op.
     arm = function(battle)
-      if deps.gen2 then return true end
+      local sub = deps.gen2 and deps.gen2substitute or deps.substitute
       local battler = battle and battle.player
-      if not deps.substitute or not battler or not state.catalog then return true end
+      local mon = deps.battlerof.mon(battler)
+      if not sub or not battler or not state.catalog then return true end
       local id = M.chosenType(battle)
       if id then
-        deps.substitute.apply(state.moves, battler, M.picker(state.catalog, battle.data, id))
+        local target = deps.gen2 and mon or battler
+        sub.apply(state.moves, target, M.picker(state.catalog, battle.data, id))
       end
       return true
     end,
@@ -301,9 +321,10 @@ function M.entry(state, catalog)
     -- The other half of that pair, required by src/transforms.lua's own
     -- registration guard the moment `arm` exists.  Undoes whatever the arm
     -- above did, or nothing at all if the mon never carried TERA BLAST --
-    -- src/substitute.lua's restore() is safe to call blind either way.
+    -- restore() is safe to call blind either way, on either primitive.
     disarm = function()
-      if deps.substitute then deps.substitute.restore(state.moves) end
+      local sub = deps.gen2 and deps.gen2substitute or deps.substitute
+      if sub then sub.restore(state.moves) end
     end,
 
     -- Gen 2 has no battler to hold a curTypes copy on -- mon.formTypes is
@@ -371,6 +392,20 @@ function M.onBattlerSwitched(state, ev)
   if deps.gen2 then
     state.was = mon.formTypes
     mon.formTypes = { state.type }
+    -- TERA BLAST's own substitution needs no rebuild the way Gen 1's does --
+    -- mon.moves is the one true array on Gen 2 and a switch never touches it,
+    -- so whatever src/gen2substitute.lua wrote at arm time is still standing
+    -- on the mon that just came back. Reapplied anyway, restore-then-apply,
+    -- for the identical defensive reason mon.formTypes just was above: no
+    -- sibling module writes to mon.moves on a switch-in today, but nothing
+    -- here should have to assume that stays true forever, and restore() is
+    -- safe to call blind on a substitution that never lapsed.
+    if deps.gen2substitute and state.catalog then
+      deps.gen2substitute.restore(state.moves)
+      local battle = ev and ev.battle
+      deps.gen2substitute.apply(state.moves, mon,
+        M.picker(state.catalog, battle and battle.data, state.type))
+    end
     return
   end
 

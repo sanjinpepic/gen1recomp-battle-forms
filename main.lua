@@ -638,16 +638,17 @@ return function(mod)
   -- captured here would only take effect on the next boot.
   -- gen2 changes what the type override writes (mon.formTypes directly,
   -- the field src/gen2forms.lua's speciesDef wrap reads -- Gold's engine
-  -- object has no battler.curTypes to assign) and drops the TERA BLAST
-  -- substitution entirely: Gen 2 has no curMoves array to swap the way
-  -- src/substitute.lua does, the identical reason Dynamax's Max Moves and
-  -- Z-Moves stay Red/Blue/Yellow only.  A Terastallization on Gold changes
-  -- type and nothing else -- a Pokemon that already knows TERA BLAST keeps
-  -- it as a plain Normal-type attack even after terastallizing.
+  -- object has no battler.curTypes to assign) and, as of this version, picks
+  -- src/gen2substitute.lua for TERA BLAST's own substitution -- the same
+  -- primitive Dynamax's Max Moves and both Z-Move catalogs already prove
+  -- under Gold, closing the refusal src/tera.lua's own `arm` used to carry
+  -- in plain text.  A Terastallization on Gold now changes type AND, where
+  -- the mon knows TERA BLAST, the move itself, exactly as on Gen 1.
   local tera = m["src/tera.lua"]
   tera.bind({ keyitems = keyitems, announce = announce, log = mod.log,
               substitute = m["src/substitute.lua"], anim = anim,
               battlerof = battlerof, gen2 = gen2,
+              gen2substitute = m["src/gen2substitute.lua"],
               chosen = function() return mod.options:get("tera_type") end })
   -- TERA BLAST's own roster: one record per type the running game's chart
   -- can resolve, registered unconditionally like the Max Moves and the
