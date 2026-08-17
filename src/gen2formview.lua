@@ -150,6 +150,12 @@ local PIC_BOX = 7 * 8
 local PIC_ORIGIN_X, PIC_ORIGIN_Y = 0, 0
 
 local GbcPalette, Palettes = nil, nil
+-- PartyMenu's own image loader: unlike SummaryMenu (self:picImage, wrapping
+-- self.picCache), PartyMenu loads icon images through this module directly
+-- (src/ui/gen2/PartyMenu.lua:544, :578) with no instance-level cache method
+-- of its own for M.drawIcon to reuse -- resolved lazily at install time the
+-- same courtesy way Chrome/GbcPalette/Palettes are.
+local Assets = nil
 
 -- src.pokemon.Sprites is the ENGINE'S own module, not a handle onto another
 -- mod -- unlike National Dex's own reach for universal_sprites (a plain
@@ -205,18 +211,28 @@ end
 -- 5x5/6x6/7x7 tile size, but a sprite set's art arrives at whatever size the
 -- dump ships and centring is the honest fit for art whose framing this
 -- module does not control.
-local function drawFormArt(self, mon, image, trueColor)
+--
+-- Parameterized by origin/box rather than hard-coded to the SUMMARY picture's
+-- own 56x56: M.drawIcon below reuses this exact routine to fit the same kind
+-- of art (a form record's own full-size spriteFront, or whatever the
+-- pokemon.sprite hook answers) into PartyMenu's much smaller 16x16 slot.
+-- Fitting DOWN into a small box is the same scale-to-min-ratio math as
+-- fitting into a large one; nothing about the routine assumes which
+-- direction it is scaling.
+local function drawFormArt(self, mon, image, trueColor, originX, originY, box)
+  originX, originY, box = originX or PIC_ORIGIN_X, originY or PIC_ORIGIN_Y,
+    box or PIC_BOX
   local G = love.graphics
   local colors = self.palettes and mon.species
     and Palettes.monColors(self.palettes, mon.species, mon.shiny) or nil
   local blank = colors and GbcPalette.color(colors, 1) or { 255, 255, 255 }
   G.setColor(blank[1] / 255, blank[2] / 255, blank[3] / 255, 1)
-  G.rectangle("fill", PIC_ORIGIN_X, PIC_ORIGIN_Y, PIC_BOX, PIC_BOX)
+  G.rectangle("fill", originX, originY, box, box)
 
   local w, h = image:getWidth(), image:getHeight()
-  local scale = math.min(PIC_BOX / w, PIC_BOX / h, 1)
-  local x = PIC_ORIGIN_X + math.floor((PIC_BOX - w * scale) / 2)
-  local y = PIC_ORIGIN_Y + math.floor((PIC_BOX - h * scale) / 2)
+  local scale = math.min(box / w, box / h, 1)
+  local x = originX + math.floor((box - w * scale) / 2)
+  local y = originY + math.floor((box - h * scale) / 2)
   G.setColor(1, 1, 1, 1)
   local function body() G.draw(image, x, y, 0, scale, scale) end
   if trueColor or not (colors and GbcPalette.available()) then
@@ -361,6 +377,146 @@ function M.drawSummary(self)
   end
 end
 
+-- ---- the PARTY MENU list icon ----------------------------------------------
+--
+-- PartyMenu:iconFor(mon) (src/ui/gen2/PartyMenu.lua:534-551) reads a
+-- species-keyed ICON_ sheet name off self.icons.species -- never mon.form --
+-- so a formed Pokemon's row icon is whatever its BASE species always drew,
+-- the identical species-keyed gap the SUMMARY picture had before 0.44.0.
+-- iconFor DOES call a hook on the way (pokemon.icon, through
+-- src.pokemon.Sprites.iconPath) and that hook is handed the mon -- so its
+-- .form rides along -- but the hook exists for a mod supplying a WHOLE
+-- REPLACEMENT 16x32 two-frame sheet per icon id, and no mod ships one keyed
+-- per FORM: universal_sprites refuses Gen 2 icons outright (its own icons
+-- registry wants a sheet NAME, not an image -- see that mod's own notes on
+-- this exact gap). So this reads the identical fallback M.drawPic already
+-- established for the picture: the form record's own spriteFront, the same
+-- art the SUMMARY and battle screens already draw for it, fitted down into
+-- the icon's 16x16 slot with the same drawFormArt this module already uses
+-- to fit the same kind of art UP into the SUMMARY picture's 56x56 one.
+--
+-- Runs INSTEAD of vanilla drawIcon, for the reason M.drawPic runs instead of
+-- picFor's caller: a still image has no two-frame walk cycle to alternate
+-- and no cursor-slide bob of its own to draw underneath and then correct.
+-- The held-item marker is the one piece of vanilla's own drawIcon this still
+-- reproduces -- a Rotom or a Giratina wearing a persistent form is, by
+-- construction, ALSO holding the item that grants it, so losing the marker
+-- on exactly the mon this overlay draws would be a regression this module
+-- introduced, not one it fixed.  Cached per instance and keyed by form id
+-- rather than species, the same discipline M.drawPic's own cache keeps and
+-- for the identical reason: two Rotom forms (or a Rotom and a fused
+-- Necrozma sharing a base species some day) must never collide on one
+-- cached image.
+local ICON_BOX = 16
+
+function M.drawIcon(self, mon, px, py, resolveModule)
+  if not mon then return false end
+  local data = self.game and self.game.data
+  local formId, formDef = formRecordFor(data, mon)
+  if not formId then return false end
+
+  local cache = self._battleFormsIconCache
+  if not cache then cache = {} self._battleFormsIconCache = cache end
+  local key = formId .. (mon.shiny and "\1shiny" or "")
+  local art = cache[key]
+  if art == nil then
+    art = false
+    local path, trueColor = neighbourPath(resolveModule, data, mon, formDef.form)
+    if not path and type(formDef.spriteFront) == "string" and formDef.spriteFront ~= "" then
+      path = formDef.spriteFront
+      trueColor = nil -- the record's own path: shaded the same way GbcPalette shades everything else here
+    end
+    if path and Assets then
+      local okImage, image = pcall(Assets.image, path)
+      if okImage and image then art = { image = image, trueColor = trueColor } end
+    end
+    cache[key] = art
+  end
+  if not art then return false end
+
+  drawFormArt(self, mon, art.image, art.trueColor, px, py, ICON_BOX)
+
+  -- The held-item marker, reproduced from PartyMenu:drawIcon's own bottom-
+  -- left overlay (src/ui/gen2/PartyMenu.lua:602-644): `self.heldMarkerRow`
+  -- resolves through the instance's own metatable to the class's static
+  -- function exactly as `self:heldMarkerImage()` already does two lines
+  -- below it in that file, so this needs no reference to the PartyMenu
+  -- class table itself.
+  local markerRow = self.heldMarkerRow and self.heldMarkerRow(mon) or nil
+  local marker = markerRow and self:heldMarkerImage() or nil
+  if marker then
+    local G = love.graphics
+    local mw, mh = marker:getDimensions()
+    local held = G.newQuad(0, markerRow * 8, 8, 8, mw, mh)
+    local pals = self.palettes and self.palettes.partyMenu
+    local colors = pals and pals[1] or nil
+    local function paintMarker()
+      G.setColor(1, 1, 1, 1)
+      G.draw(marker, held, px, py + 8)
+    end
+    if colors and GbcPalette and GbcPalette.available() then
+      GbcPalette.with(colors, paintMarker)
+    else
+      paintMarker()
+    end
+    G.setColor(1, 1, 1, 1)
+  end
+  return true
+end
+
+-- Its own require and its own guards, independent of the SUMMARY screen's:
+-- PartyMenu is a different class, so a change to one must not silently take
+-- the other down with it.  Called from M.install itself rather than exposed
+-- as a second public entry point, because the two screens' fixes are one
+-- feature (a formed Pokemon's own picture, wherever this generation draws
+-- one) even though they patch two unrelated classes.
+local function installPartyIcon(mod, resolveModule)
+  local okParty, PartyMenu = pcall(require, "src.ui.gen2.PartyMenu")
+  if not okParty or type(PartyMenu) ~= "table" then
+    record("gen2formview: require(src.ui.gen2.PartyMenu) failed (%s)",
+      tostring(PartyMenu))
+    if mod.log then
+      mod.log:error("battle_forms: src.ui.gen2.PartyMenu is unavailable -- "
+        .. "a Gen 2 formed Pokemon's picture will not show in the party list")
+    end
+    return false
+  end
+  if PartyMenu._battleFormsGen2FormViewIcon then
+    record("gen2formview: PartyMenu was already patched -- this load "
+      .. "wrapped nothing and the wrapper in place belongs to an earlier load")
+    return true
+  end
+  local okAssets, AssetsMod = pcall(require, "src.render.Assets")
+  Assets = okAssets and AssetsMod or nil
+
+  if type(PartyMenu.drawIcon) ~= "function" or not GbcPalette or not Palettes
+      or not Assets then
+    record("gen2formview: install: PartyMenu.drawIcon %s, GbcPalette %s, "
+      .. "Palettes %s, Assets %s -- the party list icon fix is disabled",
+      type(PartyMenu.drawIcon), tostring(GbcPalette ~= nil),
+      tostring(Palettes ~= nil), tostring(Assets ~= nil))
+    if mod.log then
+      mod.log:error("battle_forms: the party list icon could not be patched "
+        .. "(a required class has changed shape) -- a Gen 2 formed "
+        .. "Pokemon's list icon will still show its base species")
+    end
+    return false
+  end
+
+  local vanillaDrawIcon = PartyMenu.drawIcon
+  PartyMenu._battleFormsGen2FormViewIcon = true
+  PartyMenu.drawIcon = function(self, mon, px, py)
+    local ok, drew = pcall(M.drawIcon, self, mon, px, py, resolveModule)
+    if ok and drew then return end
+    if not ok then
+      record("gen2formview: PartyMenu.drawIcon overlay failed (%s)", tostring(drew))
+    end
+    return vanillaDrawIcon(self, mon, px, py)
+  end
+  record("gen2formview: install: wrapped PartyMenu.drawIcon")
+  return true
+end
+
 -- pcall the requires, refuse when a shape is not the one expected, guard
 -- against a second install patching an already-patched class -- the same
 -- discipline src/formview.lua and src/gen2forms.lua both keep. A guard that
@@ -391,12 +547,29 @@ function M.install(mod)
     end
     return false
   end
-  if SummaryMenu._battleFormsGen2FormView then
+  -- Already patched: the STATS/TYPES and picture wraps below are skipped
+  -- (SummaryMenu's own idempotency), but PartyMenu below is a DIFFERENT
+  -- class this load has not necessarily reached yet -- an early return here
+  -- used to skip installPartyIcon on every call after the first, which is
+  -- exactly the bug a second M.install (adopt.lua's own re-install path, or
+  -- simply two mods sharing this module) would have hit silently.
+  -- resolveModule is shared by SummaryMenu's own picture wrap below and by
+  -- installPartyIcon at the end -- created once, unconditionally, so an
+  -- already-patched SummaryMenu (which skips everything else in this
+  -- function) still hands PartyMenu a working one.
+  local resolveModule = spriteModule()
+
+  -- Already patched: the STATS/TYPES and picture wraps below are skipped
+  -- (SummaryMenu's own idempotency), but PartyMenu below is a DIFFERENT
+  -- class this load has not necessarily reached yet -- an early return here
+  -- used to skip installPartyIcon on every call after the first, which is
+  -- exactly the bug a second M.install (two mods sharing this exact module
+  -- version, or a re-install after adoption) would have hit silently.
+  local alreadyPatched = SummaryMenu._battleFormsGen2FormView == true
+  if alreadyPatched then
     record("gen2formview: SummaryMenu was already patched -- this load "
       .. "wrapped nothing and the wrapper in place belongs to an earlier load")
-    return true
-  end
-  if type(SummaryMenu.drawPanel) ~= "function" then
+  elseif type(SummaryMenu.drawPanel) ~= "function" then
     record("gen2formview: SummaryMenu.drawPanel is not a function -- the "
       .. "SUMMARY screen overlay is disabled")
     if mod.log then
@@ -405,61 +578,68 @@ function M.install(mod)
         .. "not show on the SUMMARY screen")
     end
     return false
-  end
+  else
+    local okChrome, ChromeMod = pcall(require, "src.ui.gen2.Chrome")
+    Chrome = okChrome and ChromeMod or nil
+    record("gen2formview: install: Chrome %s", okChrome and "resolved"
+      or ("unavailable (" .. tostring(ChromeMod) .. ")"))
 
-  local okChrome, ChromeMod = pcall(require, "src.ui.gen2.Chrome")
-  Chrome = okChrome and ChromeMod or nil
-  record("gen2formview: install: Chrome %s", okChrome and "resolved"
-    or ("unavailable (" .. tostring(ChromeMod) .. ")"))
+    BluePage = SummaryMenu.BLUE_PAGE or BluePage
+    GreenPage = SummaryMenu.GREEN_PAGE or GreenPage
+    TypeNames = SummaryMenu.TYPE_NAMES or {}
 
-  BluePage = SummaryMenu.BLUE_PAGE or BluePage
-  GreenPage = SummaryMenu.GREEN_PAGE or GreenPage
-  TypeNames = SummaryMenu.TYPE_NAMES or {}
+    local vanillaDraw = SummaryMenu.drawPanel
+    SummaryMenu._battleFormsGen2FormView = true
+    SummaryMenu.drawPanel = function(self)
+      vanillaDraw(self)
+      local ok, err = pcall(M.drawSummary, self)
+      if not ok then
+        record("gen2formview: SummaryMenu.drawPanel overlay failed (%s)", tostring(err))
+      end
+    end
+    record("gen2formview: install: wrapped SummaryMenu.drawPanel")
 
-  local vanillaDraw = SummaryMenu.drawPanel
-  SummaryMenu._battleFormsGen2FormView = true
-  SummaryMenu.drawPanel = function(self)
-    vanillaDraw(self)
-    local ok, err = pcall(M.drawSummary, self)
-    if not ok then
-      record("gen2formview: SummaryMenu.drawPanel overlay failed (%s)", tostring(err))
+    -- The picture (and, below, the party list icon): a courtesy on top of a
+    -- courtesy.  GbcPalette/Palettes are needed only to shade the record
+    -- fallback and to bypass shading for true-colour art -- draw-only
+    -- dependencies in exactly the sense src/formview.lua's own header uses
+    -- that word for Font, so their absence disables the picture and icon
+    -- fixes alone rather than this module's whole install.
+    local okGbc, GbcPaletteMod = pcall(require, "src.render.GbcPalette")
+    local okPalettes, PalettesMod = pcall(require, "src.world.gen2.Palettes")
+    GbcPalette = okGbc and GbcPaletteMod or nil
+    Palettes = okPalettes and PalettesMod or nil
+
+    if type(SummaryMenu.drawPic) ~= "function" or not GbcPalette or not Palettes then
+      record("gen2formview: install: SummaryMenu.drawPic %s, GbcPalette %s, "
+        .. "Palettes %s -- the picture fix is disabled, types and stats are not",
+        type(SummaryMenu.drawPic), tostring(GbcPalette ~= nil), tostring(Palettes ~= nil))
+      if mod.log then
+        mod.log:error("battle_forms: the SUMMARY screen's picture could not be "
+          .. "patched (a required class has changed shape) -- a Gen 2 formed "
+          .. "Pokemon's picture will still show its base species")
+      end
+    else
+      local vanillaDrawPic = SummaryMenu.drawPic
+      SummaryMenu._battleFormsGen2FormViewPic = true
+      SummaryMenu.drawPic = function(self)
+        local ok, drew = pcall(M.drawPic, self, resolveModule)
+        if ok and drew then return end
+        if not ok then
+          record("gen2formview: SummaryMenu.drawPic overlay failed (%s)", tostring(drew))
+        end
+        return vanillaDrawPic(self)
+      end
+      record("gen2formview: install: wrapped SummaryMenu.drawPic")
     end
   end
-  record("gen2formview: install: wrapped SummaryMenu.drawPanel")
 
-  -- The picture: a courtesy on top of a courtesy.  GbcPalette/Palettes are
-  -- needed only to shade the record fallback and to bypass shading for
-  -- true-colour art -- draw-only dependencies in exactly the sense
-  -- src/formview.lua's own header uses that word for Font, so their absence
-  -- disables the picture fix alone rather than this module's whole install.
-  local okGbc, GbcPaletteMod = pcall(require, "src.render.GbcPalette")
-  local okPalettes, PalettesMod = pcall(require, "src.world.gen2.Palettes")
-  GbcPalette = okGbc and GbcPaletteMod or nil
-  Palettes = okPalettes and PalettesMod or nil
-  if type(SummaryMenu.drawPic) ~= "function" or not GbcPalette or not Palettes then
-    record("gen2formview: install: SummaryMenu.drawPic %s, GbcPalette %s, "
-      .. "Palettes %s -- the picture fix is disabled, types and stats are not",
-      type(SummaryMenu.drawPic), tostring(GbcPalette ~= nil), tostring(Palettes ~= nil))
-    if mod.log then
-      mod.log:error("battle_forms: the SUMMARY screen's picture could not be "
-        .. "patched (a required class has changed shape) -- a Gen 2 formed "
-        .. "Pokemon's picture will still show its base species")
-    end
-    return true
-  end
+  -- The party list icon: a separate class (src/ui/gen2/PartyMenu.lua), so
+  -- its own require and its own guards -- a SUMMARY screen that failed above
+  -- must not also silently take the party list icon down with it, and vice
+  -- versa; see M.drawIcon's own header for what this reads and why.
+  installPartyIcon(mod, resolveModule)
 
-  local resolveModule = spriteModule()
-  local vanillaDrawPic = SummaryMenu.drawPic
-  SummaryMenu._battleFormsGen2FormViewPic = true
-  SummaryMenu.drawPic = function(self)
-    local ok, drew = pcall(M.drawPic, self, resolveModule)
-    if ok and drew then return end
-    if not ok then
-      record("gen2formview: SummaryMenu.drawPic overlay failed (%s)", tostring(drew))
-    end
-    return vanillaDrawPic(self)
-  end
-  record("gen2formview: install: wrapped SummaryMenu.drawPic")
   return true
 end
 

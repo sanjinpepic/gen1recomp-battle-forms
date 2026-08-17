@@ -104,7 +104,7 @@ return function(mod)
                   "src/dynamax.lua",
                   "src/substitute.lua", "src/maxmoves.lua", "src/gmaxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
-                  "src/resolve.lua",
+                  "src/resolve.lua", "src/deferred.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
                   "src/ultraburst.lua",
                   "src/conditional.lua", "src/diag.lua",
@@ -662,6 +662,13 @@ return function(mod)
   -- deleted, this mod's OWN leftover markers (a benched mega, primal
   -- reversion, a condition-driven form, a Gigantamax) would have stopped
   -- clearing at all, since ownsForm would recognise nothing without them.
+  -- deferred is Gen 2 only in effect (src/deferred.lua's own header), but
+  -- installed unconditionally: core.update fires the same on both games, and
+  -- a queue that never receives a schedule call costs one no-op check on
+  -- Gen 1's own per-frame tick.
+  local deferred = m["src/deferred.lua"]
+  deferred.install(mod)
+
   local resolve = m["src/resolve.lua"]
   resolve.bind({ registry = registry, forms = m["src/forms.lua"],
                  eligibility = eligibility, megas = megas, log = mod.log,
@@ -670,7 +677,8 @@ return function(mod)
                  battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms,
                  primals = primals, conditionalRows = m["data/conditional.lua"],
                  persistentRows = persistentRows, fusionRows = fusionRows,
-                 ultraRows = ultraRows, gigantamaxRows = m["data/gigantamax.lua"] })
+                 ultraRows = ultraRows, gigantamaxRows = m["data/gigantamax.lua"],
+                 deferred = deferred })
 
   -- Primal reversion is wired beside the mega path, never into it: it is
   -- handed the forms primitive and its own pairing table and nothing else,

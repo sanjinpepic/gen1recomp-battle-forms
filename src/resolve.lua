@@ -257,6 +257,21 @@ end
 -- between -- so `battle.game and battle.game.save` was always nil there and
 -- this sweep silently walked zero mons on every Gen 2 battle before this
 -- pass, for every mechanic that relies on it (mega evolution included).
+--
+-- Gen 2 alone defers each settle through src/deferred.lua rather than
+-- running it here and now.  battle.ended reaches this handler from inside
+-- Battle:resolveFaints, synchronously, before the caller has even taken this
+-- turn's queued display events off the battle -- so a Pokemon that just
+-- delivered the killing blow while wearing a form would revert to its base
+-- picture and stats before the hit that killed the target has animated at
+-- all.  See src/deferred.lua's own header for why a hold is the fix and not
+-- a different event: nothing later than battle.ended ever fires for a Gen 2
+-- battle to wait for instead.  Gen 1 needs none of this -- BattleState:
+-- finish only raises battle.ended once its own animation queue has already
+-- drained, so an immediate sweep there is already in sync with what the
+-- player is watching.  deps.deferred is optional, like deps.persistent and
+-- deps.log: the unit suites bind this module without one, and its absence
+-- falls back to the old immediate sweep rather than never settling at all.
 function M.onBattleEnded(ev)
   local battle = ev and ev.battle
   if not battle then return end
@@ -267,12 +282,17 @@ function M.onBattleEnded(ev)
     local save = battle.game and battle.game.save
     party, enemyParty = save and save.party, battle.enemyParty
   end
-  for _, mon in ipairs(party or {}) do
-    settle(battle, mon)
+  local function settleAll(mons)
+    for _, mon in ipairs(mons or {}) do
+      if deps.gen2 and deps.deferred then
+        deps.deferred.schedule(function() settle(battle, mon) end)
+      else
+        settle(battle, mon)
+      end
+    end
   end
-  for _, mon in ipairs(enemyParty or {}) do
-    settle(battle, mon)
-  end
+  settleAll(party)
+  settleAll(enemyParty)
 end
 
 -- A faint reverts at once rather than waiting for the battle to end: the mon

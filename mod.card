@@ -16,6 +16,8 @@ return {
       "Ultranecrozium Z goes through that same one held-item slot, so a Necrozma holding it cannot also hold a type Z-Crystal and is never offered a Z-Move -- the crystal converts nothing on its own",
       "arming Dynamax or a Z-Move on the menu cell now changes the Pokemon's moves straight away, so the Max Move or the Z-Move can be picked on that same turn instead of the next one; confirming the same row again in the submenu, or choosing a different transformation there, puts the original moves back",
       "one transformation the player asks for per battle, across all of them: using a mega or a Dynamax now takes the menu cell away for the rest of that battle instead of leaving the other on it, which is how the mainline games have ruled the trainer's gimmick; the automatic forms are not part of it",
+      "on Gold, a form-owning Pokemon that lands the killing blow now holds its own picture and stats for a short moment after the battle decides itself, instead of reverting to base the instant it does -- long enough that the hit which won the fight finishes animating before the party settles",
+      "a Gold Pokemon's row icon in the party list now shows its persistent, fusion or condition-driven form's own picture, fitted into the icon's smaller box, the same way its party STATS screen picture already did as of 0.44.0",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",

@@ -307,6 +307,54 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- The killing-blow spoiler: Gen 2's battle.ended fires from inside
+-- Battle:resolveFaints, synchronously and before the caller has even taken
+-- this turn's queued display events off the battle -- so a Pokemon that just
+-- delivered the killing blow while wearing a form used to revert to its base
+-- picture and stats before the hit that killed the target had animated at
+-- all. With deps.deferred bound (the real mod's own wiring, main.lua's
+-- deferred.install), the sweep must not settle synchronously; it must wait
+-- for src/deferred.lua's own hold before the marker and the real stats field
+-- move. Without deps.deferred bound (every OTHER test in this file), the
+-- sweep stays exactly as it always has -- proven already, above.
+-- ---------------------------------------------------------------------
+local Deferred = dofile(MOD .. "/src/deferred.lua")
+
+do
+  Deferred.reset()
+  local registry = Transforms.new()
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                 megas = megas, battlerof = Battlerof, gen2 = true,
+                 gen2forms = Gen2Forms, deferred = Deferred })
+
+  local killer = gen2Mon()
+  Gen2Forms.becomeForm(GEN2_DATA, killer, "CHARIZARD_MEGA_X")
+  T.eq(killer.form, "MEGA_X", "precondition: wearing the form that delivered the kill")
+  local formedAttack = killer.stats.attack
+  T.check(formedAttack > GEN2_BASE_STATS.attack, "precondition: with the form's boosted stats")
+
+  Resolve.onBattleEnded({ battle = { data = GEN2_DATA,
+                                     party = { killer }, enemyParty = {} } })
+  T.eq(killer.form, "MEGA_X",
+    "the marker survives the instant the battle ends -- the sweep did not "
+      .. "settle synchronously")
+  T.eq(killer.stats.attack, formedAttack,
+    "and so does the real stats field the save writes -- nothing about the "
+      .. "kill's own animation would see the base picture partway through it")
+
+  Deferred.tick(Deferred.HOLD_SECONDS + 0.01)
+  T.eq(killer.form, nil,
+    "once the hold elapses the deferred settle runs and the marker clears")
+  T.eq(killer.stats.attack, GEN2_BASE_STATS.attack,
+    "with the real stats field reverted too, exactly as an immediate sweep "
+      .. "would have left it -- only later")
+
+  -- Rebind without deferred so every OTHER Gen 2 test in this file (before
+  -- and after this one) keeps exercising the plain, immediate sweep.
+  bindGen2Resolve()
+end
+
+-- ---------------------------------------------------------------------
 -- Cross-mod correctness: a form marker this mod never set must survive the
 -- battle-end sweep and the faint handler untouched.
 --
