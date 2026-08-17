@@ -17,7 +17,8 @@ return {
       "arming Dynamax or a Z-Move on the menu cell now changes the Pokemon's moves straight away, so the Max Move or the Z-Move can be picked on that same turn instead of the next one; confirming the same row again in the submenu, or choosing a different transformation there, puts the original moves back",
       "one transformation the player asks for per battle, across all of them: using a mega or a Dynamax now takes the menu cell away for the rest of that battle instead of leaving the other on it, which is how the mainline games have ruled the trainer's gimmick; the automatic forms are not part of it",
       "on Gold, a form-owning Pokemon that lands the killing blow now holds its own picture and stats for a short moment after the battle decides itself, instead of reverting to base the instant it does -- long enough that the hit which won the fight finishes animating before the party settles",
-      "a Gold Pokemon's row icon in the party list now shows its persistent, fusion or condition-driven form's own picture, fitted into the icon's smaller box, the same way its party STATS screen picture already did as of 0.44.0",
+      "a Gold Pokemon's row icon in the party list now shows its persistent, fusion or condition-driven form's own picture, fitted into the icon's smaller box, the same way its party STATS screen picture already did as of 0.44.0, and shaded in the same colours as every other icon in the list rather than the STATS screen's own per-species palette",
+      "a held item with no pairing for the Pokemon carrying it can no longer leave a stray, unrelated form marker standing on that Pokemon -- state a save editor can produce that the shop never lets happen -- which used to block a real mechanic (Aegislash's stance change, for one) for as long as the marker stood",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",

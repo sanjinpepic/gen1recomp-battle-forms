@@ -73,6 +73,28 @@ local function enter(battle, battler, row, source, power)
       deps.diag.conditional(source, battle, mon, row, power, "enter", false,
         "already wearing a different form")
     end
+    -- Out loud even with DEBUG TRACE off (project rule #6), unlike every
+    -- other refusal this module traces. Those are ordinary no-ops --
+    -- `leave`'s own "not currently wearing this row's form" fires on most
+    -- triggers most of the time by design. This one is not: under healthy
+    -- play, nothing but THIS row's own form is ever set on a species this
+    -- table names, so reaching here at all means either a legitimate,
+    -- rare protection (a mega'd Greninja's Battle Bond) or exactly the
+    -- shape the Aegislash/Draco Plate report turned out to be -- a form
+    -- claim belonging to a species this mon is not, left standing by
+    -- something outside this mod's own mechanics. Either way there is no
+    -- player action behind the refusal for a trace to ever surface
+    -- without tracing already switched on, which is what cost a full day
+    -- before src/resolve.lua's own M.onBattleStarted started clearing the
+    -- second case before it could ever reach here.
+    if deps.log then
+      deps.log:warn(
+        "battle_forms: %s did not enter %s -- it is already wearing a "
+          .. "different form (%s). If nothing else in this battle should "
+          .. "have put one there, the held item stamped on this Pokemon "
+          .. "may have no pairing for its species",
+        tostring(mon.species), tostring(row.form), tostring(mon.form))
+    end
     return
   end
 

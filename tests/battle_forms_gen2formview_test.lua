@@ -1050,6 +1050,63 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- The icon's own palette source: vanilla PartyMenu:drawIcon shades EVERY
+-- row icon through one shared palette regardless of species
+-- (game/src/ui/gen2/PartyMenu.lua:634-638 -- "Every party icon OAM entry
+-- is PAL_OW_RED... for the whole list, species and EGG alike"), read off
+-- self.palettes.partyMenu[1] -- the SAME source the held-item marker two
+-- tests above already reads correctly.  drawFormArt's own colour lookup
+-- used to ask src/world/gen2/Palettes.lua's monColors(mon.species)
+-- instead, the SUMMARY picture's own distinct per-mon source one screen
+-- over -- so a formed mon's list icon carried a species-specific palette
+-- nothing else in that list was shaded with, the reported "wrong colour,
+-- only for form-altered Pokemon" bug.  A fresh stub install captures
+-- distinguishable stand-ins for both palette sources so this can assert
+-- WHICH one actually reached GbcPalette.with.
+-- ---------------------------------------------------------------------
+do
+  local PARTY_COLORS = { { 10, 20, 30 }, { 40, 50, 60 }, { 70, 80, 90 }, { 100, 110, 120 } }
+  local SPECIES_COLORS = { { 200, 0, 0 }, { 0, 200, 0 }, { 0, 0, 200 }, { 1, 1, 1 } }
+  local seenColors = {}
+
+  package.loaded["src.render.GbcPalette"] = {
+    available = function() return true end,
+    color = function(colors, i) return (colors and colors[i]) or { 255, 255, 255 } end,
+    with = function(colors, body) seenColors[#seenColors + 1] = colors; body() end,
+  }
+  package.loaded["src.world.gen2.Palettes"] = {
+    monColors = function(_, species) return species and SPECIES_COLORS or nil end,
+  }
+
+  stubEngine()
+  T.eq(Gen2FormView.install(fakeMod()), true,
+    "install succeeds with the palette stubs in place")
+
+  local rotom = persistentMon("ROTOM", "WASHING_MACHINE")
+  local RealPartyMenu = require("src.ui.gen2.PartyMenu")
+  local self = setmetatable({
+    game = { data = DATA }, icons = nil, iconCache = {},
+    palettes = { partyMenu = { PARTY_COLORS } },
+  }, RealPartyMenu)
+
+  local ok, drew = pcall(Gen2FormView.drawIcon, self, rotom, 0, 0, noHook)
+  T.check(ok and drew, "the icon still draws with the palette stubs in place")
+  T.check(#seenColors > 0, "GbcPalette.with actually ran -- the shaded path was exercised")
+  for _, colors in ipairs(seenColors) do
+    T.eq(colors, PARTY_COLORS,
+      "the icon is shaded with the party list's own shared palette "
+        .. "(self.palettes.partyMenu[1]) -- the exact source vanilla "
+        .. "PartyMenu:drawIcon itself reads")
+    T.check(colors ~= SPECIES_COLORS,
+      "never the SUMMARY picture's species-keyed palette -- that mismatch "
+        .. "is the reported bug: the icon drew in the wrong colour")
+  end
+
+  package.loaded["src.render.GbcPalette"] = nil
+  package.loaded["src.world.gen2.Palettes"] = nil
+end
+
+-- ---------------------------------------------------------------------
 -- Install: the real class, wrapped -- proving the wiring, not just the
 -- pure function above.  A second call must not double-wrap, and an
 -- unformed mon must still fall through to the real vanilla drawIcon.

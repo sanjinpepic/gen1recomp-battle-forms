@@ -409,6 +409,101 @@ Conditional.onTurnEnded({ battle = markedBattle })
 T.eq(marked.form, "MEGA_X",
   "a Darmanitan above the threshold does not unwind a foreign form mark")
 
+--------------------------------------------------------------------------
+-- Cross-mechanic corruption: the Aegislash/Draco Plate report
+--------------------------------------------------------------------------
+--
+-- A held item stamped with no pairing for the holder's species is already
+-- harmless on its own (every formIdFor read in src/mega.lua, src/primal.lua
+-- and src/persistent.lua is species-keyed and simply answers nil for it) --
+-- src/stone.lua's own effectFor refuses to stamp one at the shop in the
+-- first place. What is not harmless is a STRAY mon.form sitting beside such
+-- a stamp: state a save editor can produce that this mod's own mechanics
+-- never would. CHARIZARD_MEGA_X's own suffix stands in for it here --
+-- exactly this shape, since nothing in this table or data/megas.lua ever
+-- pairs an Aegislash with anything that produces it.
+--
+-- Before src/resolve.lua's own M.onBattleStarted existed, this refusal was
+-- permanent: nothing ever swept a form marker belonging to a DIFFERENT
+-- species than the one carrying it, because src/resolve.lua's own ownsForm
+-- only ever asked the mon's OWN species and answered "no" -- indistinguishable
+-- from a genuinely foreign mod's marker (wild_forms' own ALOLAN, proven
+-- below to still survive untouched).
+
+-- Foreign-species corruption, cleared at battle.started.
+local corrupted = newMon("AEGISLASH")
+corrupted.form = "MEGA_X"
+local corruptedBattle = makeBattle(corrupted, newMon("CHARIZARD"))
+Resolve.onBattleStarted({ battle = corruptedBattle })
+T.eq(corrupted.form, nil,
+  "battle.started clears a form suffix belonging to a DIFFERENT species "
+    .. "entirely -- state a save editor can produce but this mod's own "
+    .. "mechanics never would")
+
+-- With the corrupted claim gone, Aegislash's own automatic mechanic works
+-- again, exactly as if the mon had never carried the stray marker at all.
+Conditional.onMoveUsed({ battle = corruptedBattle, user = corruptedBattle.player,
+                         target = corruptedBattle.enemy,
+                         move = { id = "MOVE", power = 80 } })
+T.eq(corrupted.form, "BLADE",
+  "and Aegislash's own stance change works again -- the guard it was "
+    .. "hitting before was refusing state that should never have existed")
+
+-- The same corruption, at the switch-in seam rather than battle start.
+local switchedIn = newMon("AEGISLASH")
+switchedIn.form = "MEGA_X"
+local switchedBattler = battlerFor(switchedIn, true)
+Resolve.onBattlerSwitched({ battle = { data = DATA }, battler = switchedBattler })
+T.eq(switchedIn.form, nil, "battler_switched clears the same cross-species corruption")
+
+-- A species genuinely entitled to a suffix under its OWN pairing keeps it --
+-- the fix is about a claim belonging to someone ELSE, not about ceasing to
+-- trust a mon's own legitimate marker.
+local ownMega = newMon("CHARIZARD")
+ownMega.form = "MEGA_X"
+local ownBattle = makeBattle(ownMega, newMon("DARMANITAN"))
+Resolve.onBattleStarted({ battle = ownBattle })
+T.eq(ownMega.form, "MEGA_X",
+  "a species with its own row producing this suffix keeps its marker")
+
+-- A genuinely foreign marker -- this audit finds ALOLAN nowhere in any
+-- table this mod owns -- is left standing exactly as it always has been.
+local foreignMon = newMon("MINIOR")
+foreignMon.form = "ALOLAN"
+local foreignBattle = makeBattle(foreignMon, newMon("CHARIZARD"))
+Resolve.onBattleStarted({ battle = foreignBattle })
+T.eq(foreignMon.form, "ALOLAN",
+  "a marker this mod recognises nowhere at all survives battle.started too")
+
+--------------------------------------------------------------------------
+-- The refusal itself says so out loud now (project rule #6)
+--------------------------------------------------------------------------
+--
+-- There is no player action behind an automatic form change for a trace to
+-- surface without DEBUG TRACE already switched on -- exactly what cost a
+-- full day on the original report.  This refusal now logs even with
+-- tracing off, whether it is protecting a legitimate once-per-battle claim
+-- (a mega'd Greninja's Battle Bond) or catching the corrupted-state shape
+-- above before src/resolve.lua's own sweep ever gets a chance to.
+do
+  local logged = {}
+  local fakeLog = { warn = function(_, fmt, ...) logged[#logged + 1] = fmt:format(...) end }
+  Conditional.bind({ forms = Forms, rows = rows, log = fakeLog, battlerof = Battlerof })
+
+  local blocked = newMon("AEGISLASH")
+  blocked.form = "MEGA_X"
+  local blockedBattle = makeBattle(blocked, newMon("CHARIZARD"))
+  Conditional.onMoveUsed({ battle = blockedBattle, user = blockedBattle.player,
+                           target = blockedBattle.enemy,
+                           move = { id = "MOVE", power = 80 } })
+  T.eq(blocked.form, "MEGA_X", "precondition: the refusal actually happened")
+  T.eq(#logged, 1, "the refusal is logged even with DEBUG TRACE off")
+  T.check(logged[1]:find("AEGISLASH", 1, true) ~= nil, "the log names the species")
+  T.check(logged[1]:find("MEGA_X", 1, true) ~= nil, "and what it is already wearing")
+
+  Conditional.bind({ forms = Forms, rows = rows, battlerof = Battlerof })
+end
+
 -- The armed flag and the MEGA cell.  A conditional form that spent either
 -- would pass every check above.
 local armState = Arm.new()

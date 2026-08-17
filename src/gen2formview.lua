@@ -219,12 +219,27 @@ end
 -- Fitting DOWN into a small box is the same scale-to-min-ratio math as
 -- fitting into a large one; nothing about the routine assumes which
 -- direction it is scaling.
-local function drawFormArt(self, mon, image, trueColor, originX, originY, box)
+--
+-- `colors` is the caller's to decide, not this function's: the two callers
+-- read genuinely different palettes off the SAME self.palettes table, and
+-- picking one here would be right for exactly one of them.  M.drawPic's own
+-- SUMMARY picture wants a per-mon palette (Palettes.monColors(self.palettes,
+-- mon.species, mon.shiny), the identical source SummaryMenu:drawPicBlock
+-- itself reads at SummaryMenu.lua:925) -- but M.drawIcon's own PARTY list
+-- icon does not: vanilla PartyMenu:drawIcon shades EVERY row through one
+-- shared palette regardless of species (PartyMenu.lua:634-638 -- "Every
+-- party icon OAM entry is PAL_OW_RED... for the whole list, species and EGG
+-- alike"), read off self.palettes.partyMenu[1].  This function used to
+-- compute the SUMMARY picture's own per-mon lookup unconditionally for
+-- BOTH callers, which is exactly why a formed mon's list icon drew in a
+-- colour nothing else in that list used -- the identical shape of gap
+-- 0.44.0 found between picFor (path) and drawPic (shading), one seam over:
+-- the icon's own PATH was already right, the step this wrap bypassed was
+-- which palette shaded it.
+local function drawFormArt(self, mon, image, trueColor, colors, originX, originY, box)
   originX, originY, box = originX or PIC_ORIGIN_X, originY or PIC_ORIGIN_Y,
     box or PIC_BOX
   local G = love.graphics
-  local colors = self.palettes and mon.species
-    and Palettes.monColors(self.palettes, mon.species, mon.shiny) or nil
   local blank = colors and GbcPalette.color(colors, 1) or { 255, 255, 255 }
   G.setColor(blank[1] / 255, blank[2] / 255, blank[3] / 255, 1)
   G.rectangle("fill", originX, originY, box, box)
@@ -298,16 +313,19 @@ function M.drawPic(self, resolveModule)
   end
   if not art then return false end
 
+  -- The SUMMARY picture's own per-mon palette, the identical source
+  -- vanilla's own drawPicBlock reads (SummaryMenu.lua:925) -- shared by
+  -- both branches below, unlike M.drawIcon's own lookup two sections down.
+  local colors = self.palettes and mon.species
+    and Palettes.monColors(self.palettes, mon.species, mon.shiny) or nil
   if art.trueColor == nil then
     -- The record fallback: reuse vanilla's OWN drawPicBlock rather than
     -- reimplementing it, so a form's picture is padded, backed and shaded
     -- exactly the way every OTHER mon's own picture already is on this
     -- screen -- nothing here ever guesses at that treatment independently.
-    local colors = self.palettes and mon.species
-      and Palettes.monColors(self.palettes, mon.species, mon.shiny) or nil
     self:drawPicBlock(art.image, colors)
   else
-    drawFormArt(self, mon, art.image, art.trueColor)
+    drawFormArt(self, mon, art.image, art.trueColor, colors)
   end
   return true
 end
@@ -434,7 +452,15 @@ function M.drawIcon(self, mon, px, py, resolveModule)
   end
   if not art then return false end
 
-  drawFormArt(self, mon, art.image, art.trueColor, px, py, ICON_BOX)
+  -- The party list's own shared palette (game/src/ui/gen2/PartyMenu.lua:
+  -- 634-638 -- every row icon shades through PAL_OW_RED regardless of
+  -- species), NOT the SUMMARY picture's per-mon Palettes.monColors -- see
+  -- drawFormArt's own header for why the two callers cannot share a lookup.
+  -- The held-item marker below already read this exact field correctly;
+  -- the form's own picture, drawn here, used to read the wrong one.
+  local pals = self.palettes and self.palettes.partyMenu
+  local iconColors = pals and pals[1] or nil
+  drawFormArt(self, mon, art.image, art.trueColor, iconColors, px, py, ICON_BOX)
 
   -- The held-item marker, reproduced from PartyMenu:drawIcon's own bottom-
   -- left overlay (src/ui/gen2/PartyMenu.lua:602-644): `self.heldMarkerRow`
@@ -448,8 +474,7 @@ function M.drawIcon(self, mon, px, py, resolveModule)
     local G = love.graphics
     local mw, mh = marker:getDimensions()
     local held = G.newQuad(0, markerRow * 8, 8, 8, mw, mh)
-    local pals = self.palettes and self.palettes.partyMenu
-    local colors = pals and pals[1] or nil
+    local colors = iconColors
     local function paintMarker()
       G.setColor(1, 1, 1, 1)
       G.draw(marker, held, px, py + 8)

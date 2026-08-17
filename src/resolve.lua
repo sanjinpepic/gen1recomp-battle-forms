@@ -59,26 +59,46 @@ end
 -- species -> item -> formId: megas, primal reversion, the persistent
 -- held-item families and Ultra Burst all share this shape (src/eligibility.
 -- lua's own M.formFor).
+--
+-- `species == nil` widens the question from "could THIS species' own row
+-- have produced `form`" to "could ANY row in this table have produced it,
+-- for whichever species owns it" -- see M.sanitize below for the one
+-- caller that needs the wider question and why.
 local function fromFlat(rows, species, data, form)
-  local byItem = rows and species and rows[species]
-  if type(byItem) ~= "table" then return false end
-  for _, formId in pairs(byItem) do
-    if suffixOf(data, formId) == form then return true end
+  if type(rows) ~= "table" then return false end
+  local function matches(byItem)
+    if type(byItem) ~= "table" then return false end
+    for _, formId in pairs(byItem) do
+      if suffixOf(data, formId) == form then return true end
+    end
+    return false
+  end
+  if species ~= nil then return matches(rows[species]) end
+  for _, byItem in pairs(rows) do
+    if matches(byItem) then return true end
   end
   return false
 end
 
 -- species -> item -> partner species -> formId: fusion's own three-level
--- shape (src/fusion.lua's own M.formIdFor).
+-- shape (src/fusion.lua's own M.formIdFor).  `species == nil` widens the
+-- same way fromFlat's does, above.
 local function fromFusion(rows, species, data, form)
-  local byItem = rows and species and rows[species]
-  if type(byItem) ~= "table" then return false end
-  for _, byPartner in pairs(byItem) do
-    if type(byPartner) == "table" then
-      for _, formId in pairs(byPartner) do
-        if suffixOf(data, formId) == form then return true end
+  if type(rows) ~= "table" then return false end
+  local function matches(byItem)
+    if type(byItem) ~= "table" then return false end
+    for _, byPartner in pairs(byItem) do
+      if type(byPartner) == "table" then
+        for _, formId in pairs(byPartner) do
+          if suffixOf(data, formId) == form then return true end
+        end
       end
     end
+    return false
+  end
+  if species ~= nil then return matches(rows[species]) end
+  for _, byItem in pairs(rows) do
+    if matches(byItem) then return true end
   end
   return false
 end
@@ -106,6 +126,87 @@ local function ownsForm(battle, mon)
   local gigaFormId = deps.gigantamaxRows and deps.gigantamaxRows[species]
   if gigaFormId and suffixOf(data, gigaFormId) == form then return true end
   return false
+end
+
+-- Whether `form` is a suffix ANY of this mod's own pairing tables could
+-- produce, for ANY species -- not merely the one ownsForm asks about
+-- above. See M.sanitize's own header for the one case that needs this
+-- wider question: a species-scoped "no" from ownsForm is exactly the
+-- shape a genuinely foreign mod's marker has (wild_forms' own ALOLAN on a
+-- VULPIX, say), and a stamped item with no pairing for the holder's
+-- species produces the IDENTICAL shape from a species this mod's own
+-- data would recognise for someone else entirely -- this is the question
+-- that tells the two apart.
+local function anyoneOwns(data, form)
+  if fromFlat(deps.megas, nil, data, form) then return true end
+  if fromFlat(deps.primals, nil, data, form) then return true end
+  if fromFlat(deps.persistentRows, nil, data, form) then return true end
+  if fromFlat(deps.ultraRows, nil, data, form) then return true end
+  if fromFusion(deps.fusionRows, nil, data, form) then return true end
+  if deps.conditionalRows then
+    for _, row in pairs(deps.conditionalRows) do
+      if suffixOf(data, row.form) == form then return true end
+    end
+  end
+  if deps.gigantamaxRows then
+    for _, formId in pairs(deps.gigantamaxRows) do
+      if suffixOf(data, formId) == form then return true end
+    end
+  end
+  return false
+end
+
+-- The reconciliation ownsForm's own species-scoped question could never
+-- ask by itself: a mon.form claim that IS one of this mod's own suffixes,
+-- for a DIFFERENT species than the one carrying it, is neither a foreign
+-- mod's marker (ownsForm's existing "leave it standing" case, for
+-- something this audit finds nowhere at all) nor a legitimate claim of
+-- this mon's own -- it is impossible under every mechanic this mod has,
+-- because every one of them is gated on the mon's OWN species.  The one
+-- way to reach it is a write that skipped this mod's own gates entirely --
+-- most plausibly a save editor stamping an item (or the marker itself)
+-- directly, since src/stone.lua's own effectFor already refuses to stamp
+-- an item with no pairing for the target at the shop.  An unpaired stamp
+-- by itself is already harmless everywhere in this mod (every formIdFor
+-- read in src/mega.lua, src/primal.lua, src/persistent.lua and
+-- src/ultraburst.lua is species-keyed and simply answers nil for it) --
+-- what is not harmless is a STRAY mon.form sitting beside it, because
+-- nothing before this function ever asked whether the marker matched the
+-- mon carrying it.
+--
+-- Left standing, it behaves exactly like the Aegislash/Draco Plate
+-- report: every OTHER mechanic that reads mon.form -- src/conditional.lua's
+-- own enter() foremost -- sees a mon "already wearing a different form"
+-- and correctly, permanently refuses to touch it, with no play action
+-- ever able to clear a marker that never should have existed.  Run ahead
+-- of every mechanic that could ask that question, at both send-out seams
+-- (M.onBattleStarted and M.onBattlerSwitched below), so the state is gone
+-- before anything downstream has to reason about it.
+local function sanitize(battle, mon)
+  if not mon or not mon.form or not battle then return end
+  if ownsForm(battle, mon) then return end
+  if not anyoneOwns(battle.data, mon.form) then return end
+  if deps.log then
+    deps.log:warn(
+      "battle_forms: %s carried form marker %s, which belongs to a "
+        .. "different species entirely -- clearing it as inconsistent "
+        .. "state (this species has no pairing that could have produced "
+        .. "it; most likely set outside normal play, e.g. through a save "
+        .. "editor)",
+      tostring(mon.species), tostring(mon.form))
+  end
+  mon.form = nil
+end
+
+-- Both send-out seams, both generations -- the same two events every other
+-- mechanic in this mod reapplies through, run first so a corrupted marker
+-- is gone before fusion, persistent, primal or conditional ever ask what
+-- the mon is already wearing.
+function M.onBattleStarted(ev)
+  local battle = ev and ev.battle
+  if not battle then return end
+  sanitize(battle, deps.battlerof.mon(battle.player))
+  sanitize(battle, deps.battlerof.mon(battle.enemy))
 end
 
 -- The once-per-battle limit is spent here rather than inside the entry, so
@@ -141,11 +242,18 @@ end
 -- instead), so a perfectly fine Gen 2 mega'd mon would find no formId and
 -- log a false "no longer eligible" warning on every single switch-in.
 function M.onBattlerSwitched(ev)
-  if deps.gen2 then return end
   local battle = ev and ev.battle
   local battler = ev and ev.battler
   local mon = deps.battlerof.mon(battler)
-  if not battle or not mon or not mon.form then return end
+  if not battle or not mon then return end
+  -- Ahead of the gen2 early return below and of the mon.form guard that
+  -- used to lead this function: a corrupted, cross-species marker is
+  -- exactly as reachable through a switch-in as through a send-out, and
+  -- Gen 2 needs the sweep even though it needs none of the reapply logic
+  -- beneath it (see that guard's own header).
+  sanitize(battle, mon)
+  if deps.gen2 then return end
+  if not mon.form then return end
 
   -- Rayquaza's own trigger stamps no stone at all and, as of 0.30.0, has no
   -- row in data/megas.lua either -- it is asked FIRST, ahead of the table

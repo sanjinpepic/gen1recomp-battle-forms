@@ -862,6 +862,15 @@ return function(mod)
   mod.events:on("battle.started", function(ev)
     diag.reached("battle.started", ev)
     run("arm.onBattleStarted", function() state:onBattleStarted(ev) end)
+    -- Ahead of every mechanic below: a mon.form claim belonging to a
+    -- DIFFERENT species than the one carrying it -- state a save editor can
+    -- produce that this mod's own mechanics never would (src/resolve.lua's
+    -- own M.onBattleStarted header has the full reasoning and the report it
+    -- fixes) -- has to be gone before fusion, persistent, primal or
+    -- conditional ever ask what the mon is already wearing, or a corrupted
+    -- marker reads exactly like a legitimate one and blocks a real mechanic
+    -- for the rest of the mon's life.
+    run("resolve.onBattleStarted", function() resolve.onBattleStarted(ev) end)
     -- Ahead of the other two send-out handlers, because a persistent form is
     -- the BASELINE the rest are laid over: it is true of the Pokemon before the
     -- battle started and will be after it ends, so it should be standing before
