@@ -39,15 +39,18 @@
 --     silently write nothing a damage or type check ever reads.
 --     deps.gen2forms.becomeForm is the primitive that actually reaches
 --     mon.stats and Battle.speciesDef there.
---   * WHAT ELSE ACTIVATING DOES.  Nothing, on Gold, for now.  Mega
---     Rayquaza's own trigger (deps.dragonascent) is Gen 1 only in this pass
---     -- the exemption is skipped outright on Gen 2 rather than guessed at
---     -- and so is the announce/animation pair below: deps.announce assumes
---     Gen 1's battler shape and battle:animNext/animationsOn are methods on
---     Gen 1's BattleState, neither of which the engine
---     game/src/battle/gen2/Battle.lua instance activate() receives on Gen 2
---     carries.  A silent mega with no flash and no message is still a
---     correct one; both are cosmetic and neither is claimed here.
+--   * WHAT ELSE ACTIVATING DOES.  Mega Rayquaza's own trigger
+--     (deps.dragonascent) is Gen 1 only in this pass -- the exemption is
+--     skipped outright on Gen 2 rather than guessed at, so a Gen 2 Rayquaza
+--     still needs a Key Stone and a mega stone like every other species
+--     until that trigger is ported. The message IS ported: deps.announce.
+--     gen2Mega goes through Battle:emit, the same Gen 2 message channel
+--     deps.announce.gen2Tera/gen2Primal/gen2UltraBurst already use, because
+--     Gold's engine object has neither `say` nor `sayNext` for Gen 1's
+--     battle:animNext/animationsOn pair below to reach through either way --
+--     see deps.announce.gen2Mega's own header for why there is still no
+--     animation to queue after it (Gold has no transformation-flash concept
+--     for a mod to reach at all).
 local M = {}
 
 M.ID = "mega"
@@ -125,6 +128,7 @@ function M.entry(deps)
           end
           return false
         end
+        if deps.announce then deps.announce.gen2Mega(battle, mon) end
         return true
       end
 

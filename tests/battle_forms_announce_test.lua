@@ -223,6 +223,45 @@ do
   T.eq(battle.queue[1].anim, nil, "and queues no animation")
 end
 
+-- Gold's own mega evolution message, driven through the ORDINARY item-based
+-- path (a Charizard holding its own stone, a Key Stone in the bag) rather
+-- than Mega Rayquaza's own no-stone exemption -- proving the message on its
+-- own, independent of src/dragonascent.lua's own trigger.
+do
+  local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+  local GEN2_DATA = { pokemon = {
+    CHARIZARD = { baseStats = { hp = 78, attack = 84, defense = 78, speed = 100,
+                                specialAttack = 85, specialDefense = 85 },
+                  types = { "FIRE", "FLYING" }, name = "CHARIZARD" },
+    CHARIZARD_MEGA_X = { baseStats = { hp = 78, attack = 130, defense = 111,
+                                       speed = 100, specialAttack = 130,
+                                       specialDefense = 85 },
+                         types = { "FIRE", "DRAGON" }, form = "MEGA_X",
+                         name = "CHARIZARD" },
+  } }
+  local mon = { species = "CHARIZARD", level = 50, item = "CHARIZARDITE_X",
+               moves = {}, dvs = { hp = 15, attack = 15, defense = 15,
+               speed = 15, special = 15 }, statExp = {},
+               stats = { hp = 78, attack = 84, defense = 78, speed = 100,
+                        specialAttack = 85, specialDefense = 85 } }
+  local battle = setmetatable({
+    data = GEN2_DATA, player = mon,
+    game = { save = { inventory = { KEY_STONE = 1 } } }, events = {},
+  }, { __index = require("src.battle.gen2.Battle") })
+
+  local entry = Mega.entry({ forms = Forms, eligibility = E, megas = megas,
+                             keyitems = { held = function() return true end },
+                             animId = "TESTANIM", announce = Announce,
+                             battlerof = Battlerof, gen2 = true,
+                             gen2forms = Gen2Forms })
+  T.eq(entry.activate(battle), true, "precondition: the Gen 2 mega happened")
+  T.eq(mon.form, "MEGA_X", "into Mega Charizard X")
+  local events = battle:takeEvents()
+  T.eq(#events, 1, "the mega evolution message is emitted through Battle:emit")
+  T.eq(events[1].text, "CHARIZARD's\nMega Evolution!",
+    "in the mainline games' own words, exactly as Gen 1's own M.mega prints")
+end
+
 -- A refusal must stay silent: becomeForm answering no means nothing changed,
 -- and a line printed anyway would be the mod claiming a transformation the
 -- player did not get.
@@ -372,6 +411,10 @@ do
   local battle = setmetatable({ data = { pokemon = {} }, events = {} }, { __index = RealBattle })
   local mon = { species = "CHARIZARD" }
 
+  T.eq(Announce.gen2Mega(battle, mon), true, "the Gen 2 mega line is emitted")
+  T.eq(battle:takeEvents()[1].text, "CHARIZARD's\nMega Evolution!",
+    "matching Gen 1's own M.mega")
+
   T.eq(Announce.gen2Tera(battle, mon, "PSYCHIC"), true, "the Gen 2 Tera line is emitted")
   local events = battle:takeEvents()
   T.eq(#events, 2, "two pages are queued, exactly as Gen 1's does")
@@ -413,11 +456,14 @@ end
 do
   local RealBattle = require("src.battle.gen2.Battle")
   local battle = setmetatable({ data = { pokemon = {} }, events = {} }, { __index = RealBattle })
+  T.eq(Announce.gen2Mega(battle, nil), false, "gen2Mega refuses a nameless mon too")
   T.eq(Announce.gen2Tera(battle, nil, "FIRE"), false, "no mon at all is refused")
   T.eq(#battle:takeEvents(), 0, "and nothing lands in the queue")
 
   T.eq(Announce.gen2Tera({ data = {} }, { species = "X" }, "FIRE"), false,
     "a battle with no emit function is refused rather than raising")
+  T.eq(Announce.gen2Mega({ data = {} }, { species = "X" }), false,
+    "gen2Mega is refused the same way")
   T.eq(Announce.gen2UltraBurst(nil, nil), false, "and no battle at all is refused too")
 
   T.eq(Announce.gen2Dynamax(battle, nil), false, "gen2Dynamax refuses a nameless mon too")

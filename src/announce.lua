@@ -292,6 +292,26 @@ function M.gen2Primal(battle, mon)
   return gen2Push(battle, text(PRIMAL, name))
 end
 
+-- Mega evolution, Gen 2-shaped: one page, matching Gen 1's own M.mega --
+-- and like M.gen2Primal, needing no say/sayNext distinction, since
+-- `Battle:emit` only ever appends and this call site (battle.turn_started,
+-- the identical seam Gen 1's own sayNext steals the cursor at) never has
+-- anything of this mod's own queued ahead of it to get out of the way of.
+--
+-- There is no animation to follow it with. Grepping both
+-- game/src/battle/gen2/Battle.lua and game/src/ui/gen2/BattleState.lua for
+-- animNext/animationsOn/transformAnim/flash turns up nothing but the
+-- unrelated "shiny-flash" kind BattleState.lua queues on a shiny send-out --
+-- Gold has no transformation-flash concept a mod could hook at all, the
+-- identical finding src/tera.lua's own header already recorded for
+-- Terastallization. The message is therefore the whole of what a Gen 2 mega
+-- evolution announces, exactly as it already is for that mechanic.
+function M.gen2Mega(battle, mon)
+  local name = gen2Name(battle, mon)
+  if not name then return false end
+  return gen2Push(battle, text(MEGA, name))
+end
+
 -- Terastallization's own two pages, Gen 2-shaped: the mon read straight
 -- (Gold hands the raw mon, never a battler wrapper -- src/battlerof.lua's
 -- own header), the message queued through `emit` rather than `sayNext`.
