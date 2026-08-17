@@ -138,6 +138,12 @@ end
 -- not on the matching type -- which cannot actually happen, since the
 -- record's own type is read off that exact move, but is left as a plain
 -- id comparison rather than a type comparison because id already implies it.
+-- deps.gen2 branches the PP-correction shape the identical way
+-- src/maxmoves.lua's and src/zmoves.lua's own M.fieldsFor already do:
+-- Gold's FIGHT menu draws move.pp/move.maxPp straight off the slot with no
+-- PP-Up arithmetic, so what src/gen2substitute.lua needs here is the base
+-- move's own real maximum as an absolute number, not a correction meant for
+-- a second table Gen 2 never creates.
 function M.fieldsFor(catalog, data, mon, slot, crystal)
   local entry = catalog.byCrystal[crystal]
   if not entry then return nil end
@@ -145,6 +151,10 @@ function M.fieldsFor(catalog, data, mon, slot, crystal)
   if type(slot) ~= "table" or slot.id ~= entry.move then return nil end
 
   local def = data and data.moves and data.moves[entry.move]
+  if deps and deps.gen2 then
+    return { id = entry.id, maxPp = (def and tonumber(def.pp)) or M.RECORD_PP }
+  end
+
   local ppUps = deps and deps.substitute and def
     and deps.substitute.menuPPUps(M.RECORD_PP, def.pp, slot.ppUps) or nil
   return { id = entry.id, ppUps = ppUps }

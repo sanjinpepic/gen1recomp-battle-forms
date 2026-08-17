@@ -671,9 +671,14 @@ return function(mod)
   -- speciesz is bound to the substitute mechanism and its own log line, and
   -- to nothing else -- it never checks the Z-Ring, the trainer's spent flag
   -- or the eligibility stamp itself, all of which src/zmoves.lua's entry
-  -- already owns for the type catalog and now asks of this one too.
+  -- already owns for the type catalog and now asks of this one too. gen2
+  -- branches only the PP-correction shape M.fieldsFor hands the
+  -- substitution (maxPp, not a ppUps correction), the identical reason
+  -- src/maxmoves.lua's and src/zmoves.lua's own binds carry the same flag --
+  -- the crystal itself is still read off mon.item entirely inside
+  -- src/zmoves.lua's own entry, which is the one place that ever asks.
   speciesz.bind({ substitute = m["src/substitute.lua"], anim = anim,
-                   log = mod.log })
+                   log = mod.log, gen2 = gen2 })
   local speciesZCatalog = speciesz.install(mod, speciesZRows)
 
   -- gen2/gen2substitute follow src/dynamax.lua's own branch exactly: Gold has
