@@ -487,6 +487,41 @@ do
   T.eq(vanillaCalls5, 1, "only once BOTH are restored does a save go through again")
 end
 
+-- The registry tracking which states are live must NOT be weak-keyed: if a
+-- caller applies a substitution and then loses its own reference to the
+-- state (a bug in that caller, never in normal use, since every apply is
+-- meant to be paired with a restore) without calling M.restore, garbage
+-- collection must not be able to make the veto forget about it -- the
+-- failure mode has to be a pinned handful of fields, never a save quietly
+-- allowed through while a mon is still mid-substitution.
+do
+  -- A fresh copy of the module: this module's own `active` registry and
+  -- `M._installed` flag are process-wide, and the earlier tests in this file
+  -- already installed the real one against a different `mod` stand-in.
+  local FreshSub = dofile(MOD .. "/src/gen2substitute.lua")
+  local hooks = {}
+  local mod = { hooks = { wrap = function(_, name, fn) hooks[name] = fn end } }
+  FreshSub.install(mod)
+
+  local mon = monFixture()
+  do
+    local state = FreshSub.new()
+    FreshSub.apply(state, mon, pickAll)
+    -- `state` goes out of scope here with no restore ever called.
+  end
+  collectgarbage("collect")
+  collectgarbage("collect")
+
+  local vanillaCalls = 0
+  local result = hooks["save.write"](function(...)
+    vanillaCalls = vanillaCalls + 1
+    return true
+  end, "GAME")
+  T.eq(vanillaCalls, 0,
+    "a leaked, never-restored state still vetoes a save after garbage collection")
+  T.eq(result, false, "the hook still reports the write as refused")
+end
+
 -- Idempotent install: a second call subscribes nothing new.
 do
   local hooks = {}

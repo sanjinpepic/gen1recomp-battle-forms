@@ -101,12 +101,16 @@
 -- survivable too, rather than merely unlikely.
 local M = {}
 
--- state -> true while that state's substitution is live. Weak keys so a
--- state a caller drops without tearing down cannot pin memory, and so more
--- than one consumer (a Dynamax picker and a Z-Move picker, say) can each own
--- an independent state while the veto below still answers for the union of
--- all of them.
-local active = setmetatable({}, { __mode = "k" })
+-- state -> true while that state's substitution is live, so more than one
+-- consumer (a Dynamax picker and a Z-Move picker, say) can each own an
+-- independent state while the veto below still answers for the union of all
+-- of them. Deliberately NOT weak-keyed: a state a caller drops without
+-- calling M.restore is a bug in that caller, and the failure mode has to be
+-- "this table stays pinned in memory" rather than "the veto silently stops
+-- protecting a mon that is still sitting mid-substitution" -- a leaked
+-- handful of fields is a cost worth paying to keep the save-write refusal
+-- honest even when something upstream of this module misbehaves.
+local active = {}
 
 function M.new()
   return { mon = nil, slots = nil }
