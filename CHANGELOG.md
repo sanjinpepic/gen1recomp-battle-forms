@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.51.0
+
+### Fixed
+
+- **A formed Pokemon's party list icon is drawn by vanilla again, not reimplemented by this mod.** 0.45.0 through 0.50.0 wrapped Gold's own icon draw directly -- fetching a form's battle art, fitting it into the icon slot, looking up the party list's shared palette by hand, and suppressing the backing fill drawn everywhere else -- and each of those four steps produced its own bug in turn: the wrong sprite, the wrong colour, then a stray background block. Every one of those steps was already vanilla's own job the moment something upstream answers with the right file, so the fix is a single hook subscription on the seam both games already resolve a party icon's file through, answering with a form's own real icon file when one exists and a verified check against the real filesystem confirms it, and leaving every other case -- including a form with no icon of its own, which now shows its base species' icon, drawn by vanilla, never a downscaled copy of its battle art -- to vanilla exactly as before. Red's own party list had the identical gap and no fix at all until now; the same subscription closes it there too.
+
 ## 0.50.0
 
 ### Fixed

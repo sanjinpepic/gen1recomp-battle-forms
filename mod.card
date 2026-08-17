@@ -22,6 +22,7 @@ return {
       "on Gold, a form-altered Pokemon's party list icon no longer draws a pale background block behind it that no unaltered icon has -- the shared helper that draws a form's own art painted a backing fill correct for the party STATS screen's picture and wrong for the smaller list icon it was also drawing",
       "the fusion animation's left participant now shows the Pokemon as it stood right before the fuse, on both games, instead of the already-fused result merging with itself -- its picture used to be resolved from the live Pokemon after the fuse had already applied, by which point it was already wearing the fused form",
       "on Gold, the eighteen ordinary type Z-Crystals are now sold at the Indigo Plateau counter and are GIVE-only, like every other held item here, rather than absent from the shop entirely with a USE option that silently did nothing on the rare save that held one anyway",
+      "a formed Pokemon's party list icon, on both games now rather than Gold alone, is drawn by the game's own icon code again instead of this mod's own reimplementation of it -- a real icon of its own is shown for the handful of forms that have one, and every other form shows its base species' own icon rather than a shrunk copy of its battle art",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",

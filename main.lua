@@ -112,6 +112,7 @@ return function(mod)
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/formmenu.lua", "src/menu.lua", "src/boxmark.lua",
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
+                  "src/formicons.lua",
                   "src/gen2shop.lua", "src/gen2menu.lua",
                   "src/zmovemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
@@ -849,6 +850,16 @@ return function(mod)
   local formview = m["src/formview.lua"]
   formview.bind({ fusion = fusion, persistent = persistent, diag = diag })
   formview.install(mod)
+
+  -- The party list's own icon, on WHICHEVER game this boot is: one shared
+  -- pokemon.icon hook subscription reaches both src/ui/PartyMenu.lua (Red)
+  -- and src/ui/gen2/PartyMenu.lua (Gold) alike, so this installs
+  -- unconditionally rather than behind the `gen2` gate every Gold-only
+  -- module above it uses -- see src/formicons.lua's own header for why one
+  -- subscription is enough for both screens.
+  local formicons = m["src/formicons.lua"]
+  formicons.bind({ fusion = fusion, persistent = persistent, diag = diag })
+  formicons.install(mod)
 
   -- Gold's own SUMMARY screen, a separate class with a separate stats layout
   -- (specialAttack/specialDefense as two rows where Gen 1 has one `special`)
