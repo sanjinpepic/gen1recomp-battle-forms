@@ -282,6 +282,77 @@ function M.menu(battle)
   emit("%s", answer)
 end
 
+-- src/gen2menu.lua's own equivalent of the block above -- the trace that
+-- would have named "which key items Gold's own inventory actually holds"
+-- on sight, the gap a real report left invisible: the Gold trace carried no
+-- `menu:` lines at all, where Gen 1's logs one on every draw.
+--
+-- Split from `describe`/`M.menu` rather than reused, because Gen 2 splits
+-- the single object `describe` reads into two: `uiBattle` (src/gen2menu.lua's
+-- own `self` on the wrapped `update`, carrying `phase`/`queue`) and
+-- `uiBattle.battle`, the ENGINE object (`.player`, `.data`, `.save`) that
+-- src/arm.lua caches from battle.started and that every registry entry's
+-- own `available`/`activate` actually reads -- src/keyitems.lua's own header
+-- and src/overlay.lua's own header on `uiBattle` both say why. Reporting
+-- `keys[...]` off the wrong one of those two objects would silently answer
+-- a question nobody asked; this reads each field off the object the real
+-- gate itself reads it from, keyitems.held(engineBattle, ...) included.
+--
+-- No `stone=`/`trigger=`/`form=`/`record=` fields: those are src/mega.lua's
+-- own Gen 1 stone-stamp vocabulary, and Gen 2 has no stamp to report --
+-- src/mega.lua's own Gen 2 branch reads mon.item directly, the same field
+-- every other Gen 2 mechanic (Dynamax, Z-Moves, Terastallization) keys its
+-- held item off, so `item=` covers all of them at once rather than
+-- reinventing Gen 1's mega-shaped fields for a game where a mega is only
+-- one of several mechanics sharing the one held-item slot.
+local function describeGen2(uiBattle)
+  local engineBattle = uiBattle.battle
+  local cached = deps.state:current()
+  local where = cached == nil and "none"
+    or (cached == engineBattle and "this battle" or "another battle")
+  local mon = engineBattle and deps.battlerof.mon(engineBattle.player)
+  local queue = uiBattle.queue
+  local spent = {}
+  for _, entry in ipairs(deps.registry:all()) do
+    spent[#spent + 1] = ("%s=%s"):format(entry.id,
+      tostring(deps.state:used(entry.id)))
+  end
+  -- Read through the same function src/dynamax.lua's and src/zmoves.lua's own
+  -- gates call, off the same engine battle they call it against, so this can
+  -- never report a bag the gate is not actually looking at.
+  local carried = {}
+  for _, itemId in ipairs(deps.keyitems.ITEMS) do
+    carried[#carried + 1] = ("%s=%s"):format(itemId,
+      tostring(deps.keyitems.held(engineBattle, itemId)))
+  end
+  return ("menu: gen2 armState=%s phase=%s queueEmpty=%s species=%s item=%s "
+    .. "keys[%s] used[%s] offered=%d"):format(
+    where, tostring(uiBattle.phase),
+    tostring(queue == nil or next(queue) == nil),
+    tostring(mon and mon.species), tostring(mon and mon.item),
+    table.concat(carried, " "), table.concat(spent, " "),
+    #deps.overlay.offered(deps.state, uiBattle))
+end
+
+function M.menuGen2(uiBattle)
+  if not M.enabled() or uiBattle == nil then return end
+  local at = scopeFor(uiBattle.battle)
+  if at.changes > MENU_CHANGES then return end
+  local ok, answer = pcall(describeGen2, uiBattle)
+  if not ok then
+    answer = "menu: the diagnostic could not read the battle ("
+      .. tostring(answer) .. ")"
+  end
+  if answer == at.answer then return end
+  at.answer = answer
+  at.changes = at.changes + 1
+  if at.changes > MENU_CHANGES then
+    emit("menu: further changes suppressed for this battle")
+    return
+  end
+  emit("%s", answer)
+end
+
 -- The mod arriving in the middle of a battle (src/adopt.lua).  Worth a line of
 -- its own because it changes what every note under it means: an adopted battle
 -- has no send-out of ours behind it, so an event-driven conditional row that

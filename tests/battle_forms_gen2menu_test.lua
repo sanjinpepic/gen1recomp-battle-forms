@@ -591,6 +591,102 @@ do
   T.check(has(indigoShelf, "TERA_ORB"),
     "the Tera Orb is sold at the Indigo Plateau counter on Gold")
 
+  -- ---------------------------------------------------------------------
+  -- Dynamax and Z-Moves, through the SAME real registry, the SAME wrapped
+  -- BattleState, and the SAME loaded mod as Mega and Tera above -- the
+  -- player's own bug: "Z-moves and Dynamax seem not to trigger the form
+  -- window. only Mega." What this pins down is WHICH OBJECT reaches
+  -- `available(battle)`. Mega's own Gen 2 branch reads mon.item, never a
+  -- key item, and Tera was already proven above through this identical
+  -- rig -- so if Dynamax and Z-Moves fail here too, the fault is common to
+  -- every entry that calls src/keyitems.lua's own M.held, not to either
+  -- mechanic individually. Each battle below carries exactly ONE key item
+  -- and none of the others (no Key Stone, no Tera Orb), so a submenu
+  -- opening at all is proof that specific entry was offered.
+  -- ---------------------------------------------------------------------
+  run.data.moves.DZ_TACKLE = { id = "DZ_TACKLE", type = "NORMAL", power = 40,
+    pp = 35, accuracy = 100, effect = "NO_ADDITIONAL_EFFECT" }
+
+  local dynaMon = { species = "CHARIZARD", level = 50, dvs = {}, statExp = {},
+                    hp = 100, moves = { { id = "DZ_TACKLE", pp = 35, maxPp = 35 } } }
+  dynaMon.stats = { hp = 78, attack = 84, defense = 78, speed = 100,
+                    specialAttack = 85, specialDefense = 85 }
+  local dynaEngineBattle = { data = run.data,
+    save = { inventory = { [KeyItems.DYNAMAX_BAND] = 1 } },
+    player = dynaMon, events = {},
+    emit = RealBattleForMessages.emit, monName = RealBattleForMessages.monName,
+    takeEvents = RealBattleForMessages.takeEvents }
+  local dynaUiBattle = { phase = "menu", menuIndex = 1, queue = {},
+                         battle = dynaEngineBattle, game = { input = nil } }
+  run.loader.events:emit("battle.started", { battle = dynaEngineBattle })
+
+  local function pressDyna(button)
+    dynaUiBattle.game.input = { wasPressed = function(_, btn) return btn == button end }
+    return BattleState.update(dynaUiBattle, 0)
+  end
+
+  pressDyna("left")
+  T.check(dynaUiBattle._battleFormsMenuCell == true,
+    "left from FIGHT reaches the real cell with ONLY the Dynamax Band held "
+      .. "-- no Key Stone, no Tera Orb, no Z-Ring anywhere in this bag")
+  pressDyna("a")
+  T.check(dynaUiBattle._battleFormsListOpen == true,
+    "and the real submenu opens -- something is actually offered, and with "
+      .. "no Key Stone, no Tera Orb and no Z-Ring in the bag the only thing "
+      .. "it can be is Dynamax")
+
+  pressDyna("a")
+  T.check(dynaUiBattle._battleFormsListOpen == false,
+    "confirming the one row closed the real list")
+  T.check(dynaMon.moves[1].id ~= "DZ_TACKLE",
+    "and arming it actually substituted a Max Move onto the real mon's own "
+      .. "move slot, through the real src/gen2substitute.lua primitive -- "
+      .. "proof the FORM cell really did trigger for Dynamax, not merely "
+      .. "draw a submenu with nothing behind it")
+
+  T.check(has(indigoShelf, "DYNAMAX_BAND"),
+    "the Dynamax Band is sold at the Indigo Plateau counter on Gold")
+
+  -- Z-Moves: the identical proof, with only the Z-Ring in the bag and a
+  -- Z-Crystal held on the mon.
+  local zMon = { species = "CHARIZARD", level = 50, dvs = {}, statExp = {},
+                 hp = 100, item = "NORMALIUM_Z",
+                 moves = { { id = "DZ_TACKLE", pp = 35, maxPp = 35 } } }
+  zMon.stats = { hp = 78, attack = 84, defense = 78, speed = 100,
+                 specialAttack = 85, specialDefense = 85 }
+  local zEngineBattle = { data = run.data,
+    save = { inventory = { [KeyItems.Z_RING] = 1 } },
+    player = zMon, events = {},
+    emit = RealBattleForMessages.emit, monName = RealBattleForMessages.monName,
+    takeEvents = RealBattleForMessages.takeEvents }
+  local zUiBattle = { phase = "menu", menuIndex = 1, queue = {},
+                      battle = zEngineBattle, game = { input = nil } }
+  run.loader.events:emit("battle.started", { battle = zEngineBattle })
+
+  local function pressZ(button)
+    zUiBattle.game.input = { wasPressed = function(_, btn) return btn == button end }
+    return BattleState.update(zUiBattle, 0)
+  end
+
+  pressZ("left")
+  T.check(zUiBattle._battleFormsMenuCell == true,
+    "left from FIGHT reaches the real cell with ONLY the Z-Ring held")
+  pressZ("a")
+  T.check(zUiBattle._battleFormsListOpen == true,
+    "and the real submenu opens with a Z-Crystal on the mon and the Z-Ring "
+      .. "in the bag -- with no Key Stone, Dynamax Band or Tera Orb "
+      .. "anywhere in reach, the only thing it can be is Z-MOVE")
+
+  pressZ("a")
+  T.check(zUiBattle._battleFormsListOpen == false,
+    "confirming the one row closed the real list")
+  T.check(zMon.moves[1].id ~= "DZ_TACKLE",
+    "and arming it substituted the real Z-Move onto the mon's own move "
+      .. "slot, through the same real primitive")
+
+  T.check(has(indigoShelf, "NORMALIUM_Z"),
+    "NORMALIUM Z (a type Z-Crystal) is sold at the Indigo Plateau counter too")
+
   run.release()
 end
 

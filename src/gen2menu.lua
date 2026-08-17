@@ -223,6 +223,12 @@ function M.install(mod, state)
   local vanillaUpdate = BattleState.update
   BattleState.update = function(self, dt)
     if diag then pcall(diag.record, "gen2menu: BattleState.update ran") end
+    -- src/menu.lua's own `diag.menu` line, Gold's equivalent: what is
+    -- offered, what is armed, which keys are held -- on every draw, once per
+    -- distinct answer per battle. Ahead of the input decision for the same
+    -- reason src/menu.lua puts its own call there: whatever handleInput is
+    -- about to decide, this already said what it was going to read.
+    if diag then pcall(diag.menuGen2, self) end
     local ok, handled, action = pcall(M.handleInput, self, state)
     if ok and handled then
       -- "open", "toggle" and "cancel" are every action string this module

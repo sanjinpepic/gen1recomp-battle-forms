@@ -767,4 +767,73 @@ do
   run.release()
 end
 
+-- ---------------------------------------------------------------------
+-- src/gen2menu.lua's own equivalent of "Question 4" above: the SAME
+-- question, answered off the TWO objects Gen 2 splits where Gen 1 keeps
+-- one -- `uiBattle` (phase, queue) and `uiBattle.battle`, the ENGINE object
+-- every gate actually reads. This is the trace whose absence cost a real
+-- bug report a round trip: the Gold DEBUG TRACE carried no `menu:` line at
+-- all, where Gen 1 logs one on every draw. A line reporting
+-- `keys[DYNAMAX_BAND=false ...]` next to a save that plainly holds the
+-- Band would have named the cause on sight.
+-- ---------------------------------------------------------------------
+do
+  local mod = fakeMod()
+  mod.option = "on"
+  local kit = newDiag(mod)
+
+  local engineBattle = { data = DATA,
+    player = { species = "CHARIZARD", item = "CHARIZARDITE_X", hp = 100 },
+    save = { inventory = { [KeyItems.DYNAMAX_BAND] = 1 } } }
+  local uiBattle = { phase = "menu", queue = {}, battle = engineBattle }
+  kit.state:onBattleStarted({ battle = engineBattle })
+
+  for _ = 1, 500 do kit.diag.menuGen2(uiBattle) end
+  T.eq(countMatching(mod, "menu: gen2"), 1,
+    "five hundred identical frames produce one line, the same throttle "
+      .. "src/menu.lua's own Gen 1 line keeps")
+
+  local line = firstMatching(mod, "menu: gen2")
+  T.check(line ~= nil, "the Gen 2 draw wrapper actually produced a trace line")
+  T.check(line:find("armState=this battle", 1, true) ~= nil,
+    "whose battle the arm state is holding")
+  T.check(line:find("phase=menu", 1, true) ~= nil,
+    "the phase, read off the UI object -- Gen 2's own phase source")
+  T.check(line:find("queueEmpty=true", 1, true) ~= nil, "and the queue")
+  T.check(line:find("species=CHARIZARD", 1, true) ~= nil, "the species")
+  T.check(line:find("item=CHARIZARDITE_X", 1, true) ~= nil,
+    "the mon's own held item -- Gen 2's one field for every mechanic that "
+      .. "gates on one, mega included, rather than reinventing Gen 1's "
+      .. "stone-shaped vocabulary for a game with no stamp to report")
+  T.check(line:find(
+      "keys[KEY_STONE=false DYNAMAX_BAND=true TERA_ORB=false Z_RING=false]",
+      1, true) ~= nil,
+    "and which of the trainer's key items are ACTUALLY in the bag, read "
+      .. "off the ENGINE battle through the same src/keyitems.lua gate the "
+      .. "real cell calls -- the exact fact a report of this shape needs "
+      .. "and the trace previously could not say at all")
+  T.check(line:find("used[mega=false]", 1, true) ~= nil,
+    "and whether each registered transformation is already spent")
+
+  -- The same starved case src/diag.lua's Gen 1 line pins: an arm state that
+  -- never learned which battle it is holding names itself as such rather
+  -- than silently describing nothing.
+  local mod2 = fakeMod()
+  mod2.option = "on"
+  local kit2 = newDiag(mod2)
+  local strayEngine = { data = DATA,
+    player = { species = "CHARIZARD", item = nil }, save = { inventory = {} } }
+  kit2.diag.menuGen2({ phase = "menu", queue = {}, battle = strayEngine })
+  local starved = firstMatching(mod2, "menu: gen2")
+  T.check(starved:find("armState=none", 1, true) ~= nil,
+    "an arm state that never cached a battle is named as such on Gen 2 too")
+  T.check(starved:find("offered=0", 1, true) ~= nil,
+    "and nothing is on offer, which is the cell being absent")
+
+  -- A nil uiBattle (no engine internals to read) answers nothing rather
+  -- than throwing, the same refusal-must-not-crash-a-frame guarantee the
+  -- Gen 1 line already gives.
+  kit.diag.menuGen2(nil)
+end
+
 T.finish("battle_forms_diag")
