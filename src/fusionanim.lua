@@ -83,6 +83,21 @@ local function spriteModule()
   return Sprites or nil
 end
 
+-- A shallow copy of a mon table, taken right before the real fuse effect
+-- runs -- what installGen1/installGen2 hand M.resolveArt as `beforeMon` (see
+-- that function's own header for why the live mon cannot be used directly
+-- for the LEFT picture).  Shallow is enough: nothing this mod's own sprite
+-- hooks read off a mon (species, form, shiny, nickname) is itself mutated in
+-- place by a fuse, only ever replaced wholesale (mon.form) or added
+-- (mon[Fusion.STAMP]) -- src/fusion.lua's own fuse() touches no nested
+-- table on the survivor at all.
+local function snapshotMon(mon)
+  if not mon then return nil end
+  local copy = {}
+  for k, v in pairs(mon) do copy[k] = v end
+  return copy
+end
+
 -- A plain species picture -- the survivor as it stood, or the partner's own
 -- species -- with no form suffix in play.  Returns image, trueColor or nil.
 local function plainArt(sprites, data, species, mon)
@@ -142,7 +157,22 @@ end
 -- plain picture (the form itself is not derivable from a species string
 -- alone -- see src/fusion.lua's own formIdFor for why: one species can pair
 -- with two different partners into two different forms).
-function M.resolveArt(data, survivor, partnerSpecies)
+--
+-- `beforeMon` is the survivor AS IT STOOD, a snapshot taken before the fuse
+-- applied -- src/fusion.lua's own fuse() calls M.mark, which sets mon.form
+-- to the FUSED suffix, before the item's use closure returns, so by the
+-- time this function is ever called `survivor` itself is already the
+-- post-fuse mon.  Handing that live object to plainArt as its own `mon`
+-- context would taint the LEFT picture with the fused form whenever
+-- whatever answers pokemon.sprite keys its art on ctx.mon.form -- exactly
+-- what a real sprite mod's own battle art hook does for every other form
+-- this mod draws -- which is the bug this parameter exists to close: the
+-- left participant reading as the ALREADY-fused dragon rather than the
+-- dragon it was a moment before. Falls back to `survivor` itself when no
+-- snapshot is given, so a caller with nothing to snapshot (or an existing
+-- test written before this parameter existed) still gets a picture, just
+-- without the guarantee against this exact taint.
+function M.resolveArt(data, survivor, partnerSpecies, beforeMon)
   if not (data and survivor and partnerSpecies) then return nil end
   local sprites = spriteModule()
   if not sprites then return nil end
@@ -150,7 +180,7 @@ function M.resolveArt(data, survivor, partnerSpecies)
   local formId = deps.fusion.formIdFor(survivor)
   if not formId then return nil end
 
-  local left = plainArt(sprites, data, survivor.species, survivor)
+  local left = plainArt(sprites, data, survivor.species, beforeMon or survivor)
   if not left then return nil end
   local right = plainArt(sprites, data, partnerSpecies, nil)
   if not right then return nil end
@@ -366,12 +396,12 @@ end
 -- own follow-up (the message) itself, right now.
 --------------------------------------------------------------------------
 
-local function tryAnimate(game, survivor, before, gen2, onDone)
+local function tryAnimate(game, survivor, before, beforeMon, gen2, onDone)
   local after = deps.fusion.partnerOf(survivor)
   if not M.justFused(before, after) then return false end
   local data = game and game.data
   if not data then return false end
-  local left, right, result = M.resolveArt(data, survivor, after)
+  local left, right, result = M.resolveArt(data, survivor, after, beforeMon)
   if not left then return false end
   local colors = gen2 and gen2Colors(game, survivor) or nil
   game.stack:push(M.newScreen({ game = game, gen2 = gen2, left = left,
@@ -393,13 +423,17 @@ local function installGen1(mod)
       return nextFn(game, battle, id, target, list, moveIndex, picker)
     end
     local before = deps.fusion.partnerOf(target)
+    -- Captured BEFORE the real effect runs, so the LEFT picture reads the
+    -- survivor as it stood rather than the mon fuse() is about to stamp --
+    -- see M.resolveArt's own header on `beforeMon` for the bug this avoids.
+    local beforeMon = snapshotMon(target)
     nextFn(game, battle, id, target, list, moveIndex, picker)
     -- The message (if any) is already on the stack by now -- vanillaUseOn's
     -- own "kept"/"failed" branches always push it before returning.  Pushing
     -- our screen on top, isOpaque, is what makes it draw first and the
     -- message draw the instant this one pops: StateStack:draw only paints
     -- from the highest isOpaque state up.
-    local ok, err = pcall(tryAnimate, game, target, before, false, nil)
+    local ok, err = pcall(tryAnimate, game, target, before, beforeMon, false, nil)
     if not ok and deps.log then
       deps.log:error("battle_forms: the fusion animation failed to run (%s) "
         .. "-- the ordinary fusion message still showed", tostring(err))
@@ -477,6 +511,10 @@ local function installGen2(mod)
       onChoose = function(_, mon)
         self.stack:pop()
         local before = deps.fusion.partnerOf(mon)
+        -- Captured BEFORE ItemEffects.useOnMon runs, so the LEFT picture
+        -- reads the survivor as it stood rather than the mon the fuse is
+        -- about to stamp -- see M.resolveArt's own header on `beforeMon`.
+        local beforeMon = snapshotMon(mon)
         local result = ItemEffects.useOnMon(itemId, mon, self.data)
         -- Mirrors Game2:usePartyItem's own `finish` for the one action a
         -- fusion item ever names -- see this function's own header for why
@@ -484,7 +522,7 @@ local function installGen2(mod)
         -- sharing this dispatch is not silently mishandled.
         if result.used then self:consumeItem(itemId) end
         local function say() self:say(result.text) end
-        local ok, animated = pcall(tryAnimate, self, mon, before, true, say)
+        local ok, animated = pcall(tryAnimate, self, mon, before, beforeMon, true, say)
         if not ok then
           if deps.log then
             deps.log:error("battle_forms: the fusion animation failed to "

@@ -150,6 +150,58 @@ do
   T.eq(result.species, "KYUREM_WHITE", "the centre picture is the fused form")
 end
 
+-- ---------------------------------------------------------------------
+-- The LEFT participant must show the survivor AS IT STOOD, not already
+-- fused.  src/fusion.lua's own fuse() calls M.mark before the item's use
+-- closure ever returns, so mon.form already carries the FUSED suffix by
+-- the time src/fusionanim.lua's tryAnimate is handed the survivor -- a
+-- naive plainArt(mon = survivor) call taints even the "before" picture if
+-- whatever answers pokemon.sprite keys its art on ctx.mon.form, exactly
+-- what a real sprite mod's own battle art hook does for every other form
+-- this mod draws (src/gen2formview.lua's own neighbourPath is built on the
+-- identical assumption). The bug report, in the player's own words: "the
+-- left sprite (Kyurem) is already the fused version, not the og unfused
+-- dragon." resolveArt's own `beforeMon` parameter is the fix: a snapshot
+-- of the survivor captured before the fuse applied, carrying no form at
+-- all, handed to the LEFT picture's own lookup instead of the live,
+-- already-mutated mon.
+-- ---------------------------------------------------------------------
+do
+  local Runtime = require("src.mods.Runtime")
+  local Hooks = require("src.mods.Hooks")
+  local savedHooks = Runtime.hooks
+  local hooks = Hooks.new()
+  Runtime.hooks = hooks
+  local unwrap = hooks:wrap("pokemon.sprite", function(nextFn, path, ctx)
+    if ctx.species == "KYUREM" and ctx.mon and ctx.mon.form == "WHITE" then
+      return "assets/kyurem_white_fused_hook.png"
+    end
+    return nextFn(path, ctx)
+  end, 0, "test_sprite_pack")
+
+  -- The live mon, exactly as tryAnimate would actually receive it: the fuse
+  -- has already run and mon.form already carries the fused suffix.
+  local survivor = fusedMon("KYUREM", "RESHIRAM")
+  survivor.form = "WHITE"
+
+  -- A snapshot taken before the fuse applied -- what installGen1/installGen2
+  -- capture right before calling the real effect, per this file's own fix.
+  -- No `form` field at all, matching the survivor's own pre-fuse state.
+  local beforeMon = { species = "KYUREM", level = survivor.level,
+    dvs = survivor.dvs, statExp = survivor.statExp, hp = survivor.hp,
+    moves = survivor.moves }
+
+  local left = FusionAnim.resolveArt(DATA, survivor, "RESHIRAM", beforeMon)
+  Runtime.hooks = savedHooks
+  unwrap()
+
+  T.check(left ~= nil, "resolveArt still succeeds with a beforeMon snapshot")
+  T.eq(left.image.path, DATA.pokemon.KYUREM.spriteFront,
+    "the LEFT participant draws the survivor's OWN BASE picture -- not the "
+      .. "hook's fused-form answer -- because beforeMon carries no form at "
+      .. "all, exactly the mon as it stood before this fuse ever applied")
+end
+
 do
   T.eq(FusionAnim.resolveArt(DATA, nil, "RESHIRAM"), nil,
     "no survivor at all resolves nothing")
@@ -475,6 +527,53 @@ do
     "carrying src/fusion.lua's own, unmodified message")
 end
 
+-- ---------------------------------------------------------------------
+-- The wiring proof for the LEFT-participant fix, not just resolveArt in
+-- isolation: a real pokemon.sprite hook keyed on ctx.mon.form, installed
+-- BEFORE a real bag USE runs the real src/fusion.lua effect through the
+-- real "item.use" Hooks chain -- the identical hazard the resolveArt-level
+-- test above proves, driven this time through the actual installGen1
+-- wrap that snapshots the mon rather than through a hand-built beforeMon.
+-- ---------------------------------------------------------------------
+do
+  Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+                battlerof = Battlerof })
+  local mod = fakeMod(false)
+  Fusion.install(mod, rows, fuserIndices)
+  FusionAnim.bind({ fusion = Fusion, log = mod.log, itemIds = fusionItemIds })
+  T.eq(FusionAnim.install(mod, false), true, "Gen 1 install reports success")
+
+  -- Registered on mod.hooks, the same table useFusionItemViaBagMenu swaps
+  -- onto Runtime.hooks for the duration of the real dispatch below, so this
+  -- is live for the whole flow -- the real item.use wrap included.
+  mod.hooks:wrap("pokemon.sprite", function(nextFn, path, ctx)
+    if ctx.species == "KYUREM" and ctx.mon and ctx.mon.form == "WHITE" then
+      return "assets/kyurem_white_fused_hook.png"
+    end
+    return nextFn(path, ctx)
+  end, 0, "test_sprite_pack")
+
+  local kyurem, reshiram = newMon("KYUREM"), newMon("RESHIRAM", 62)
+  local save = newSave({ kyurem, reshiram })
+  local game = useFusionItemViaBagMenu(mod, "DNA_SPLICERS", DATA, save, kyurem)
+  T.eq(kyurem[Fusion.STAMP], "RESHIRAM",
+    "the real fusion effect ran, and mon.form is now WHITE on the live mon")
+  T.eq(kyurem.form, "WHITE", "precondition: the live mon is already fused "
+    .. "by the time the pushed screen is inspected below")
+
+  local top = game.stack:top()
+  T.check(top ~= nil and top.left ~= nil and top.result ~= nil,
+    "the animation screen landed on top of the real stack")
+  T.check(top.left.image ~= top.result.image,
+    "the LEFT picture is a DIFFERENT image from the fused RESULT picture -- "
+      .. "if the live (already-fused) mon leaked into the left lookup, the "
+      .. "hook above would answer the SAME fused-form image for both, "
+      .. "exactly the bug report: Kyurem's own left sprite already showing "
+      .. "as the fused dragon")
+  T.check(top.left.image.path ~= "assets/kyurem_white_fused_hook.png",
+    "and specifically never the hook's fused-form answer at all")
+end
+
 -- The critical negative: art missing for one participant must fall straight
 -- to the plain message, never a screen with a blank in it.
 do
@@ -697,6 +796,52 @@ do
   T.check(host.save.inventory.DNA_SPLICERS ~= nil,
     "and the item was not spent, exactly as it is on Gen 1")
 
+  -- The identical wiring-level proof as Gen 1's own, above: a real
+  -- pokemon.sprite hook keyed on ctx.mon.form, live for a real
+  -- Game2:usePartyItem dispatch through the SAME wrap just installed above
+  -- (this time on Runtime.hooks directly -- Sprites.path reads the global
+  -- Runtime.hooks, not mod.hooks, and Gen 2's own dispatch never swaps it
+  -- the way useFusionItemViaBagMenu does for Gen 1).  Fresh mons and a
+  -- fresh save; deps.fusion/deps.itemIds are unchanged from the install
+  -- above, so nothing here needs a second install.
+  Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+                battlerof = Battlerof, gen2 = true })
+  local Runtime = require("src.mods.Runtime")
+  local Hooks = require("src.mods.Hooks")
+  local savedRuntimeHooks = Runtime.hooks
+  Runtime.hooks = Hooks.new()
+  local unwrapSprite = Runtime.hooks:wrap("pokemon.sprite", function(nextFn, path, ctx)
+    if ctx.species == "KYUREM" and ctx.mon and ctx.mon.form == "WHITE" then
+      return "assets/kyurem_white_fused_hook.png"
+    end
+    return nextFn(path, ctx)
+  end, 0, "test_sprite_pack")
+
+  local hookKyurem = gen2RealMon("KYUREM", 50)
+  local hookReshiram = gen2RealMon("RESHIRAM", 62)
+  local hookHost = newHost({ DNA_SPLICERS = 1 }, { hookKyurem, hookReshiram })
+  Fusion.onSaveReady({ save = hookHost.save })
+
+  hookHost:usePartyItem("DNA_SPLICERS")
+  local hookParty = hookHost.stack:top()
+  drive(hookHost, function() return hookHost.stack:top() ~= hookParty end)
+  T.eq(hookKyurem[Fusion.STAMP], "RESHIRAM", "the real Gen 2 fusion effect ran")
+  T.eq(hookKyurem.form, "WHITE",
+    "precondition: the live mon is already fused by the time the pushed "
+      .. "screen is inspected below")
+
+  local hookTop = hookHost.stack:top()
+  T.check(hookTop ~= nil and hookTop.left ~= nil and hookTop.result ~= nil,
+    "the animation screen landed on top of the real Game2 stack")
+  T.check(hookTop.left.image ~= hookTop.result.image,
+    "on Gen 2 too, the LEFT picture is a different image from the fused "
+      .. "RESULT picture")
+  T.check(hookTop.left.image.path ~= "assets/kyurem_white_fused_hook.png",
+    "and never the hook's fused-form answer, even though the live mon is "
+      .. "already fused by the time this screen was built")
+
+  Runtime.hooks = savedRuntimeHooks
+  unwrapSprite()
   Fusion.onSaveReady({ save = nil })
   Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
                 battlerof = Battlerof })
