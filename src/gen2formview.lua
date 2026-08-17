@@ -236,13 +236,31 @@ end
 -- 0.44.0 found between picFor (path) and drawPic (shading), one seam over:
 -- the icon's own PATH was already right, the step this wrap bypassed was
 -- which palette shaded it.
-local function drawFormArt(self, mon, image, trueColor, colors, originX, originY, box)
+--
+-- `fill` is the same kind of per-caller decision, for a shape of bug this
+-- module has now shipped twice on the same helper.  M.drawPic's SUMMARY
+-- picture wants the backing rectangle: SummaryMenu's own drawPicBlock reads
+-- a palette colour and paints exactly this fill behind every OTHER mon's
+-- 7x7 STATS picture, so a formed mon's own picture needs the identical
+-- backing to look like it belongs on the same screen.  M.drawIcon's PARTY
+-- list icon does not: vanilla PartyMenu:drawIcon draws its two-frame icon
+-- over the row with no fill of any kind first.  Defaulting to true keeps
+-- M.drawPic's existing two call sites unchanged; M.drawIcon passes false
+-- explicitly below.  Before this parameter existed, EVERY caller got the
+-- fill unconditionally, which is why a form-altered Pokemon's party icon
+-- drew with a pale block behind it that no unaltered icon had -- 0.45.0
+-- routed the icon through this same helper to get the sprite right, and the
+-- fill came along for the ride unnoticed.
+local function drawFormArt(self, mon, image, trueColor, colors, originX, originY, box, fill)
   originX, originY, box = originX or PIC_ORIGIN_X, originY or PIC_ORIGIN_Y,
     box or PIC_BOX
+  if fill == nil then fill = true end
   local G = love.graphics
-  local blank = colors and GbcPalette.color(colors, 1) or { 255, 255, 255 }
-  G.setColor(blank[1] / 255, blank[2] / 255, blank[3] / 255, 1)
-  G.rectangle("fill", originX, originY, box, box)
+  if fill then
+    local blank = colors and GbcPalette.color(colors, 1) or { 255, 255, 255 }
+    G.setColor(blank[1] / 255, blank[2] / 255, blank[3] / 255, 1)
+    G.rectangle("fill", originX, originY, box, box)
+  end
 
   local w, h = image:getWidth(), image:getHeight()
   local scale = math.min(box / w, box / h, 1)
@@ -460,7 +478,11 @@ function M.drawIcon(self, mon, px, py, resolveModule)
   -- the form's own picture, drawn here, used to read the wrong one.
   local pals = self.palettes and self.palettes.partyMenu
   local iconColors = pals and pals[1] or nil
-  drawFormArt(self, mon, art.image, art.trueColor, iconColors, px, py, ICON_BOX)
+  -- fill = false: vanilla PartyMenu:drawIcon paints no backing rectangle
+  -- behind a row icon at all (see drawFormArt's own header on this
+  -- parameter) -- unlike the SUMMARY picture two sections up, which keeps
+  -- the fill by leaving its own call to drawFormArt at the default.
+  drawFormArt(self, mon, art.image, art.trueColor, iconColors, px, py, ICON_BOX, false)
 
   -- The held-item marker, reproduced from PartyMenu:drawIcon's own bottom-
   -- left overlay (src/ui/gen2/PartyMenu.lua:602-644): `self.heldMarkerRow`

@@ -189,6 +189,10 @@ do
   Persistent.bind({ eligibility = Eligibility, rows = persistentRows })
 end
 
+-- src/gen2formview.lua's own PIC_BOX (7*8): mirrored here, not required off
+-- the module, since it is a local the module never exports.
+local PIC_BOX = 7 * 8
+
 -- ---------------------------------------------------------------------
 -- The REAL, unstubbed game/src/ui/gen2/SummaryMenu.lua, constructed and
 -- drawn exactly the way game/src/ui/gen2/PartyMenu.lua's own openStats()
@@ -403,6 +407,27 @@ do
       return realSetShader and realSetShader(...)
     end
 
+    -- The SUMMARY picture's own backing fill: drawFormArt paints a solid
+    -- rectangle behind the art before drawing it, matching vanilla's own
+    -- drawPicBlock -- correct here (a 7x7 STATS block always has one), and
+    -- the positive control for the icon's own negative test further below,
+    -- which proves the identical helper is called WITHOUT a fill for the
+    -- 16x16 party list icon rather than the fill having simply stopped
+    -- happening anywhere.  Filtered to the picture's own origin (0,0) and
+    -- box size (PIC_BOX): drawPanel also runs M.drawSummary's own paint()
+    -- in the same frame, which blanks the TYPE1/TYPE2 tile fields through
+    -- an unrelated "fill" rectangle at a different (tile-aligned) position,
+    -- and an unfiltered count would pass even with the picture's own fill
+    -- removed entirely.
+    local realRect = love.graphics.rectangle
+    local fillRects = 0
+    love.graphics.rectangle = function(mode, x, y, w, h)
+      if mode == "fill" and x == 0 and y == 0 and w == PIC_BOX and h == PIC_BOX then
+        fillRects = fillRects + 1
+      end
+      return realRect and realRect(mode, x, y, w, h)
+    end
+
     -- A FRESH instance, not the `summary` reused above: that one already
     -- cached the record fallback for ROTOM_WASH while no hook was installed,
     -- and this module's own per-instance cache (by design, see M.drawPic's
@@ -412,6 +437,7 @@ do
     local neighbourPaths = drawnPaths(function() hookedSummary:drawPanel() end)
 
     love.graphics.setShader = realSetShader
+    love.graphics.rectangle = realRect
     unwrap()
     Runtime.hooks = savedHooks
 
@@ -423,6 +449,9 @@ do
     T.check(shaderClears > 0,
       "the true-colour answer went through this module's own unshaded "
         .. "draw, not vanilla's drawPicBlock, which never touches the shader")
+    T.check(fillRects > 0,
+      "the SUMMARY picture still paints its own backing fill behind the art "
+        .. "-- the 7x7 STATS block correctly has one")
   end
 
   Persistent.bind({ eligibility = Eligibility, rows = persistentRows })
@@ -981,6 +1010,36 @@ do
     .. "into the icon slot -- the bug report this fixes: a formed Pokemon's "
     .. "row still showed its base species")
   T.check(not sawBaseIcon, "and never the base species' own picture")
+end
+
+-- ---------------------------------------------------------------------
+-- The icon's own background: vanilla PartyMenu:drawIcon paints no fill at
+-- all behind a row icon -- it is a still image over whatever the list row
+-- already drew, unlike SummaryMenu's own drawPicBlock, which fills a solid
+-- backing rectangle behind its 7x7 STATS picture (the "SUMMARY picture
+-- still paints its own backing fill" check above is the positive control
+-- for this one).  The reported bug: a form-altered Pokemon's party icon
+-- gained a pale block behind it that no unaltered icon has -- 0.45.0 routed
+-- the icon through the shared drawFormArt helper to get the sprite right,
+-- and drawFormArt's own backing fill (correct for the 7x7 SUMMARY block)
+-- came along for the ride unnoticed, one seam over.
+-- ---------------------------------------------------------------------
+do
+  local rotom = persistentMon("ROTOM", "WASHING_MACHINE")
+  local fillRects = 0
+  local realRect = love.graphics.rectangle
+  love.graphics.rectangle = function(mode, ...)
+    if mode == "fill" then fillRects = fillRects + 1 end
+    return realRect and realRect(mode, ...)
+  end
+  local ok, drew = iconFixture(rotom)
+  love.graphics.rectangle = realRect
+  T.check(ok and drew, "drawing the formed mon's icon still succeeds")
+  T.eq(fillRects, 0,
+    "the icon paints NO backing rectangle at all -- vanilla PartyMenu."
+      .. "drawIcon never fills one behind a row icon, so drawFormArt's own "
+      .. "fill (correct for the SUMMARY picture two sections up) must not "
+      .. "be drawn here")
 end
 
 -- The exact collision M.drawPic's own cache guards against, proven here for
