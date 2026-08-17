@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.49.0
+
+### Added
+
+- **A proven, standalone move-substitution primitive for Gold -- groundwork only, wired to no feature yet.** Gen 2 has no `curMoves` layer the way Red/Blue/Yellow's own `src/substitute.lua` does: `Battle.lua:255` sets `self.player` to the exact party record, so `mon.moves` is the same table the save writer walks, and the whole-array swap that mechanism relies on would hand a completed save file whatever a substitution currently showed. A move list also turned out not to be recomputable from species and level the way `src/gen2forms.lua`'s stats trick is -- TMs taught, the Move Deleter and Day Care all make it genuinely player-owned history -- so the new `src/gen2substitute.lua` snapshots each slot's `id`/`maxPp` before mutating that exact table in place, and restores by checking each slot's table identity rather than its index, which is what keeps a mid-battle level-up-and-forget's freshly learned move from being silently overwritten by a stale snapshot. PP is spent from the real slot throughout, needing no metatable the way the Gen 1 substitute does, because there is only ever the one table underneath. Gen 2 battles cannot be checkpointed at all, and the one other route to disk (the F1 dev hotkey, which calls `Game2:writeSave` from any screen with no checkpoint gate) funnels through one veto seam, so the primitive also subscribes a `save.write` refusal for as long as any substitution is live -- a save genuinely cannot observe a substituted id, even through that bypass. Proven by 121 checks driving the real `src.battle.gen2.Mon`/`Battle` modules and by deliberately breaking each of six guards in turn to confirm the suite actually catches their absence; nothing in this mod calls the new module's `M.apply` yet, so Dynamax, Gigantamax, Tera Blast and both Z-Move families remain exactly as unreachable on Gold as they were before this release.
+
 ## 0.48.0
 
 ### Added
