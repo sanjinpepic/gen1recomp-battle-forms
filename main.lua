@@ -106,6 +106,7 @@ return function(mod)
                   "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
                   "src/resolve.lua", "src/deferred.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
+                  "src/fusionanim.lua",
                   "src/ultraburst.lua",
                   "src/conditional.lua", "src/diag.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
@@ -296,6 +297,18 @@ return function(mod)
   -- there.
   mod.events:on("save.created", function(ev) fusion.onSaveReady(ev) end)
   mod.events:on("save.loaded", function(ev) fusion.onSaveReady(ev) end)
+
+  -- The side-by-side merge animation, presentation only -- src/fusion.lua
+  -- above still writes exactly the same two strings and moves exactly the
+  -- same Pokemon; this only decides what a player sees happen first. Bound
+  -- with the fusion module itself (for M.partnerOf/M.formIdFor) and the item
+  -- id set fuserIndices' own keys already are, so nothing here re-derives
+  -- which four items are fusion items.
+  local fusionanim = m["src/fusionanim.lua"]
+  local fusionItemIds = {}
+  for itemId in pairs(fuserIndices) do fusionItemIds[itemId] = true end
+  fusionanim.bind({ fusion = fusion, log = mod.log, itemIds = fusionItemIds })
+  fusionanim.install(mod, gen2)
 
   -- The sixth family, and the only one whose pairing table has a single row:
   -- Ultranecrozium Z fits Necrozma alone.  No option ever gates it, so `all`
