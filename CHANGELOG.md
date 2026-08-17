@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.56.0
+
+### Fixed
+
+- **On Gold, taking a persistent held item back off a Pokemon left it fighting a whole extra battle still dressed as the form that item earned.** GIVE and TAKE write `mon.item` directly and fire no event this mod can hook, and `src/persistent.lua`'s own send-out handler (`M.apply`) only ever applied a form the held item still named; when the item was gone it did nothing at all, leaving `mon.form` and the mutated `mon.stats` standing exactly as an earlier `becomeForm` call had left them. A Palkia stripped of the Lustrous Globe therefore still showed Origin Forme's stats and typing on the party summary and through its whole next battle, correcting itself only at that battle's own end once the party sweep re-derived it -- one full battle late, matching a real report. `M.apply` now reverts a form its own pairing table produced the moment the item that earned it is gone, through the same `ownsSuffix` check the function already used to leave a foreign mechanic's marker untouched; Gen 1 is unaffected, since its bag-stamp mutation is already synchronous with `mon.form` and never had this gap.
+
 ## 0.55.0
 
 ### Fixed

@@ -28,6 +28,7 @@ return {
       "Dragon Ascent on Gold now actually deals damage and applies its own stat drop, rather than only spending PP and doing nothing else -- Gold's own move-effect dispatch fires any registered handler before the accuracy roll even runs, so the move's effect is no longer patched onto Gold's own move record at all; the stat drop still lands afterward, through the same post-hit event as before",
       "on Gold, the FORM cell's own DEBUG TRACE line now reports what is offered, what is armed and which of the trainer's key items are actually held, the same report Red/Blue/Yellow's menu cell has always logged",
       "a persistent held-item form (Rotom's appliances, Giratina's Origin Forme and the rest, short of a fusion) now shows correctly in the party list and on the STATS screen the moment the item is given, rather than only after the Pokemon has first been thrown into a battle",
+      "on Gold, taking a persistent held item back off a Pokemon no longer leaves it fighting a whole extra battle still dressed as the form that item earned -- the send-out itself now reverts a form this mod applied the moment the item that earned it is confirmed gone, rather than only the battle-end sweep eventually catching it one battle late",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",
