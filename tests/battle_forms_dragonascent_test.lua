@@ -191,10 +191,33 @@ do
   T.eq(mod.patched.moves[DragonAscent.MOVE].effect, DragonAscent.EFFECT,
     "DRAGONASCENT is patched to point at it")
   local learnsetPatch = mod.patched.pokemon[DragonAscent.SPECIES].learnset
-  T.check(learnsetPatch ~= nil, "RAYQUAZA's learnset is patched")
-  T.eq(learnsetPatch.__append[1].level, DragonAscent.LEVEL, "at level 1")
+  T.check(learnsetPatch ~= nil, "RAYQUAZA's Gen 1 learnset is patched")
+  T.eq(learnsetPatch.__append[1].level, DragonAscent.LEVEL,
+    "at the main series' own level, 75")
   T.eq(learnsetPatch.__append[1].move, DragonAscent.MOVE, "teaching Dragon Ascent")
+  T.eq(mod.patched.pokemon[DragonAscent.SPECIES].levelMoves, nil,
+    "and nothing is patched onto the Gen 2 field name on an unbound (Gen 1) load")
   T.eq(#mod.warned, 0, "nothing to warn about when both bases exist")
+end
+
+-- Bound to Gen 2: the SAME level lands on `levelMoves` instead, the field
+-- national_dex's own src/gen2shape.lua actually reshapes RAYQUAZA's record
+-- into on a Gold boot -- see M.install's own header for why patching
+-- `learnset` there would silently teach a field Mon.movesAtLevel never
+-- reads.
+do
+  DragonAscent.bind({ gen2 = true })
+  local mod = stubMod(true, true)
+  DragonAscent.install(mod)
+  local levelMovesPatch = mod.patched.pokemon[DragonAscent.SPECIES].levelMoves
+  T.check(levelMovesPatch ~= nil, "RAYQUAZA's Gen 2 levelMoves is patched")
+  T.eq(levelMovesPatch.__append[1].level, DragonAscent.LEVEL,
+    "at the same level 75, no per-generation split")
+  T.eq(levelMovesPatch.__append[1].move, DragonAscent.MOVE,
+    "teaching Dragon Ascent")
+  T.eq(mod.patched.pokemon[DragonAscent.SPECIES].learnset, nil,
+    "and nothing is patched onto the Gen 1 field name on a Gen 2 load")
+  DragonAscent.bind(nil)
 end
 
 do
@@ -498,7 +521,8 @@ end
   T.eq(byMove.REST, 54, "REST is still there, at its own level")
   T.eq(byMove.FLY, 63, "so is FLY")
   T.eq(byMove.HYPER_BEAM, 90, "so is HYPER BEAM")
-  T.eq(byMove.DRAGONASCENT, 1, "and DRAGONASCENT was appended at level 1")
+  T.eq(byMove.DRAGONASCENT, DragonAscent.LEVEL,
+    "and DRAGONASCENT was appended at the main series' own level, 75")
   T.eq(rayquaza.baseStats.attack, 150,
     "the species' base stats are untouched -- only `learnset` was patched")
 
@@ -525,6 +549,277 @@ end
   }
   T.eq(entry.available(liveBattle), true,
     "against the real merged data.pokemon, the cell is offered with no items at all")
+end
+
+-- ---------------------------------------------------------------------
+-- Through national_dex's OWN reshaping code (src/gen2shape.lua), not a
+-- mirror of it: this is what the previous test block cannot catch, because
+-- its NATIONAL_DEX_STUB registers a species directly rather than reshaping
+-- one the way a real Gold boot does. The player's own report was exactly
+-- this gap -- src/gen2shape.lua's GEN1_ONLY set drops `learnset` from a
+-- reshaped record entirely, and Mon.movesAtLevel reads only `levelMoves` --
+-- so a suite that never drives gen2shape's own M.record could stay green
+-- while Mega Rayquaza's Gen 2 trigger patched a field nothing ever reads.
+-- ---------------------------------------------------------------------
+do
+  local Gen2Shape = dofile(MOD .. "/../national_dex_mod/src/gen2shape.lua")
+
+  -- A representative Gen 1-shaped source record, the exact shape national_dex
+  -- generates RAYQUAZA in (learnset + level1Moves + baseStats.special) --
+  -- more than four learnset rows below level 75 on purpose, so the FIFO
+  -- push-out Mon.movesAtLevel actually performs has something to prove
+  -- rather than trivially fitting every move in four slots regardless of
+  -- append order.
+  local rayquazaSource = {
+    id = "RAYQUAZA", name = "Rayquaza", dex = 384,
+    types = { "DRAGON", "FLYING" },
+    baseStats = { hp = 105, attack = 150, defense = 90, speed = 95, special = 150 },
+    catchRate = 45, baseExp = 255, growthRate = "MEDIUM_FAST",
+    level1Moves = { "TWISTER" },
+    learnset = { { level = 20, move = "AIR_CUTTER" },
+                 { level = 35, move = "DRAGON_DANCE" },
+                 { level = 54, move = "REST" },
+                 { level = 63, move = "FLY" },
+                 { level = 90, move = "HYPER_BEAM" } },
+    frontSize = 5,
+  }
+
+  -- What national_dex would actually register on a Gold boot: no `learnset`
+  -- (stripped by GEN1_ONLY), a fresh `levelMoves` in its place.
+  local reshaped = Gen2Shape.record(rayquazaSource)
+  T.eq(reshaped.learnset, nil,
+    "gen2shape strips `learnset` entirely, exactly as its own GEN1_ONLY set says")
+  T.check(type(reshaped.levelMoves) == "table",
+    "and folds level1Moves + learnset into `levelMoves` instead")
+
+  -- battle_forms's own patch, bound to Gen 2, against that real reshaped
+  -- record -- proving the fix lands where national_dex's own code actually
+  -- put the data, not where this mod merely assumes it did.
+  local patched = { pokemon = {} }
+  local stubMod2 = {
+    content = {
+      moves = {
+        get = function(_, id) return { id = id, power = 120, type = "FLYING" } end,
+        patch = function() end,
+      },
+      pokemon = {
+        get = function(_, id) return id == "RAYQUAZA" and reshaped or nil end,
+        patch = function(_, id, partial) patched.pokemon[id] = partial end,
+      },
+      move_effects = { register = function() end },
+    },
+  }
+  DragonAscent.bind({ gen2 = true })
+  DragonAscent.install(stubMod2)
+  DragonAscent.bind(nil)
+
+  local levelMovesPatch = patched.pokemon.RAYQUAZA.levelMoves
+  T.check(levelMovesPatch ~= nil,
+    "the patch lands on levelMoves, the field national_dex's own reshaping "
+      .. "actually produced")
+  T.eq(levelMovesPatch.__append[1].level, 75, "at level 75")
+  T.eq(levelMovesPatch.__append[1].move, "DRAGONASCENT", "teaching Dragon Ascent")
+
+  -- Merge levelMoves + the appended row by hand (Registry.lua's own
+  -- __append semantics, done inline here rather than pulling in the whole
+  -- mod loader for one list concat) and hand the merged record to Gold's
+  -- REAL Mon.movesAtLevel -- the same function every level-up and every
+  -- freshly caught Pokemon on Gold actually calls.
+  local merged = {}
+  for _, row in ipairs(reshaped.levelMoves) do merged[#merged + 1] = row end
+  for _, row in ipairs(levelMovesPatch.__append) do merged[#merged + 1] = row end
+  T.eq(#merged, 7, "level1Moves' TWISTER plus five learnset rows plus DRAGONASCENT")
+
+  local Mon = require("src.battle.gen2.Mon")
+  local movesAt75 = Mon.movesAtLevel({ levelMoves = merged }, 75, {})
+  local ids = {}
+  for _, m in ipairs(movesAt75) do ids[m.id] = true end
+  T.eq(#movesAt75, 4, "the engine's own four-move cap, exactly as any species")
+  T.check(ids.DRAGONASCENT,
+    "a level-75 Rayquaza knows Dragon Ascent on Gold, even with five other "
+      .. "learnset moves below that level competing for the same four slots")
+  T.check(not ids.TWISTER,
+    "TWISTER (level1Moves, the oldest) is exactly what got pushed out -- "
+      .. "proof this is testing the real push-out rule and not four moves "
+      .. "fitting by accident")
+
+  -- The identical guarantee on Gen 1, through the engine's own
+  -- Pokemon.movesAtLevel, over the SAME source shape (learnset +
+  -- level1Moves, untouched by gen2shape).
+  local Pokemon = require("src.pokemon.Pokemon")
+  local gen1Merged = { level1Moves = rayquazaSource.level1Moves, learnset = {} }
+  for _, row in ipairs(rayquazaSource.learnset) do
+    gen1Merged.learnset[#gen1Merged.learnset + 1] = row
+  end
+  gen1Merged.learnset[#gen1Merged.learnset + 1] = { level = 75, move = "DRAGONASCENT" }
+  local gen1MovesAt75 = Pokemon.movesAtLevel(gen1Merged, 75)
+  local gen1Has = {}
+  for _, id in ipairs(gen1MovesAt75) do gen1Has[id] = true end
+  T.eq(#gen1MovesAt75, 4, "the same four-move cap on Gen 1")
+  T.check(gen1Has.DRAGONASCENT,
+    "and the same guarantee on Gen 1: a level-75 Rayquaza knows Dragon "
+      .. "Ascent there too")
+  T.check(not gen1Has.TWISTER, "with the same oldest move pushed out")
+end
+
+-- ---------------------------------------------------------------------
+-- Gen 2: Mega Rayquaza's own arming path (no Key Stone, no held item, the
+-- identical exemption Gen 1 has), its own message channel, switching, and
+-- the post-hit stat drop routed around Gold's early move_effects dispatch.
+-- ---------------------------------------------------------------------
+local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local Announce = dofile(MOD .. "/src/announce.lua")
+
+local GEN2_DATA = { pokemon = {
+  RAYQUAZA = { baseStats = { hp = 105, attack = 150, defense = 90, speed = 95,
+                             specialAttack = 150, specialDefense = 90 },
+              types = { "DRAGON", "FLYING" }, name = "RAYQUAZA" },
+  RAYQUAZA_MEGA = { baseStats = { hp = 105, attack = 180, defense = 100,
+                                  speed = 115, specialAttack = 180,
+                                  specialDefense = 100 },
+                    types = { "DRAGON", "FLYING" }, form = "MEGA",
+                    name = "RAYQUAZA" },
+  CHARIZARD = { baseStats = { hp = 78, attack = 84, defense = 78, speed = 100,
+                              specialAttack = 85, specialDefense = 85 },
+                types = { "FIRE", "FLYING" }, name = "CHARIZARD" },
+  CHARIZARD_MEGA_X = { baseStats = { hp = 78, attack = 130, defense = 111,
+                                     speed = 100, specialAttack = 130,
+                                     specialDefense = 85 },
+                       types = { "FIRE", "DRAGON" }, form = "MEGA_X",
+                       name = "CHARIZARD" },
+} }
+
+-- A COPY of the species' own baseStats, never the same table: becomeForm's
+-- own applyStats mutates mon.stats in place (src/gen2forms.lua's own
+-- header), and aliasing it straight to GEN2_DATA's fixture record would
+-- corrupt that shared record the moment a form change ran, which is a bug
+-- in this test fixture rather than in the primitive it is proving.
+local function copyStats(stats)
+  local out = {}
+  for k, v in pairs(stats) do out[k] = v end
+  return out
+end
+
+local function gen2Mon(species, moves, item)
+  local stats = copyStats(GEN2_DATA.pokemon[species].baseStats)
+  return { species = species, level = 70, item = item, moves = moves or {},
+           dvs = { hp = 15, attack = 15, defense = 15, speed = 15, special = 15 },
+           statExp = {}, stats = stats, hp = stats.hp, maxHp = stats.hp }
+end
+
+local function gen2Entry(log)
+  return Mega.entry({ eligibility = E, megas = megas, keyitems = KeyItems,
+                      log = log, dragonascent = DragonAscent, zcrystals = crystals,
+                      battlerof = Battlerof, gen2 = true, gen2forms = Gen2Forms,
+                      announce = Announce })
+end
+
+-- Rayquaza, knowing Dragon Ascent, holding nothing, no Key Stone in the
+-- bag: the cell is offered and activates, exactly as on Gen 1 -- and now
+-- says so, through the Gen 2 message channel.
+do
+  local entry = gen2Entry(nil)
+  local rayquazaMon = gen2Mon("RAYQUAZA", { { id = "DRAGONASCENT" } })
+  local battle = setmetatable({
+    data = GEN2_DATA, player = rayquazaMon,
+    game = { save = { inventory = {} } }, events = {},
+  }, { __index = require("src.battle.gen2.Battle") })
+
+  T.eq(entry.available(battle), true,
+    "Rayquaza's own trigger needs no Key Stone on Gen 2 either")
+  T.eq(entry.activate(battle), true, "and activates")
+  T.eq(rayquazaMon.form, "MEGA", "into Mega Rayquaza")
+  T.check(rayquazaMon.stats.attack > GEN2_DATA.pokemon.RAYQUAZA.baseStats.attack,
+    "with the mega's own stats, written straight onto mon.stats")
+  local events = battle:takeEvents()
+  T.eq(#events, 1, "the mega evolution message was announced")
+  T.eq(events[1].text, "RAYQUAZA's\nMega Evolution!",
+    "in the mainline games' own words, through the Gen 2 channel")
+end
+
+-- Every OTHER Gen 2 mega: the exemption must not have loosened the ordinary
+-- gate.  A Charizard with no Key Stone in the bag is refused; with a Key
+-- Stone and its own mega stone, it works exactly as before this feature
+-- existed.
+do
+  local entry = gen2Entry(nil)
+  local noKeyStone = gen2Mon("CHARIZARD", {}, "CHARIZARDITE_X")
+  local battle1 = { data = GEN2_DATA, player = noKeyStone,
+                    game = { save = { inventory = {} } } }
+  T.eq(entry.available(battle1), false,
+    "a Charizard on Gen 2 still needs the Key Stone -- the exemption is "
+      .. "Rayquaza's alone")
+
+  local both = gen2Mon("CHARIZARD", {}, "CHARIZARDITE_X")
+  local battle2 = { data = GEN2_DATA, player = both,
+                    game = { save = { inventory = { [KeyItems.KEY_STONE] = 1 } } } }
+  T.eq(entry.available(battle2), true,
+    "with a Key Stone in the bag and the stone held on the mon, exactly as "
+      .. "before this feature existed")
+end
+
+-- Switching out and back in: Gen 2 has no makeBattler rebuild step at all
+-- (Battle:switch, game/src/battle/gen2/Battle.lua:3452-3483, only
+-- reassigns self.player/self.playerIndex), so the mon that comes back is
+-- literally the SAME table with mon.stats and mon.form untouched -- the
+-- property src/resolve.lua's own M.onBattlerSwitched header cites for why
+-- Gen 2 needs no reapply logic at all, Rayquaza included.
+do
+  local registry = Transforms.new()
+  registry:register(gen2Entry(nil))
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                megas = megas, dragonascent = DragonAscent, zcrystals = crystals,
+                battlerof = Battlerof, gen2 = true, gen2forms = Gen2Forms })
+
+  local rayquazaMon = gen2Mon("RAYQUAZA", { { id = "DRAGONASCENT" } })
+  Gen2Forms.becomeForm(GEN2_DATA, rayquazaMon, "RAYQUAZA_MEGA")
+  local beforeSwitch = { attack = rayquazaMon.stats.attack, form = rayquazaMon.form }
+
+  Resolve.onBattlerSwitched({ battle = { data = GEN2_DATA, player = rayquazaMon },
+                              battler = rayquazaMon })
+  T.eq(rayquazaMon.stats.attack, beforeSwitch.attack,
+    "switching back in on Gen 2 leaves Mega Rayquaza's stats exactly as "
+      .. "they were -- no stone-keyed reapply runs, or was needed, to lose")
+  T.eq(rayquazaMon.form, beforeSwitch.form,
+    "and its form marker exactly as it was")
+end
+
+-- The general case the guard actually protects, made concrete. Rayquaza's
+-- own case above happens to no-op even with the guard removed --
+-- deps.forms.becomeForm reads battler.mon, nil on a raw Gen 2 mon, and
+-- returns "no_target" harmlessly -- but an ORDINARY Gen 2 mega (no
+-- dragonascent exemption to short-circuit through) falls all the way to
+-- deps.eligibility.formForMon, which reads the Gen 1 bag STAMP a Gen 2 mega
+-- never writes (src/mega.lua's own Gen 2 branch reads mon.item instead), so
+-- it finds no formId and logs the exact false "no longer eligible" warning
+-- this guard's own comment describes. Confirmed by deliberate breakage
+-- while building this suite: removing the early `if deps.gen2 then return
+-- end` reproduces that warning here (Rayquaza's own case stays silent
+-- either way, which is why this second case exists) -- restored immediately
+-- afterward.
+do
+  local logged = {}
+  local registry = Transforms.new()
+  registry:register(gen2Entry(nil))
+  Resolve.bind({ registry = registry, forms = Forms, eligibility = E,
+                megas = megas, dragonascent = DragonAscent, zcrystals = crystals,
+                battlerof = Battlerof, gen2 = true, gen2forms = Gen2Forms,
+                log = { warn = function(_, fmt, ...)
+                  logged[#logged + 1] = fmt:format(...)
+                end } })
+
+  local charMon = gen2Mon("CHARIZARD", {}, "CHARIZARDITE_X")
+  Gen2Forms.becomeForm(GEN2_DATA, charMon, "CHARIZARD_MEGA_X")
+  local before = { attack = charMon.stats.attack, form = charMon.form }
+
+  Resolve.onBattlerSwitched({ battle = { data = GEN2_DATA, player = charMon },
+                              battler = charMon })
+  T.eq(charMon.stats.attack, before.attack,
+    "an ordinary Gen 2 mega's stats are untouched by switching too")
+  T.eq(charMon.form, before.form, "and its form marker too")
+  T.eq(#logged, 0,
+    "and no false \"no longer eligible\" warning is logged -- the guard "
+      .. "this case exists to pin")
 end
 
 T.finish("battle_forms_dragonascent")

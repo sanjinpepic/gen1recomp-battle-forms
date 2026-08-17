@@ -339,6 +339,13 @@ return function(mod)
   -- refuses Rayquaza for and neither of those tables is a mega stone.
   local dragonascent = m["src/dragonascent.lua"]
   local zcrystals = dragonascent.crystalSet(crystalIndices, ultraCrystalIndices)
+  -- gen2 alone: it is what M.effectRecord's own `run` reads to refuse
+  -- itself on Gold rather than fire early and wrongly-shaped off Gold's own
+  -- move_effects dispatch (Battle.lua:1561-1566 hands it positional
+  -- battle-engine arguments before the accuracy roll, not the Gen 1 ctx
+  -- table this file's `run` expects) -- see M.onDamageDealt's own header
+  -- for the real Gen 2 mechanism this dispatches to instead.
+  dragonascent.bind({ gen2 = gen2 })
   dragonascent.install(mod)
 
   -- Tera Blast's own reachability fix, beside Dragon Ascent's for the same
@@ -360,6 +367,11 @@ return function(mod)
   -- crystal converts. Ten get a real effect and an honest flag; the
   -- eleventh (Spirit Shackle) is refused rather than faked -- see
   -- src/speciesbasemoves.lua's own header for why.
+  -- gen2 alone: it is what the learnset patch reads to land on `levelMoves`
+  -- instead, the identical fix src/dragonascent.lua's own bind carries and
+  -- for the identical reason -- national_dex's own src/gen2shape.lua strips
+  -- `learnset` on a Gold boot.
+  m["src/speciesbasemoves.lua"].bind({ gen2 = gen2 })
   m["src/speciesbasemoves.lua"].install(mod)
 
   -- gen2 decides whether M.items() takes the dead USE verb off a stone, an

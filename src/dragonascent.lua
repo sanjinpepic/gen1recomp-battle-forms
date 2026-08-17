@@ -33,6 +33,16 @@
 -- from here, needs no option at all.
 local M = {}
 
+-- deps.gen2 is the one thing M.install below reads -- which FIELD its
+-- learnset patch has to land in.  Every other function in this file is
+-- generation-agnostic (M.knows, M.crystalSet, M.formFor, M.effectRecord all
+-- read a mon, a registry or a Gen 1 ctx table, never a battle).  Optional,
+-- like every deps table in this mod's own convention: a build that never
+-- calls M.bind (the unit suite covering the effect record and the roster/
+-- species patches) gets exactly the Gen 1 behaviour this file always had.
+local deps = nil
+function M.bind(modules) deps = modules end
+
 M.SPECIES = "RAYQUAZA"
 -- The National Dex record's KEY, exactly the discipline data/megas.lua's own
 -- header demands of every form id it names -- and never the record's `name`
@@ -46,7 +56,31 @@ M.SPECIES = "RAYQUAZA"
 -- record the same way it checks every other form id this mod wires.
 M.FORM = "RAYQUAZA_MEGA"
 M.MOVE = "DRAGONASCENT"
-M.LEVEL = 1
+-- The main series' own level -- Rayquaza learns Dragon Ascent at 75, and
+-- this mod follows that number rather than inventing a more convenient one,
+-- the same restraint applied elsewhere to G-Max effects and Z-Move
+-- triggers.  0.30.0 through 0.53.0 taught it at level 1 instead, so the
+-- move (and therefore the mega) was available from the moment a Rayquaza
+-- existed; a Rayquaza below level 75 now needs to reach it, or learn the
+-- move some other way, before Dragon Ascent's own trigger has anything to
+-- ask about. Applies identically on both games -- see M.install's own
+-- header for why the FIELD it lands in still has to differ.
+--
+-- `Pokemon.movesAtLevel`/`Mon.movesAtLevel` (game/src/pokemon/Pokemon.lua:
+-- 10-30, game/src/battle/gen2/Mon.lua:302-327) both keep only the LAST four
+-- distinct moves a walk of the learnset/levelMoves array produces at or
+-- below the target level -- array order, not level order.  Since
+-- M.install's own `__append` always adds this row after every row
+-- national_dex's own registration already carries, it is always the last
+-- entry either walk can add for a mon at or above level 75, which is what
+-- guarantees a FRESHLY BUILT level-75 Rayquaza (wild_forms places one at
+-- Indigo Plateau, level 75, exactly for this reason) always knows Dragon
+-- Ascent with no possibility of an earlier move crowding it out -- on
+-- either game.  A Rayquaza that instead LEVELS UP into 75 with a full
+-- moveset goes through the ordinary interactive learn prompt
+-- (BattleState:learnMove/MoveLearnMenu on Gen 1, Gold's own equivalent),
+-- exactly as any other move would, and the player may decline it there.
+M.LEVEL = 75
 -- Wears the mod's name for the reason every other effect id here does: a
 -- move pack registering its own DRAGONASCENT effect cannot collide with this
 -- one.
@@ -163,12 +197,30 @@ function M.install(mod)
       M.MOVE)
   end
 
+  -- deps.gen2 picks the FIELD this patch has to land in, not merely a
+  -- different value: national_dex's own src/gen2shape.lua folds `learnset`
+  -- and `level1Moves` into one `levelMoves` table for every species it
+  -- registers on a Gold boot, and lists `learnset` in its own GEN1_ONLY set
+  -- -- "written in their Gen 2 spelling below, so they must not also
+  -- survive under their Gen 1 name", that file's own comment on exactly why
+  -- -- so a reshaped RAYQUAZA record has no `learnset` field at all by the
+  -- time this mod's own dependent load ever reaches it (battle_forms
+  -- declares national_dex a hard dependency, so it always loads after).
+  -- Patching `learnset` there does not fail -- Registry.lua's fold() merges
+  -- a patch onto whatever exists, missing key or not -- it silently
+  -- manufactures a `learnset` field nothing on Gold ever reads:
+  -- game/src/battle/gen2/Mon.lua's own Mon.movesAtLevel walks only
+  -- `def.levelMoves`, at every one of its three level-up call sites, and
+  -- never once looks at `learnset`.  That was this mod's own bug through
+  -- 0.53.0 -- Mega Rayquaza's Gen 2 exemption was wired to a move no Gold
+  -- Rayquaza could ever actually know, whatever level it reached.
   local pokemon = mod.content and mod.content.pokemon
   local speciesBase = pokemon and type(pokemon.get) == "function"
     and pokemon:get(M.SPECIES)
   if type(speciesBase) == "table" then
+    local field = (deps and deps.gen2) and "levelMoves" or "learnset"
     mod.content.pokemon:patch(M.SPECIES, {
-      learnset = { __append = { { level = M.LEVEL, move = M.MOVE } } },
+      [field] = { __append = { { level = M.LEVEL, move = M.MOVE } } },
     })
   elseif mod.log then
     mod.log:warn(

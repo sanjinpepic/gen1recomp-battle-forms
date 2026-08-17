@@ -401,6 +401,49 @@ do
   T.eq(mod.patched.pokemon.DECIDUEYE, nil, "and DECIDUEYE is never taught anything")
 end
 
+-- Bound to Gen 2: the identical learnset/levelMoves field bug
+-- src/dragonascent.lua carried through 0.53.0, and the identical fix --
+-- national_dex's own src/gen2shape.lua strips `learnset` from every
+-- species it reshapes on a Gold boot, so patching it there would silently
+-- teach a field Mon.movesAtLevel never reads.
+local function stubModGen2(opts)
+  opts = opts or {}
+  local patched = { pokemon = {} }
+  local moveDefs = opts.moves or {}
+  local speciesDefs = opts.species or {}
+  return {
+    content = {
+      move_effects = { register = function() end },
+      moves = {
+        get = function(_, id) return moveDefs[id] end,
+        patch = function() end,
+      },
+      pokemon = {
+        get = function(_, id) return speciesDefs[id] end,
+        patch = function(_, id, partial) patched.pokemon[id] = partial end,
+      },
+    },
+    log = { warn = function() end },
+    patched = patched,
+  }
+end
+
+do
+  SBM.bind({ gen2 = true })
+  local mod = stubModGen2({ moves = fullMoves(), species = fullSpecies() })
+  SBM.install(mod)
+  SBM.bind(nil)
+
+  local levelMovesPatch = mod.patched.pokemon.PIKACHU.levelMoves
+  T.check(levelMovesPatch ~= nil,
+    "PIKACHU's Gen 2 levelMoves is patched, not learnset")
+  T.eq(levelMovesPatch.__append[1].move, "VOLTTACKLE",
+    "still teaching VOLTTACKLE")
+  T.eq(levelMovesPatch.__append[1].level, 1, "at the same level as Gen 1")
+  T.eq(mod.patched.pokemon.PIKACHU.learnset, nil,
+    "and nothing is patched onto the Gen 1 field name on a Gen 2 load")
+end
+
 -- A move missing entirely: that row's species are never taught, and it says
 -- so once, naming the move -- the same degrade src/dragonascent.lua's own
 -- suite pins for a missing DRAGONASCENT.

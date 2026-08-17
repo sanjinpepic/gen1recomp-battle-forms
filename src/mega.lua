@@ -39,18 +39,20 @@
 --     silently write nothing a damage or type check ever reads.
 --     deps.gen2forms.becomeForm is the primitive that actually reaches
 --     mon.stats and Battle.speciesDef there.
---   * WHAT ELSE ACTIVATING DOES.  Mega Rayquaza's own trigger
---     (deps.dragonascent) is Gen 1 only in this pass -- the exemption is
---     skipped outright on Gen 2 rather than guessed at, so a Gen 2 Rayquaza
---     still needs a Key Stone and a mega stone like every other species
---     until that trigger is ported. The message IS ported: deps.announce.
---     gen2Mega goes through Battle:emit, the same Gen 2 message channel
---     deps.announce.gen2Tera/gen2Primal/gen2UltraBurst already use, because
---     Gold's engine object has neither `say` nor `sayNext` for Gen 1's
---     battle:animNext/animationsOn pair below to reach through either way --
---     see deps.announce.gen2Mega's own header for why there is still no
---     animation to queue after it (Gold has no transformation-flash concept
---     for a mod to reach at all).
+--   * MEGA RAYQUAZA'S OWN TRIGGER.  deps.dragonascent.formFor is asked
+--     FIRST on Gen 2 too, exactly as it is on Gen 1 -- it is scoped to
+--     Rayquaza alone (M.formFor checks mon.species itself), so asking it
+--     costs every other Gen 2 mega nothing: for anything that is not an
+--     eligible Rayquaza it answers nil and the Key-Stone-plus-mon.item gate
+--     below runs exactly as it always has.  A Rayquaza knowing Dragon
+--     Ascent needs neither a Key Stone nor a held stone on either game.
+--   * THE MESSAGE.  deps.announce.gen2Mega goes through Battle:emit, the
+--     channel deps.announce.gen2Tera/gen2Primal/gen2UltraBurst already use
+--     for the identical reason: Gold's engine object has neither `say` nor
+--     `sayNext`.  There is still no animation to queue -- Gold has no
+--     transformation-flash concept at all (deps.announce.gen2Mega's own
+--     header has the file:line evidence) -- so the message is the whole of
+--     what a Gen 2 mega evolution announces.
 local M = {}
 
 M.ID = "mega"
@@ -83,6 +85,11 @@ function M.entry(deps)
       local pokemon = battle.data and battle.data.pokemon
 
       if deps.gen2 then
+        local exemptForm = deps.dragonascent
+          and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon)
+        if exemptForm then
+          return pokemon ~= nil and pokemon[exemptForm] ~= nil
+        end
         if not deps.keyitems.held(battle, deps.keyitems.KEY_STONE) then
           return false
         end
@@ -114,8 +121,12 @@ function M.entry(deps)
       local mon = deps.battlerof.mon(battler)
 
       if deps.gen2 then
-        local formId = deps.eligibility.formFor(deps.megas, mon and mon.species,
-                                                 mon and mon.item)
+        local formId = deps.dragonascent
+          and deps.dragonascent.formFor(deps.eligibility, deps.zcrystals, mon)
+        if not formId then
+          formId = deps.eligibility.formFor(deps.megas, mon and mon.species,
+                                             mon and mon.item)
+        end
         if not formId then return false end
         local ok, reason = deps.gen2forms.becomeForm(battle.data, mon, formId)
         if not ok then

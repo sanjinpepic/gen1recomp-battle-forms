@@ -49,6 +49,18 @@
 -- complete model rather than a stub of one.
 local M = {}
 
+-- deps.gen2 is read for exactly one thing: which FIELD M.install's own
+-- learnset patch has to land in. national_dex's own src/gen2shape.lua folds
+-- `learnset` into `levelMoves` for every species it registers on a Gold
+-- boot and strips `learnset` outright (its own GEN1_ONLY set), so a species
+-- patched here the same way src/dragonascent.lua's own RAYQUAZA patch used
+-- to be would silently teach a field Mon.movesAtLevel never reads -- the
+-- identical bug that mechanism carried through 0.53.0, found and fixed
+-- there first; see M.install's own header for the full reasoning, not
+-- repeated here.
+local deps = nil
+function M.bind(modules) deps = modules end
+
 -- Every id this file registers wears the mod's name, the same discipline
 -- src/dragonascent.lua's own EFFECT and src/speciesz.lua's own PREFIX
 -- follow: a collision is a load failure for whichever registers second.
@@ -351,8 +363,9 @@ function M.install(mod)
         local speciesBase = pokemon and type(pokemon.get) == "function"
           and pokemon:get(species)
         if type(speciesBase) == "table" then
+          local field = (deps and deps.gen2) and "levelMoves" or "learnset"
           mod.content.pokemon:patch(species, {
-            learnset = { __append = { { level = row.level, move = row.move } } },
+            [field] = { __append = { { level = row.level, move = row.move } } },
           })
         elseif mod.log then
           mod.log:warn(

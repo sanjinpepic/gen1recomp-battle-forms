@@ -241,6 +241,23 @@ end
 -- which src/mega.lua's Gen 2 branch never writes (it reads mon.item
 -- instead), so a perfectly fine Gen 2 mega'd mon would find no formId and
 -- log a false "no longer eligible" warning on every single switch-in.
+--
+-- This also covers Mega Rayquaza's own Gen 2 case, which was checked
+-- separately rather than assumed to fall out of the general argument above:
+-- src/mega.lua's Gen 2 branch writes mon.stats through the identical
+-- deps.gen2forms.becomeForm call every other Gen 2 mega uses, whether the
+-- trigger was deps.dragonascent (no stone) or the ordinary Key-Stone-plus-
+-- mon.item gate, so there is no second code path for a stone-keyed reapply
+-- to have been written against and none was needed. Confirmed against
+-- Battle.lua itself: Mon.refreshStats -- the one call that recomputes
+-- mon.stats from data.pokemon[mon.species]'s BASE stats -- runs once per
+-- battle, over the whole party, at Battle:new (:293-298); Battle:switch
+-- (:3452-3483) only reassigns self.player/self.playerIndex and never
+-- touches mon.stats at all. A benched Mega Rayquaza's boosted mon.stats and
+-- mon.form are therefore still sitting on the exact same table when it
+-- switches back in, stone or no stone -- the identical property
+-- tests/battle_forms_gen2forms_test.lua's own "switching out and back in
+-- needs no reapply at all" section already proves for Mega Charizard X.
 function M.onBattlerSwitched(ev)
   local battle = ev and ev.battle
   local battler = ev and ev.battler
