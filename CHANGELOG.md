@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.53.0
+
+### Added
+
+- **The eighteen type Z-Moves, the fourteen species Z-Moves, Z-status effects and Tera Blast all work on Gold now, which closes the mechanical half of the Gold parity gap.** `src/zmoves.lua` and `src/speciesz.lua` read `mon.item` for a crystal's own held-item check rather than the Gen 1 bag stamp -- the identical gap `src/mega.lua`'s and `src/primal.lua`'s own Gen 2 branches already fixed for stones and orbs, since GIVE only ever writes `mon.item` and `eligibility.STAMP` is a field Gold's own party menu never touches -- and both catalogs' `fieldsFor` gained the `maxPp`-not-`ppUps` branch every other `src/gen2substitute.lua` consumer already carries. Z-status's self-raise classification now reads live off `src.battle.gen2.Effects.STAT_CHANGES` rather than a hand-duplicated table, and applies through the engine's own `battle:changeStage` instance method, since Gold has no free function shaped like Gen 1's `MoveEffects.changeStage` to call instead. Tera Blast's own substitution was refused outright on Gen 2 in 0.43.0, written when Gold had no proven move-substitution primitive to reach for; the refusal is closed now that `src/gen2substitute.lua` has been proven under three real consumers (Max Moves, then both Z-Move catalogs), so a Pokemon that already knows TERA BLAST gets the real substituted move alongside the type override that already worked. The type Z-Moves are that primitive's second real consumer alongside Dynamax's Max Moves, and the two are proven not to collide -- `src/arm.lua`'s own one-transformation-per-battle lock always tears one substitution down before the other arms, checked directly rather than assumed.
+
 ## 0.52.0
 
 ### Added
