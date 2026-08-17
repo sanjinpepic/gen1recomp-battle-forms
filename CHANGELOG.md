@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.52.0
+
+### Added
+
+- **Dynamax, Gigantamax and Max Moves work on Gold.** 0.49.0 built and proved `src/gen2substitute.lua`, the mutate-and-restore primitive Gold needs in place of Gen 1's whole-array swap, and deliberately wired it to nothing; `src/dynamax.lua`, `src/maxmoves.lua` and `src/gmaxmoves.lua` now carry a `deps.gen2` branch, the same shape `src/mega.lua`'s own already does, so the identical three-turn clock, once-per-battle limit and four teardown paths run through the real primitive instead of Gen 1's `src/substitute.lua`. The HP multiplier ports the same way it already worked on Red -- halving incoming damage through `battle.damage` and repainting the readout through `battle.overlay` rather than writing HP -- read off the mon directly through `src/battlerof.lua` so the one hook now covers both games' payload shapes with no branch of its own; an OHKO move fails outright against a Dynamaxed target on Gold too, wrapping `Battle.MOVE_EFFECTS.EFFECT_OHKO` the way Gen 1's own `OHKO_EFFECT` gate is wrapped, since Gold's own version has no separate gate field to compose ahead of. A new `src/gen2movemenu.lua` gives the substituted Max Move and G-Max Move names their own FIGHT-menu redraw, the equivalent of `src/zmovemenu.lua` for a class that module never touches, established against Gold's own 96-pixel/twelve-column budget rather than assumed from Gen 1's. The Dynamax Band now sells at the Indigo Plateau counter alongside the Key Stone and the Tera Orb, without which none of this was reachable regardless of how correct the mechanism is. Proven under a mid-battle level-up (a forgotten move's slot and an appended new one both survive a live substitution's unwind untouched) and by deliberately breaking six guards in turn -- the real-loader wiring, the primitive's identity-based restore, its save-write veto and the Gen 2 OHKO gate -- to confirm the suite actually catches their absence.
+
 ## 0.51.0
 
 ### Fixed

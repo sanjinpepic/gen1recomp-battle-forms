@@ -102,7 +102,8 @@ return function(mod)
                   "src/transforms.lua", "src/mega.lua", "src/dragonascent.lua",
                   "src/terablasttm.lua", "src/speciesbasemoves.lua",
                   "src/dynamax.lua",
-                  "src/substitute.lua", "src/maxmoves.lua", "src/gmaxmoves.lua",
+                  "src/substitute.lua", "src/gen2substitute.lua",
+                  "src/maxmoves.lua", "src/gmaxmoves.lua",
                   "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
                   "src/resolve.lua", "src/deferred.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
@@ -114,7 +115,7 @@ return function(mod)
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
                   "src/formicons.lua",
                   "src/gen2shop.lua", "src/gen2menu.lua",
-                  "src/zmovemenu.lua", "src/hpscale.lua",
+                  "src/zmovemenu.lua", "src/gen2movemenu.lua", "src/hpscale.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua", "data/maxmoves.lua", "data/gmaxmoves.lua",
@@ -266,6 +267,14 @@ return function(mod)
   -- way, but patching a class Gen 1 never runs through would be a wrap this
   -- boot can never exercise.
   if gen2 then gen2forms.install(mod) end
+  -- Subscribes the save.write veto src/gen2substitute.lua's own header
+  -- argues for -- a disk write structurally cannot observe a substituted
+  -- move id, even through the dev-hotkey bypass, while a Max Move or G-Max
+  -- Move substitution is live. Gen 1 only for the reason src/substitute.lua
+  -- itself never needed one: a Gen 1 substitute is a separate table the
+  -- battler's own curMoves points at, never a write into the party record's
+  -- own move slots.
+  if gen2 then m["src/gen2substitute.lua"].install(mod) end
 
   -- The fifth family, and the only one that does not go through the held-item
   -- stamp at all: a fusion is recorded by which partner went in, and the
@@ -406,13 +415,14 @@ return function(mod)
     -- Terastallization needs only the trainer's own item on Gold (no
     -- pairing table, no species gate), so selling it is what turns this
     -- pass's Gen 2 branch into a feature a player can actually reach rather
-    -- than code nothing sells the key to.  The Dynamax Band stays off this
-    -- shelf -- Dynamax needs a move-substitution primitive this pass does
-    -- not build, and arming it would either be inert or risk writing a Gen 2
-    -- move list wrong, a save-corruption class of mistake this mod has
-    -- avoided since 0.2.1.
+    -- than code nothing sells the key to.  The Dynamax Band joins them as of
+    -- this version: src/gen2substitute.lua is the move-substitution
+    -- primitive the shelf was withheld for, proven under a real consumer
+    -- (src/dynamax.lua's own `deps.gen2` branch) rather than left wired to
+    -- nothing the way it shipped in 0.49.0.
     indigoIndices[keyitems.KEY_STONE] = keyIndices[keyitems.KEY_STONE]
     indigoIndices[keyitems.TERA_ORB] = keyIndices[keyitems.TERA_ORB]
+    indigoIndices[keyitems.DYNAMAX_BAND] = keyIndices[keyitems.DYNAMAX_BAND]
     for stoneId in pairs(megaset.stoneIds(megas)) do
       indigoIndices[stoneId] = indices[stoneId]
     end
@@ -421,8 +431,8 @@ return function(mod)
     -- prerequisites rather than the dead ends they were before src/fusion.lua
     -- and src/main.lua's own item_effects and save-capture work above --
     -- selling only two of the three would leave Ultra Burst a purchase that
-    -- still does nothing, the exact trap the Dynamax Band's own exclusion
-    -- above is avoiding on purpose.
+    -- still does nothing, the exact trap the Dynamax Band avoided above by
+    -- shipping the substitution primitive alongside the item that needs it.
     indigoIndices[keyitems.Z_RING] = keyIndices[keyitems.Z_RING]
     for itemId, index in pairs(fuserIndices) do
       indigoIndices[itemId] = index
@@ -500,10 +510,16 @@ return function(mod)
   -- or saved.  What IS conditional is which types get one -- src/maxmoves.lua
   -- asks the merged chart, because a move naming a type this game has never
   -- heard of would fail the load rather than fail quietly.
+  -- gen2 branches only the PP-correction shape M.fieldsFor hands the
+  -- substitution: Gold's own FIGHT menu draws move.pp/move.maxPp straight
+  -- off the slot with no PP-Up arithmetic at all, where Gen 1's draws a
+  -- maximum computed from the record's own PP and a ppUps correction
+  -- (src/maxmoves.lua's own header on M.fieldsFor).
   local maxmoves = m["src/maxmoves.lua"]
   local guardState = maxmoves.newGuard()
   maxmoves.bind({ anim = anim, announce = announce, log = mod.log,
-                  guard = guardState, substitute = m["src/substitute.lua"] })
+                  guard = guardState, substitute = m["src/substitute.lua"],
+                  gen2 = gen2 })
   local maxCatalog = maxmoves.install(mod, m["data/maxmoves.lua"])
 
   -- G-Max Moves: a second, species-aware catalog on the same substitution --
@@ -514,9 +530,12 @@ return function(mod)
   -- it is a battle that cannot be drawn or saved. The power ladder is not
   -- this file's own -- src/gmaxmoves.lua reads src/maxmoves.lua's live rather
   -- than a second copy of the same seven numbers.
+  -- gen2 branches the identical PP-correction shape src/maxmoves.lua's own
+  -- bind does, for the identical reason.
   local gmaxmoves = m["src/gmaxmoves.lua"]
   gmaxmoves.bind({ anim = anim, log = mod.log,
-                   substitute = m["src/substitute.lua"], maxmoves = maxmoves })
+                   substitute = m["src/substitute.lua"], maxmoves = maxmoves,
+                   gen2 = gen2 })
   local gmaxCatalog = gmaxmoves.install(mod, m["data/gmaxmoves.lua"],
                                         m["data/maxmoves.lua"])
 
@@ -571,12 +590,21 @@ return function(mod)
   -- test it; src/dynamax.lua owns the order, and tests/battle_forms_
   -- dynamax_test.lua and tests/battle_forms_gmaxmoves_test.lua both drive it
   -- directly.
+  -- gen2/gen2forms follow src/mega.lua's own Gen 2 branch exactly: no
+  -- battler wrapper to override curStats/curTypes on, so
+  -- deps.gen2forms.becomeForm is the primitive that actually reaches
+  -- mon.stats and Battle.speciesDef there.  gen2substitute is the second
+  -- primitive this entry is the first real consumer of: Gold has no
+  -- `curMoves` array to swap, only the mon's own `moves`, mutated in place
+  -- (src/gen2substitute.lua's own header, proven under this exact feature
+  -- by tests/battle_forms_gen2dynamax_test.lua).
   local dynamax = m["src/dynamax.lua"]
   dynamax.bind({ forms = m["src/forms.lua"],
                  gigantamax = m["data/gigantamax.lua"], keyitems = keyitems,
                  announce = announce, log = mod.log,
                  substitute = m["src/substitute.lua"],
-                 battlerof = battlerof,
+                 battlerof = battlerof, gen2 = gen2, gen2forms = gen2forms,
+                 gen2substitute = m["src/gen2substitute.lua"],
                  maxMoves = function(data)
                    return maxmoves.picker(maxCatalog, data)
                  end,
@@ -597,7 +625,10 @@ return function(mod)
   -- refusal above only withholds the menu CELL -- an adopted mid-battle
   -- Dynamax or a future caller of dynamaxState directly would otherwise find
   -- the multiplier missing for a reason that has nothing to do with it.
-  m["src/hpscale.lua"].install(mod, dynamaxState)
+  -- battlerof reads ctx.target on either payload shape with no `gen2` branch
+  -- needed at that one hook; gen2 decides only the draw path and the OHKO
+  -- gate, which genuinely differ (src/hpscale.lua's own header).
+  m["src/hpscale.lua"].install(mod, dynamaxState, battlerof, gen2)
 
   -- The third entry, and the first that is not a form change at all: it
   -- overrides the battler's types and marks nothing, so it is handed neither
@@ -899,6 +930,24 @@ return function(mod)
     zMenuNames[id] = short
   end
   zmovemenu.install(mod, zMenuNames)
+
+  -- Gold's own equivalent: a SECOND, independent wrap of a DIFFERENT class
+  -- (src.ui.gen2.BattleState, never touched by src/zmovemenu.lua above), so
+  -- that module's own once-only guard is not even in the way -- see
+  -- src/gen2movemenu.lua's own header for the full answer to "whether a
+  -- second roster can register at all".  Built from the ordinary Max Move
+  -- roster's own menuNames (data/maxmoves.lua's `menu` field, unused by Gen
+  -- 1's own zMenuNames merge above) plus the same G-Max names zMenuNames
+  -- already carries, merged the identical way.  Gen 1 only -- there is no
+  -- src.ui.gen2.BattleState on that boot to patch.
+  if gen2 then
+    local gen2MenuNames = maxmoves.menuNames(m["data/maxmoves.lua"])
+    for id, short in pairs(gmaxmoves.menuNames(m["data/gmaxmoves.lua"],
+                                                m["data/maxmoves.lua"])) do
+      gen2MenuNames[id] = short
+    end
+    m["src/gen2movemenu.lua"].install(mod, gen2MenuNames, { diag = diag })
+  end
 
   -- Events:emit pcalls the LISTENER, not the calls inside it, so three
   -- handlers sharing one listener meant the first to throw silently cancelled

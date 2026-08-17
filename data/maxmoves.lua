@@ -29,35 +29,67 @@
 -- than modelling it, so a Gigantamax Pokemon uses the ordinary Max Move for
 -- each of its types, which is what the real games give one for every type its
 -- G-Max move does not cover anyway.
+-- `menu` is the display-only short name src/maxmoves.lua's own M.menuNames
+-- reads, the identical split data/zmoves.lua's and data/gmaxmoves.lua's own
+-- `menu` fields keep: `name` above is still what gets registered and what a
+-- save, the battle text row and Mimic all see.  Only Gold's own FIGHT menu
+-- reads `menu` today -- src/gen2movemenu.lua's own header derives the
+-- 12-column budget it exists to keep every shipped name inside -- so a name
+-- that already fits gets `menu = name` unchanged and only the five that
+-- overflow (MAX AIRSTREAM, MAX FLUTTERBY, MAX OVERGROWTH, MAX LIGHTNING,
+-- MAX MINDSTORM, MAX HAILSTORM, MAX STEELSPIKE -- thirteen or fourteen
+-- columns) drop the "MAX " prefix, the identical abbreviation
+-- data/gmaxmoves.lua already uses for its own overlong rows.  Gen 1 reads
+-- none of this: main.lua's own zMenuNames merge never touches
+-- data/maxmoves.lua, so nothing here changes what the classic or widescreen
+-- FIGHT menu has always shown on Red, Blue or Yellow.
 return {
   -- Registration order, so the shelf of registered records is the same from
   -- one run to the next -- a keyed table reorders between runs.
   types = {
-    { type = "NORMAL",       stem = "MAXSTRIKE",     name = "MAX STRIKE" },
-    { type = "FIGHTING",     stem = "MAXKNUCKLE",    name = "MAX KNUCKLE" },
-    { type = "FLYING",       stem = "MAXAIRSTREAM",  name = "MAX AIRSTREAM" },
-    { type = "POISON",       stem = "MAXOOZE",       name = "MAX OOZE" },
-    { type = "GROUND",       stem = "MAXQUAKE",      name = "MAX QUAKE" },
-    { type = "ROCK",         stem = "MAXROCKFALL",   name = "MAX ROCKFALL" },
-    { type = "BUG",          stem = "MAXFLUTTERBY",  name = "MAX FLUTTERBY" },
-    { type = "GHOST",        stem = "MAXPHANTASM",   name = "MAX PHANTASM" },
-    { type = "FIRE",         stem = "MAXFLARE",      name = "MAX FLARE" },
-    { type = "WATER",        stem = "MAXGEYSER",     name = "MAX GEYSER" },
-    { type = "GRASS",        stem = "MAXOVERGROWTH", name = "MAX OVERGROWTH" },
-    { type = "ELECTRIC",     stem = "MAXLIGHTNING",  name = "MAX LIGHTNING" },
+    { type = "NORMAL",       stem = "MAXSTRIKE",     name = "MAX STRIKE",
+      menu = "MAX STRIKE" },
+    { type = "FIGHTING",     stem = "MAXKNUCKLE",    name = "MAX KNUCKLE",
+      menu = "MAX KNUCKLE" },
+    { type = "FLYING",       stem = "MAXAIRSTREAM",  name = "MAX AIRSTREAM",
+      menu = "AIRSTREAM" },
+    { type = "POISON",       stem = "MAXOOZE",       name = "MAX OOZE",
+      menu = "MAX OOZE" },
+    { type = "GROUND",       stem = "MAXQUAKE",      name = "MAX QUAKE",
+      menu = "MAX QUAKE" },
+    { type = "ROCK",         stem = "MAXROCKFALL",   name = "MAX ROCKFALL",
+      menu = "MAX ROCKFALL" },
+    { type = "BUG",          stem = "MAXFLUTTERBY",  name = "MAX FLUTTERBY",
+      menu = "FLUTTERBY" },
+    { type = "GHOST",        stem = "MAXPHANTASM",   name = "MAX PHANTASM",
+      menu = "MAX PHANTASM" },
+    { type = "FIRE",         stem = "MAXFLARE",      name = "MAX FLARE",
+      menu = "MAX FLARE" },
+    { type = "WATER",        stem = "MAXGEYSER",     name = "MAX GEYSER",
+      menu = "MAX GEYSER" },
+    { type = "GRASS",        stem = "MAXOVERGROWTH", name = "MAX OVERGROWTH",
+      menu = "OVERGROWTH" },
+    { type = "ELECTRIC",     stem = "MAXLIGHTNING",  name = "MAX LIGHTNING",
+      menu = "LIGHTNING" },
     -- The engine's id for the type is PSYCHIC_TYPE and its name is PSYCHIC;
     -- src/tera.lua carries the same exception for the same reason.
-    { type = "PSYCHIC_TYPE", stem = "MAXMINDSTORM",  name = "MAX MINDSTORM" },
-    { type = "ICE",          stem = "MAXHAILSTORM",  name = "MAX HAILSTORM" },
-    { type = "DRAGON",       stem = "MAXWYRMWIND",   name = "MAX WYRMWIND" },
+    { type = "PSYCHIC_TYPE", stem = "MAXMINDSTORM",  name = "MAX MINDSTORM",
+      menu = "MINDSTORM" },
+    { type = "ICE",          stem = "MAXHAILSTORM",  name = "MAX HAILSTORM",
+      menu = "HAILSTORM" },
+    { type = "DRAGON",       stem = "MAXWYRMWIND",   name = "MAX WYRMWIND",
+      menu = "MAX WYRMWIND" },
     -- The last three exist only in a game where National Dex has registered a
     -- chart carrying them.  src/maxmoves.lua asks the live chart before it
     -- registers any of these rather than assuming, because a move naming a type
     -- the merged chart has never heard of is a load error for this mod's api
     -- level, not a quiet miss.
-    { type = "DARK",         stem = "MAXDARKNESS",   name = "MAX DARKNESS" },
-    { type = "STEEL",        stem = "MAXSTEELSPIKE", name = "MAX STEELSPIKE" },
-    { type = "FAIRY",        stem = "MAXSTARFALL",   name = "MAX STARFALL" },
+    { type = "DARK",         stem = "MAXDARKNESS",   name = "MAX DARKNESS",
+      menu = "MAX DARKNESS" },
+    { type = "STEEL",        stem = "MAXSTEELSPIKE", name = "MAX STEELSPIKE",
+      menu = "STEELSPIKE" },
+    { type = "FAIRY",        stem = "MAXSTARFALL",   name = "MAX STARFALL",
+      menu = "MAX STARFALL" },
   },
 
   -- Fighting and Poison land a rung lower at every step, which is the one
@@ -78,5 +110,6 @@ return {
 
   -- The status case.  Every move with no power at all becomes this one,
   -- whatever its type, which is why it sits outside the table above.
-  guard = { stem = "MAXGUARD", name = "MAX GUARD", type = "NORMAL" },
+  guard = { stem = "MAXGUARD", name = "MAX GUARD", type = "NORMAL",
+            menu = "MAX GUARD" },
 }

@@ -178,15 +178,112 @@ function M.draw(state, battle)
   paint(slot.x, slot.y, text)
 end
 
--- Wires the two hooks and the one content patch into a live mod.  Bound to
+-- ---- Gen 2 -------------------------------------------------------------
+--
+-- Gold has no widescreen battle path at all, so there is one slot rather
+-- than a classic/wide pair. Its own numeric HP text ends at pixel 144
+-- (Chrome.printRight's own tile 18, game/src/ui/gen2/BattleState.lua:3279)
+-- on the SAME row Gen 1's own CLASSIC_SLOT prints (y = 80, tile row 10) --
+-- not a coincidence, both trace to the identical GB HUD layout.  64px wide
+-- for the same reason src/hpscale.lua's own SLOT_W is: the worst realistic
+-- case is a two-digit current and a two-digit maximum ("40/40", 5 monospace
+-- characters, 40px), comfortably inside a slot this size with room to
+-- spare, and Gold's own PP-Up-free model (game/src/battle/gen2/Mon.lua
+-- carries no ppUps field at all) never pushes a Max Move's substituted
+-- `maxPp` past the base move's own real maximum, which tops out at 40 on
+-- any move this game's own data carries.
+local GEN2_SLOT = { x = 144 - SLOT_W, y = 80 }
+
+-- The visibility rule BattleState:drawHud already applies to the player's
+-- own HUD block before it prints anything there
+-- (game/src/ui/gen2/BattleState.lua:3265-3269) -- reproduced rather than
+-- read off a shared flag for the identical reason Gen 1's own
+-- playerHudVisible is: battle.overlay fires after drawHud has already
+-- returned, with none of its locals left to ask.  `uiBattle` is the UI
+-- screen (src/gen2menu.lua's own `self`), not the engine battle --
+-- `statusHUDVisible`/`showPlayerHud`/`hudCleared` are methods and fields on
+-- that class, never on game/src/battle/gen2/Battle.lua.  Wrapped in pcall:
+-- a stubbed or reshaped screen missing one of these must degrade the
+-- overlay to "paint nothing" rather than take a draw frame down.
+function M.gen2PlayerVisible(uiBattle)
+  if not uiBattle then return false end
+  local okVisible, visible = pcall(uiBattle.statusHUDVisible, uiBattle)
+  if not (okVisible and visible) then return false end
+  if not uiBattle.showPlayerHud then return false end
+  local okCleared, cleared = pcall(uiBattle.hudCleared, uiBattle, "player")
+  if okCleared and cleared then return false end
+  return true
+end
+
+-- battle.overlay's own draw, Gold-shaped.  `uiBattle.battle.player` rather
+-- than `uiBattle.player` -- Gold's UI class carries no top-level `.player`
+-- field at all, only `.battle.player` (the engine object's own, a bare mon
+-- with no wrapper -- src/battlerof.lua's own header). `FontOverride` exists
+-- so a test can drive this without swapping package.loaded; production
+-- calls it with none and gets the module's own real Font.
+function M.drawGen2(state, uiBattle, FontOverride)
+  local F = FontOverride or Font
+  local engineBattle = uiBattle and uiBattle.battle
+  local mon = engineBattle and engineBattle.player
+  local cur = M.displayedCurrent(state, mon)
+  if not cur or not M.gen2PlayerVisible(uiBattle) then return end
+  local text = ("%d/%d"):format(cur, M.displayedMax(state, mon))
+  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.rectangle("fill", GEN2_SLOT.x, GEN2_SLOT.y, SLOT_W, SLOT_H)
+  love.graphics.setColor(0, 0, 0, 1)
+  F.draw(text, GEN2_SLOT.x, GEN2_SLOT.y)
+end
+
+-- Gold's own OHKO gate.  Battle.MOVE_EFFECTS.EFFECT_OHKO
+-- (game/src/battle/gen2/Battle.lua:2250-2277) is a full `run` handler, not a
+-- separate `gate` field the way Gen 1's OHKO_EFFECT carries one -- Fissure
+-- and Horn Drill's own level/speed checks and their own miss text live
+-- INSIDE that one function, so there is nothing to compose AHEAD of the
+-- way M.ohkoGate composes ahead of Gen 1's base gate. This wraps the whole
+-- `run` instead: refuses outright and says so when the target is the
+-- Dynamaxed mon (the real games refuse an OHKO against a Dynamaxed target
+-- regardless of type, level or speed), and delegates to `baseRun` --
+-- captured from the real class BEFORE this module's own patch reaches the
+-- registry, exactly the way M.ohkoGate's own `baseOhkoGate` is captured --
+-- for every other case.
+function M.ohkoRunGen2(state, baseRun)
+  return function(battleSelf, attacker, defender, def, moveId, locked)
+    if defender and state.mon == defender then
+      if battleSelf and battleSelf.markMissed then
+        pcall(battleSelf.markMissed, battleSelf)
+      end
+      if battleSelf and battleSelf.emit then
+        pcall(battleSelf.emit, battleSelf,
+          { kind = "message", text = "But, it failed!" })
+      end
+      return
+    end
+    return baseRun(battleSelf, attacker, defender, def, moveId, locked)
+  end
+end
+
+-- Wires the two hooks and the content patch(es) into a live mod. Bound to
 -- src/dynamax.lua's own `state` rather than a record of this module's own,
 -- for the reason the header gives: there is only ever one Dynamax to track,
 -- and it is already tracked.
-function M.install(mod, state)
+--
+-- `battlerof` reads ctx.target on EITHER shape with no `gen2` branch needed
+-- at this one hook -- battle.damage's payload IS the discriminator
+-- (src/battlerof.lua's own header), so the single wrap below already covers
+-- both games.  `gen2` decides only which DRAW path and which OHKO patch to
+-- install, because those two genuinely differ: Gold's UI class shape for
+-- the draw, and Gold's own EFFECT_OHKO id and `run`-only shape for the
+-- gate. Gen 1's own OHKO_EFFECT patch still installs unconditionally --
+-- that id is simply never dispatched on a Gen 2 boot, the identical
+-- harmless-elsewhere shape every other Gen-1-only registration in this mod
+-- already has.
+function M.install(mod, state, battlerof, gen2)
   mod.hooks:wrap("battle.damage", function(nextFn, ctx)
     local dmg, info = nextFn(ctx)
-    local target = ctx and ctx.target and ctx.target.mon
-    return M.scaleDamage(state, target, dmg), info
+    local target = ctx and ctx.target
+    local mon = battlerof and battlerof.mon(target)
+      or (target and target.mon)
+    return M.scaleDamage(state, mon, dmg), info
   end)
 
   mod.hooks:wrap("battle.overlay", function(nextFn, battle)
@@ -194,12 +291,33 @@ function M.install(mod, state)
     -- populated one (another mod's own sparkle, or a future overlay of this
     -- one's) must still run whether or not a Dynamax is live right now.
     nextFn(battle)
-    M.draw(state, battle)
+    if gen2 then
+      M.drawGen2(state, battle)
+    else
+      M.draw(state, battle)
+    end
   end)
 
   mod.content.move_effects:patch("OHKO_EFFECT", {
     gate = function(ctx) return M.ohkoGate(state, ctx) end,
   })
+
+  if gen2 then
+    local okBattle, GenBattle = pcall(require, "src.battle.gen2.Battle")
+    local baseRun = okBattle and type(GenBattle) == "table"
+      and type(GenBattle.MOVE_EFFECTS) == "table"
+      and GenBattle.MOVE_EFFECTS.EFFECT_OHKO
+    if type(baseRun) == "function" then
+      mod.content.move_effects:patch("EFFECT_OHKO", {
+        run = M.ohkoRunGen2(state, baseRun),
+      })
+    elseif mod.log then
+      mod.log:error(
+        "battle_forms: src.battle.gen2.Battle.MOVE_EFFECTS.EFFECT_OHKO is "
+          .. "unavailable -- an OHKO move will not fail against a "
+          .. "Dynamaxed target on Gold")
+    end
+  end
 end
 
 return M

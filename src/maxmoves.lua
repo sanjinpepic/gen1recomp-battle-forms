@@ -183,6 +183,16 @@ end
 -- alone.  nil covers three cases and all three are the same answer: a move the
 -- registry cannot resolve (there is nothing to read a power or a type off), a
 -- type with no Max Move in this game, and a rung that failed to register.
+--
+-- deps.gen2 branches the PP correction the same way src/mega.lua's own entry
+-- branches its whole shape: Gold's FIGHT menu draws `move.pp`/`move.maxPp`
+-- straight off the slot with no PP-Up arithmetic at all
+-- (game/src/ui/gen2/BattleState.lua:3415), where Gen 1's draws a MAXIMUM
+-- computed from the record's own PP and a `ppUps` correction
+-- (src/substitute.lua's own header). src/gen2substitute.lua writes `maxPp`
+-- onto the SAME slot table it mutates in place, so what it needs here is the
+-- base move's own real maximum as an absolute number, not a correction meant
+-- for a second table Gen 2 never creates.
 function M.fieldsFor(catalog, data, slot)
   local def = data and data.moves and data.moves[slot and slot.id]
   if type(def) ~= "table" then return nil end
@@ -196,6 +206,10 @@ function M.fieldsFor(catalog, data, slot)
     id = rungs and rungs[M.powerFor(catalog.rows, def.type, power)] or nil
   end
   if not id then return nil end
+
+  if deps and deps.gen2 then
+    return { id = id, maxPp = tonumber(def.pp) or M.RECORD_PP }
+  end
 
   -- The base move's own maximum expressed in the units the FIGHT menu's formula
   -- wants, so the menu draws the slot's real remaining PP against the slot's
@@ -212,6 +226,34 @@ function M.picker(catalog, data)
   return function(slot)
     return M.fieldsFor(catalog, data, slot)
   end
+end
+
+-- id -> the FIGHT menu's own short name, the display-time-only split
+-- data/maxmoves.lua's own `menu` field header describes -- src/gen2movemenu.lua
+-- is the one reader, and the registered record's `name` above is still what a
+-- save, the battle text row and Mimic all see.  Every rung a row can register
+-- shares its one display name, the same one-name-per-row rule
+-- src/gmaxmoves.lua's own M.menuNames keeps.
+function M.menuNames(rows)
+  local out = {}
+  local lowered = rows.lowered or {}
+  for _, row in ipairs(rows.types) do
+    if type(row.menu) == "string" and row.menu ~= "" then
+      local seen = {}
+      for _, rung in ipairs(rows.ladder) do
+        local power = lowered[row.type] and rung.loweredPower or rung.power
+        if not seen[power] then
+          seen[power] = true
+          out[M.idFor(row.stem, power)] = row.menu
+        end
+      end
+    end
+  end
+  local guardRow = rows.guard
+  if guardRow and type(guardRow.menu) == "string" and guardRow.menu ~= "" then
+    out[M.PREFIX .. guardRow.stem] = guardRow.menu
+  end
+  return out
 end
 
 -- Max Guard's shield lasts the turn it went up and no longer.  One record, like

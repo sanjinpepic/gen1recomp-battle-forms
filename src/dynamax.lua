@@ -77,6 +77,22 @@
 -- -- src/arm.lua dispatches that and says why at length.  So all three turns of
 -- a Dynamax are Max Move turns, including the one it was armed on, and a
 -- Dynamax armed and then cycled away from takes its Max Moves back off with it.
+--
+-- GEN 2, added after the rest of this proved itself on Red -- the same
+-- `deps.gen2` branch src/mega.lua's own entry already carries, so the state
+-- machine, the clock and the four teardown paths are exactly one mechanism
+-- for both games. Three things differ and nothing else does: WHICH
+-- SUBSTITUTION PRIMITIVE arms the moves (src/gen2substitute.lua mutates the
+-- mon's own `moves` array in place rather than swapping a battler-scoped
+-- `curMoves` -- that module's own header has the full argument), WHICH
+-- PRIMITIVE APPLIES the Gigantamax shape (deps.gen2forms.becomeForm, which
+-- writes mon.stats and mon.formTypes directly because Gen 2 has no battler
+-- to override curStats/curTypes on), and WHAT ELSE ACTIVATING SAYS
+-- (src/announce.lua's own gen2Dynamax/gen2Gigantamax/gen2DynamaxEnded, Gold's
+-- `battle:emit` channel rather than Gen 1's say/sayNext cursor). The
+-- once-per-battle bookkeeping, the three-turn clock, and the once-per-battle
+-- Gigantamax-art-or-plain fallback are identical on both games and read no
+-- differently here.
 local M = {}
 
 M.ID = "dynamax"
@@ -101,9 +117,14 @@ function M.bind(modules) deps = modules end
 -- `carry` is src/hpscale.lua's field, not this file's -- see the header note
 -- above.  Zeroed here and everywhere else `turns`/`form` are, so a caller
 -- never has to know it exists to keep it correct.
+-- deps.gen2 picks src/gen2substitute.lua over src/substitute.lua for the
+-- identical reason every other Gen 2 branch in this file does: Gold has no
+-- `curMoves` array to swap, only the mon's own `moves`, mutated in place
+-- (src/gen2substitute.lua's own header).
 function M.new()
+  local sub = deps and (deps.gen2 and deps.gen2substitute or deps.substitute)
   return { mon = nil, turns = 0, form = nil, carry = 0,
-           moves = deps and deps.substitute and deps.substitute.new() or nil }
+           moves = sub and sub.new() or nil }
 end
 
 -- Ends the state and takes the Gigantamax shape back off, but only if the mon
@@ -120,13 +141,21 @@ local function finish(state, battle, battler)
   local mon, form = state.mon, state.form
   state.mon, state.turns, state.form, state.carry = nil, 0, nil, 0
   -- Before the form work and unconditionally.  The substitution holds the
-  -- battler it covered, so it needs neither the `battler` argument -- which is
-  -- nil on the switch-out path -- nor a live mon to put the original move array
-  -- back where it found it.
-  if deps.substitute then deps.substitute.restore(state.moves) end
+  -- battler (or, on Gen 2, the mon) it covered, so it needs neither the
+  -- `battler` argument -- which is nil on the switch-out path -- nor a live
+  -- mon to put the original move array back where it found it.
+  local sub = deps.gen2 and deps.gen2substitute or deps.substitute
+  if sub then sub.restore(state.moves) end
   if not mon then return false end
   if form and mon.form == form then
-    if deps.battlerof.mon(battler) == mon then
+    if deps.gen2 then
+      -- Gen 2 has no battler to tell a fainting mon from a benched one --
+      -- deps.gen2forms.revertMon is the one revert there is, the identical
+      -- primitive resolve.lua's own settle() reaches for on this game.
+      if deps.gen2forms then
+        deps.gen2forms.revertMon(mon, battle and battle.data)
+      end
+    elseif deps.battlerof.mon(battler) == mon then
       deps.forms.revertForm(battler, battle and battle.data, battle)
     else
       deps.forms.revertMon(mon)
@@ -183,23 +212,32 @@ function M.entry(state)
     -- arming is a step AHEAD of the Gigantamax form itself -- `activate` has
     -- not run yet, so there is no `mon.form` to key off, only the species
     -- the shape would be derived from.
+    -- deps.gen2 picks src/gen2substitute.lua and its own target: that module
+    -- mutates the mon's own `moves` array in place rather than swapping a
+    -- battler-scoped `curMoves`, so what it applies onto is the mon itself
+    -- (already what `battle.player` IS on Gen 2 -- src/battlerof.lua's own
+    -- header), never a wrapper.  The picker composition below is otherwise
+    -- identical on both games: `gmaxMoves` first on every slot, `maxMoves`
+    -- wherever it says nothing.
     arm = function(battle)
-      if not battle or not (deps.substitute and deps.maxMoves) then
-        return false
-      end
+      if not battle then return false end
+      local sub = deps.gen2 and deps.gen2substitute or deps.substitute
+      if not (sub and deps.maxMoves) then return false end
       local mon = deps.battlerof and deps.battlerof.mon(battle.player)
       local base = deps.maxMoves(battle.data)
       local gmax = deps.gmaxMoves and deps.gmaxMoves(battle.data, mon)
       local pick = gmax and function(slot) return gmax(slot) or base(slot) end
         or base
-      return deps.substitute.apply(state.moves, battle.player, pick)
+      local target = deps.gen2 and mon or battle.player
+      return sub.apply(state.moves, target, pick)
     end,
 
     -- Disarming is the array coming straight back.  Nothing else of a Dynamax
     -- exists yet at this point -- no counter, no form, no mon reference -- so
     -- there is nothing else to undo.
     disarm = function()
-      if deps.substitute then deps.substitute.restore(state.moves) end
+      local sub = deps.gen2 and deps.gen2substitute or deps.substitute
+      if sub then sub.restore(state.moves) end
     end,
 
     -- Always answers true: the state is the mechanic, and it is set here
@@ -230,8 +268,16 @@ function M.entry(state)
         local pokemon = battle.data and battle.data.pokemon
         local ok, reason
         if pokemon and pokemon[formId] then
-          ok, reason = deps.forms.becomeForm(battle.data, battler, formId,
-                                             battle)
+          -- Gen 2 has no battler wrapper to override curStats/curTypes on --
+          -- deps.gen2forms.becomeForm is the primitive that actually writes
+          -- mon.stats and mon.formTypes there, the identical branch
+          -- src/mega.lua's own activate already makes.
+          if deps.gen2 then
+            ok, reason = deps.gen2forms.becomeForm(battle.data, mon, formId)
+          else
+            ok, reason = deps.forms.becomeForm(battle.data, battler, formId,
+                                               battle)
+          end
         else
           -- Unlike the mega cell, this one is offered to every species, so
           -- there is no `available` pass to have caught a missing record
@@ -258,7 +304,13 @@ function M.entry(state)
       -- does not disturb them either way, because a Max Move follows the base
       -- move's type rather than the Pokemon's.
       if deps.announce then
-        if state.form then
+        if deps.gen2 then
+          if state.form then
+            deps.announce.gen2Gigantamax(battle, mon)
+          else
+            deps.announce.gen2Dynamax(battle, mon)
+          end
+        elseif state.form then
           deps.announce.gigantamax(battle, battler)
         else
           deps.announce.dynamax(battle, battler)
@@ -285,7 +337,11 @@ function M.onTurnEnded(state, ev)
   -- reachable -- a switch and a faint both end this sooner -- and a line with
   -- no name to put in it is worse than the silence announce.lua exists to end.
   if battler and deps.announce then
-    deps.announce.dynamaxEnded(battle, battler)
+    if deps.gen2 then
+      deps.announce.gen2DynamaxEnded(battle, deps.battlerof.mon(battler))
+    else
+      deps.announce.dynamaxEnded(battle, battler)
+    end
   end
 end
 
@@ -324,9 +380,11 @@ end
 local function forget(state)
   state.mon, state.turns, state.form, state.carry = nil, 0, nil, 0
   -- The substitution is not swept by anything the way a form is, so it is
-  -- unwound here as well as in finish().  The battler it is holding is a second
-  -- reference that must not outlive the battle either.
-  if deps.substitute then deps.substitute.restore(state.moves) end
+  -- unwound here as well as in finish().  The battler (or, on Gen 2, the
+  -- mon) it is holding is a second reference that must not outlive the
+  -- battle either.
+  local sub = deps.gen2 and deps.gen2substitute or deps.substitute
+  if sub then sub.restore(state.moves) end
 end
 
 M.onBattleStarted = forget

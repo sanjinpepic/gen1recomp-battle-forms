@@ -262,6 +262,58 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- Gen 2: no ppUps at all -- Gold's own FIGHT menu draws move.pp/move.maxPp
+-- straight off the slot (game/src/ui/gen2/BattleState.lua:3415), so a
+-- gen2-bound catalog answers with the base move's real maximum as `maxPp`,
+-- an absolute value src/gen2substitute.lua writes onto the slot it mutates
+-- in place -- never a `ppUps` correction meant for a second table Gen 2
+-- never creates.
+-- ---------------------------------------------------------------------
+do
+  local mod = stubMod(chartOf(RED_TYPES))
+  MaxMoves.bind({ anim = Anim, announce = Announce, log = mod.log,
+                  substitute = Substitute, gen2 = true })
+  local catalog = MaxMoves.install(mod, ROWS)
+  local data = { moves = MOVES }
+
+  local ember = MaxMoves.fieldsFor(catalog, data, { id = "EMBER", pp = 25 })
+  T.eq(ember.id, MaxMoves.idFor("MAXFLARE", 90),
+    "the id is decided the identical way on Gen 2")
+  T.eq(ember.maxPp, 25, "and maxPp carries EMBER's own real maximum")
+  T.eq(ember.ppUps, nil, "with no ppUps field on a Gen 2 bind at all")
+
+  local growl = MaxMoves.fieldsFor(catalog, data, { id = "GROWL", pp = 40 })
+  T.eq(growl.id, catalog.guard, "MAX GUARD is still decided the same way")
+  T.eq(growl.maxPp, 40, "and its own slot shows GROWL's real maximum too")
+
+  bindMaxMoves(mod)
+end
+
+-- ---------------------------------------------------------------------
+-- The FIGHT-menu short names -- Gold's own 12-column redraw budget
+-- (src/gen2movemenu.lua's own header derives it), reused rather than
+-- re-derived here.  Gen 1 never reads this map (main.lua's own zMenuNames
+-- merge never touches data/maxmoves.lua), so nothing here is a claim about
+-- what the classic or widescreen FIGHT menu shows.
+-- ---------------------------------------------------------------------
+do
+  local names = MaxMoves.menuNames(ROWS)
+  T.eq(names[MaxMoves.idFor("MAXFLARE", 90)], "MAX FLARE",
+    "a name that already fits keeps itself")
+  T.eq(names[MaxMoves.idFor("MAXOVERGROWTH", 150)], "OVERGROWTH",
+    "a fourteen-column name is abbreviated")
+  T.eq(names[MaxMoves.idFor("MAXKNUCKLE", 75)], "MAX KNUCKLE",
+    "every rung of a row shares its one name -- the lowered rung too")
+  T.eq(names[MaxMoves.PREFIX .. "MAXGUARD"], "MAX GUARD",
+    "and MAX GUARD carries its own short name")
+  for _, row in ipairs(ROWS.types) do
+    T.check(type(row.menu) == "string" and #row.menu <= 12,
+      row.name .. "'s own menu field fits Gold's 12-column budget")
+  end
+  T.check(#ROWS.guard.menu <= 12, "and the guard row's own menu field fits too")
+end
+
+-- ---------------------------------------------------------------------
 -- Max Guard's shield.
 -- ---------------------------------------------------------------------
 do

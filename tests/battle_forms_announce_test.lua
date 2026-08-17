@@ -383,6 +383,18 @@ do
   T.eq(#burst, 2, "two pages again")
   T.eq(burst[1].text, "CHARIZARD\nregained its true", "the head of the real sentence")
   T.eq(burst[2].text, "power through\nUltra Burst!", "and its tail")
+
+  T.eq(Announce.gen2Dynamax(battle, mon), true, "the Gen 2 Dynamax line is emitted")
+  T.eq(battle:takeEvents()[1].text, "CHARIZARD\nDynamaxed!",
+    "the same verb-not-possessive line Gen 1's own M.dynamax prints")
+
+  T.eq(Announce.gen2Gigantamax(battle, mon), true, "and the Gigantamax line too")
+  T.eq(battle:takeEvents()[1].text, "CHARIZARD\nGigantamaxed!",
+    "matching Gen 1's own M.gigantamax")
+
+  T.eq(Announce.gen2DynamaxEnded(battle, mon), true, "and the expiry line")
+  T.eq(battle:takeEvents()[1].text, "CHARIZARD's\nDynamax ended!",
+    "matching Gen 1's own M.dynamaxEnded")
 end
 
 -- Gen 2's own engine never prefixes "Enemy " -- Battle:monName carries no
@@ -407,6 +419,11 @@ do
   T.eq(Announce.gen2Tera({ data = {} }, { species = "X" }, "FIRE"), false,
     "a battle with no emit function is refused rather than raising")
   T.eq(Announce.gen2UltraBurst(nil, nil), false, "and no battle at all is refused too")
+
+  T.eq(Announce.gen2Dynamax(battle, nil), false, "gen2Dynamax refuses a nameless mon too")
+  T.eq(Announce.gen2Gigantamax(battle, nil), false, "and gen2Gigantamax")
+  T.eq(Announce.gen2DynamaxEnded(battle, nil), false, "and gen2DynamaxEnded")
+  T.eq(#battle:takeEvents(), 0, "none of the three refusals queued anything")
 end
 
 T.finish("battle_forms_announce")

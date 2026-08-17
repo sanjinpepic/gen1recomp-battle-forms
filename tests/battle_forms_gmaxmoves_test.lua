@@ -28,6 +28,9 @@ local Dynamax = dofile(MOD .. "/src/dynamax.lua")
 local Forms = dofile(MOD .. "/src/forms.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local Battlerof = dofile(MOD .. "/src/battlerof.lua")
+local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local Gen2Substitute = dofile(MOD .. "/src/gen2substitute.lua")
+local Gen2Mon = require("src.battle.gen2.Mon")
 local ROWS = dofile(MOD .. "/data/gmaxmoves.lua")
 local MAXROWS = dofile(MOD .. "/data/maxmoves.lua")
 local SPECIESZ_ROWS = dofile(MOD .. "/data/speciesz.lua")
@@ -406,6 +409,30 @@ do
 end
 
 -- ---------------------------------------------------------------------
+-- Gen 2: the identical branch src/maxmoves.lua's own suite pins, for the
+-- identical reason -- Gold's FIGHT menu draws move.pp/move.maxPp straight off
+-- the slot, so a gen2-bound catalog answers with the base move's real
+-- maximum as an absolute `maxPp` rather than a `ppUps` correction.
+-- ---------------------------------------------------------------------
+do
+  local mod = stubMod(chartOf(ALL_TYPES))
+  GMax.bind({ anim = Anim, log = mod.log, substitute = Substitute,
+              maxmoves = MaxMoves, gen2 = true })
+  local catalog = GMax.install(mod, ROWS, MAXROWS)
+  local data = { moves = MOVES }
+
+  local ember = GMax.fieldsFor(catalog, data, { species = "CHARIZARD" },
+    { id = "EMBER", pp = 25 })
+  T.eq(ember.id, GMax.idFor("GMAXWILDFIRE", 90), "the id is decided the same way")
+  T.eq(ember.maxPp, 25, "and maxPp carries EMBER's own real maximum")
+  T.eq(ember.ppUps, nil, "with no ppUps field on a Gen 2 bind at all")
+
+  local cinderEmber = GMax.fieldsFor(catalog, data, { species = "CINDERACE" },
+    { id = "EMBER", pp = 25 })
+  T.eq(cinderEmber.maxPp, 25, "the fixed-power row carries the same shape")
+end
+
+-- ---------------------------------------------------------------------
 -- src/dynamax.lua's arm step: this catalog checked BEFORE the ordinary Max
 -- Move picker, on every slot independently -- the composition
 -- src/dynamax.lua's own header promises and main.lua actually wires,
@@ -514,6 +541,113 @@ do
   T.eq(entry.arm(pidgeyBattle), true, "arming a plain Dynamax still substitutes")
   T.eq(pidgeyBattler.curMoves[1].id, MaxMoves.idFor("MAXFLARE", 90),
     "EMBER becomes the ordinary MAX FLARE -- Pidgey carries no G-Max Move at all")
+  entry.disarm()
+end
+
+-- ---------------------------------------------------------------------
+-- Gen 2: the identical composition, but mutating the mon's own `moves`
+-- array IN PLACE through src/gen2substitute.lua rather than swapping a
+-- battler-scoped `curMoves` -- src/dynamax.lua's own `deps.gen2` branch,
+-- driven here with the two real Gen 2 catalogs rather than a stand-in.
+-- ---------------------------------------------------------------------
+do
+  local DATA = {
+    moves = MOVES,
+    pokemon = {
+      CHARIZARD = { baseStats = { hp = 78, attack = 84, defense = 78,
+                                  speed = 100, specialAttack = 85,
+                                  specialDefense = 85 },
+                    types = { "FIRE", "FLYING" } },
+      CHARIZARD_GMAX = { baseStats = { hp = 78, attack = 84, defense = 78,
+                                       speed = 100, specialAttack = 85,
+                                       specialDefense = 85 },
+                         types = { "FIRE", "FLYING" }, form = "GMAX" },
+      PIDGEY = { baseStats = { hp = 40, attack = 45, defense = 40, speed = 56,
+                               specialAttack = 35, specialDefense = 35 },
+                 types = { "NORMAL", "FLYING" } },
+    },
+  }
+
+  local maxMod = stubMod(chartOf(ALL_TYPES))
+  MaxMoves.bind({ anim = Anim, announce = Announce, log = maxMod.log,
+                  guard = MaxMoves.newGuard(), substitute = Substitute,
+                  gen2 = true })
+  local MAX_CATALOG = MaxMoves.install(maxMod, MAXROWS)
+  for id, record in pairs(maxMod.registered.moves) do MOVES[id] = record end
+
+  local gmaxMod = stubMod(chartOf(ALL_TYPES))
+  GMax.bind({ anim = Anim, log = gmaxMod.log, substitute = Substitute,
+              maxmoves = MaxMoves, gen2 = true })
+  local GMAX_CATALOG = GMax.install(gmaxMod, ROWS, MAXROWS)
+  for id, record in pairs(gmaxMod.registered.moves) do MOVES[id] = record end
+
+  local function newMon(species)
+    local def = DATA.pokemon[species]
+    local dvs = { hp = 15, attack = 15, defense = 15, speed = 15, special = 15 }
+    return {
+      species = species, level = 50, nickname = "ZARD",
+      dvs = dvs, statExp = {},
+      moves = { { id = "EMBER", pp = 25, maxPp = 25 },
+                { id = "BODYSLAM", pp = 15, maxPp = 15 },
+                { id = "LOWKICK", pp = 20, maxPp = 20 },
+                { id = "GROWL", pp = 40, maxPp = 40 } },
+      hp = 120,
+      stats = Gen2Mon.stats(def.baseStats, dvs, 50, {}),
+    }
+  end
+
+  local function makeBattle(species)
+    local mon = newMon(species)
+    local events = {}
+    return {
+      data = DATA, player = mon, party = { mon }, enemyParty = {},
+      events = events,
+      save = { inventory = { [KeyItems.DYNAMAX_BAND] = 1 } },
+      emit = function(_, ev) events[#events + 1] = ev end,
+      monName = function(_, m) return m and m.nickname end,
+    }
+  end
+
+  Dynamax.bind({ gigantamax = { CHARIZARD = "CHARIZARD_GMAX" },
+                 keyitems = KeyItems, announce = Announce, battlerof = Battlerof,
+                 gen2 = true, gen2forms = Gen2Forms,
+                 gen2substitute = Gen2Substitute,
+                 maxMoves = function(data)
+                   return MaxMoves.picker(MAX_CATALOG, data)
+                 end,
+                 gmaxMoves = function(data, mon)
+                   return GMax.picker(GMAX_CATALOG, data, mon)
+                 end })
+
+  local state = Dynamax.new()
+  local entry = Dynamax.entry(state)
+  local battle = makeBattle("CHARIZARD")
+  local mon = battle.player
+
+  T.eq(entry.arm(battle), true,
+    "arming a Gigantamax-eligible Charizard substitutes")
+  T.eq(mon.moves[1].id, GMax.idFor("GMAXWILDFIRE", 90),
+    "EMBER becomes G-MAX WILDFIRE, mutated in place on the mon's own array")
+  T.eq(mon.moves[1].maxPp, 25,
+    "and carries its own real maxPp, not a ppUps correction")
+  T.eq(mon.moves[2].id, MaxMoves.idFor("MAXSTRIKE", 130),
+    "BODY SLAM falls through to the ordinary MAX STRIKE")
+  T.eq(mon.moves[3].id, MaxMoves.idFor("MAXKNUCKLE", 75), "LOW KICK the same way")
+  T.eq(mon.moves[4].id, MAX_CATALOG.guard, "and GROWL still becomes MAX GUARD")
+
+  local snapshot = {}
+  for i, slot in ipairs(mon.moves) do snapshot[i] = slot end
+  entry.disarm()
+  T.eq(mon.moves[1].id, "EMBER", "disarming restores the real move ids")
+  T.eq(mon.moves[1].maxPp, 25, "and the real maxPp")
+  for i, slot in ipairs(mon.moves) do
+    T.eq(slot, snapshot[i], "the same slot TABLE, never replaced")
+  end
+
+  local pidgeyBattle = makeBattle("PIDGEY")
+  T.eq(entry.arm(pidgeyBattle), true, "arming a plain Dynamax still substitutes")
+  T.eq(pidgeyBattle.player.moves[1].id, MaxMoves.idFor("MAXFLARE", 90),
+    "EMBER becomes the ordinary MAX FLARE -- Pidgey carries no G-Max Move")
   entry.disarm()
 end
 

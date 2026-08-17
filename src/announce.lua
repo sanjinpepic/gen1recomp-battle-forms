@@ -311,4 +311,29 @@ function M.gen2UltraBurst(battle, mon)
   return gen2Push(battle, text(ULTRA_BURST_TAIL))
 end
 
+-- Dynamax and Gigantamax, Gen 2-shaped: one page apiece, the mon read
+-- straight (Gold hands the raw mon, never a battler wrapper) and pushed
+-- through `emit` rather than through Gen 1's sayNext cursor.
+function M.gen2Dynamax(battle, mon)
+  local name = gen2Name(battle, mon)
+  if not name then return false end
+  return gen2Push(battle, text(DYNAMAX, name))
+end
+
+function M.gen2Gigantamax(battle, mon)
+  local name = gen2Name(battle, mon)
+  if not name then return false end
+  return gen2Push(battle, text(GIGANTAMAX, name))
+end
+
+-- The expiry, the same Gen 2 shape as the other two -- unlike Gen 1's own
+-- M.dynamaxEnded there is no insert-cursor semantics to pick between here,
+-- for the identical reason M.gen2Primal's own header gives: `emit` only
+-- ever appends.
+function M.gen2DynamaxEnded(battle, mon)
+  local name = gen2Name(battle, mon)
+  if not name then return false end
+  return gen2Push(battle, text(DYNAMAX_END, name))
+end
+
 return M

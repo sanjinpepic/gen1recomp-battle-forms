@@ -159,6 +159,13 @@ end
 -- with no species, a species this catalog carries no row for, an id the
 -- registry cannot resolve, a move whose type does not match the row's one
 -- type, and a status move (power <= 0, which stays MAX GUARD universally).
+--
+-- deps.gen2 branches the PP correction the identical way src/maxmoves.lua's
+-- own M.fieldsFor does, and for the identical reason: Gold's FIGHT menu
+-- draws `move.pp`/`move.maxPp` straight off the slot with no PP-Up
+-- arithmetic, so this hands src/gen2substitute.lua an absolute `maxPp`
+-- rather than a `ppUps` correction meant for a second table Gen 2 never
+-- creates.
 function M.fieldsFor(catalog, data, mon, slot)
   local entry = mon and mon.species and catalog.bySpecies[mon.species]
   if not entry then return nil end
@@ -173,6 +180,10 @@ function M.fieldsFor(catalog, data, mon, slot)
     or (deps and deps.maxmoves and deps.maxmoves.powerFor(catalog.maxRows, entry.type, base))
   local id = power and entry.rungs[power] or nil
   if not id then return nil end
+
+  if deps and deps.gen2 then
+    return { id = id, maxPp = tonumber(def.pp) or M.RECORD_PP }
+  end
 
   -- The same menu-maximum correction src/maxmoves.lua's own M.fieldsFor
   -- carries, and for the identical reason: the FIGHT menu draws a maximum
