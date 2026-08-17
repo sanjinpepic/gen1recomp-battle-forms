@@ -429,6 +429,16 @@ return function(mod)
     for itemId, index in pairs(ultraCrystalIndices) do
       indigoIndices[itemId] = index
     end
+    -- The eighteen ordinary type Z-Crystals join Ultranecrozium Z on that
+    -- same shelf -- found absent from Gold entirely while wiring the fusion
+    -- shelf above and deliberately deferred until src/stone.lua's own
+    -- installUnpaired carried the same Gen 2 USE-suppression M.items
+    -- already gives every paired stone and orb (see that function's own
+    -- header). A Z-Ring with no ordinary crystal to put in it was a
+    -- purchase that unlocked nothing.
+    for itemId, index in pairs(crystalIndices) do
+      indigoIndices[itemId] = index
+    end
     m["src/gen2shop.lua"].install(mod, applianceIndices, indigoIndices)
   end
   -- Its own install for a stronger version of the appliances' reason: this item

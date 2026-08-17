@@ -200,4 +200,66 @@ do
   T.eq(gen1Items.CHARIZARDITE_X.battleMenu, nil, "battleMenu is untouched too")
 end
 
+-- ---------------------------------------------------------------------
+-- Gen 2: M.installUnpaired -- the eighteen ordinary type Z-Crystals --
+-- never received the identical treatment M.items already has, above. Two
+-- separate gaps, both from the same missing branch: the item record carried
+-- no fieldMenu/battleMenu suppression at all, so Gold's PACK still showed a
+-- USE verb, and the registered effect's own `use` closure only ever read
+-- ctx.target (Gen 1's shape) -- so on a live Gold boot (where the engine's
+-- own PR #1434 now threads `data` through Game2:usePartyItem, letting USE
+-- actually reach a mod's own item_effects record) that USE always answered
+-- "no effect", silently, for a reason nothing on screen explained.
+--
+-- A Z-Crystal is a held item exactly like a mega stone or an orb -- stamped
+-- onto a Pokemon, nothing more -- not an action the way src/fusion.lua's own
+-- items are (fusion keeps USE deliberately, because USE is fusion's own
+-- trigger, per 0.47.0's own precedent).  So the fix is the identical
+-- GIVE-only treatment M.items already gives every paired stone and orb, not
+-- a bespoke shape for crystals.
+-- ---------------------------------------------------------------------
+do
+  local seen, fakeMod2 = recorder()
+  Stone.bind(E, nil, true)
+  Stone.installUnpaired(fakeMod2, { "ELECTRIUM_Z" }, { ELECTRIUM_Z = 209 })
+
+  T.eq(seen.items.ELECTRIUM_Z.fieldMenu, "ITEMMENU_NOUSE",
+    "on Gen 2, a type Z-Crystal's fieldMenu takes the USE verb off the "
+      .. "field pocket -- the same field a mega stone or an orb already carries")
+  T.eq(seen.items.ELECTRIUM_Z.battleMenu, "ITEMMENU_NOUSE",
+    "and off the battle pocket too")
+
+  -- The registered effect is still correctly Gen-2 shaped underneath the
+  -- suppression, matching src/persistent.lua's own precedent
+  -- (M.install's own header on why): unreachable through Gold's PACK today
+  -- because the fields above already take the verb off screen, but shaped
+  -- for the one caller Gen 2 actually gives an item_effects record
+  -- (ctx.mon/ctx.data, {used, text}), so nothing here needs a second change
+  -- the day reachability changes again.
+  local gen2Mon = { species = "MAGIKARP" }
+  local outcome = seen.effects.ELECTRIUM_Z.use({ mon = gen2Mon, data = STARMIE_DATA })
+  T.eq(outcome.used, false, "kept, not consumed, on Gen 2 too")
+  T.eq(outcome.text, "It seems to\nresonate!", "and carries the same message Gen 1 shows")
+  T.eq(E.stoneOf(gen2Mon), "ELECTRIUM_Z",
+    "the Gen 2 ctx shape (ctx.mon, not ctx.target) actually stamps the mon "
+      .. "-- the exact mismatch that silently no-opped before this fix")
+
+  local noMon = seen.effects.ELECTRIUM_Z.use({ mon = nil, data = STARMIE_DATA })
+  T.eq(noMon.used, false, "no mon still returns cleanly rather than throwing")
+
+  -- Gen 1 stays exactly as it was: ctx.target, "kept"/{message} rather than
+  -- {used, text}, and no NOUSE fields on the item at all.
+  Stone.bind(E)
+  local gen1Seen, gen1FakeMod = recorder()
+  Stone.installUnpaired(gen1FakeMod, { "ELECTRIUM_Z" }, { ELECTRIUM_Z = 209 })
+  T.eq(gen1Seen.items.ELECTRIUM_Z.fieldMenu, nil,
+    "on Gen 1, no NOUSE field is set on a type Z-Crystal either")
+  T.eq(gen1Seen.items.ELECTRIUM_Z.battleMenu, nil, "battleMenu is untouched too")
+  local gen1Mon = { species = "MAGIKARP" }
+  local gen1Status, gen1Pages = gen1Seen.effects.ELECTRIUM_Z.use({ target = gen1Mon })
+  T.eq(gen1Status, "kept", "Gen 1's own three-value return shape is unchanged")
+  T.eq(gen1Pages[1], "It seems to\nresonate!", "with its own message")
+  T.eq(E.stoneOf(gen1Mon), "ELECTRIUM_Z", "and it still stamps through ctx.target")
+end
+
 T.finish("battle_forms_stone")

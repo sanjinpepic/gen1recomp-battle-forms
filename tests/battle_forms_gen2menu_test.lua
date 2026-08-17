@@ -23,6 +23,7 @@ local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
 local fuserIndices = dofile(MOD .. "/data/fusers.lua")
 local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
+local crystalIndices = dofile(MOD .. "/data/crystals.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 local function makeInput(pressed)
@@ -497,6 +498,18 @@ do
   end
   for itemId in pairs(ultraCrystalIndices) do
     T.check(has(indigoShelf, itemId), itemId .. " is sold there too")
+  end
+
+  -- The eighteen ordinary type Z-Crystals, sold on that same counter --
+  -- found absent from Gold entirely while wiring the fusion shelf in
+  -- 0.47.0 and deliberately deferred (main.lua only ever merged
+  -- ultraCrystalIndices, Ultranecrozium Z alone, into indigoIndices). A
+  -- Z-Ring with no crystal to put in it is a purchase that does nothing,
+  -- the identical reachability gap the fuser/Ultranecrozium Z checks above
+  -- exist to catch for their own two items.
+  for itemId in pairs(crystalIndices) do
+    T.check(has(indigoShelf, itemId),
+      itemId .. " (a type Z-Crystal) is sold there too")
   end
 
   -- ---------------------------------------------------------------------

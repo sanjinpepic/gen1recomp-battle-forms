@@ -148,6 +148,25 @@ end
 -- An id with no bag index is refused out loud for the reason M.install refuses
 -- one: a Gen 1 save cannot hold an item with no byte, so registering it would
 -- ship something a player could pick up and then silently lose.
+--
+-- ON GEN 2, a type Z-Crystal gets the identical GIVE-only treatment M.items
+-- already gives every paired stone and orb, above -- fieldMenu/battleMenu =
+-- "ITEMMENU_NOUSE" -- and for the same reason: a crystal is a held item,
+-- stamped onto a Pokemon and nothing more, not an action the way
+-- src/fusion.lua's own items are (fusion keeps USE on purpose, because USE is
+-- fusion's own trigger -- 0.47.0's own precedent for telling the two apart).
+-- Before this, the item record carried neither field at all, so Gold's PACK
+-- still showed a USE verb; worse, the registered effect below only ever read
+-- ctx.target, Gen 1's own shape, so the engine's own PR #1434 (now landed --
+-- Game2:usePartyItem threads `data` through to ItemEffects.partyAction,
+-- letting USE actually reach a mod's item_effects record on a live Gold boot)
+-- meant that verb reached this closure and silently answered "no effect"
+-- every time, with nothing on screen to say why. Registered anyway,
+-- correctly shaped for the one caller Gen 2 gives an item_effects record
+-- (ctx.mon/ctx.data, returning {used, text}) -- the identical "shape it right
+-- even though the fields above make it unreachable today" discipline
+-- src/persistent.lua's own M.install already keeps, so this needs no second
+-- change the day either engine-side gap closes further.
 function M.installUnpaired(mod, itemIds, indices)
   for _, itemId in ipairs(itemIds) do
     local index = indices and indices[itemId]
@@ -163,8 +182,20 @@ function M.installUnpaired(mod, itemIds, indices)
         index = index,
         effect = itemId,
         needsTarget = true,
+        fieldMenu = gen2 and "ITEMMENU_NOUSE" or nil,
+        battleMenu = gen2 and "ITEMMENU_NOUSE" or nil,
       })
-      mod.content.item_effects:register(itemId, {
+      mod.content.item_effects:register(itemId, gen2 and {
+        needsTarget = true,
+        action = "form",
+        use = function(ctx)
+          local mon = ctx and ctx.mon
+          if not mon then return { used = false, text = "It won't have\nany effect." } end
+          mon[eligibility.STAMP] = itemId
+          if persistent then persistent.mark(ctx.data, mon) end
+          return { used = false, text = "It seems to\nresonate!" }
+        end,
+      } or {
         needsTarget = true,
         battle = false,
         use = function(ctx)
