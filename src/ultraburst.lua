@@ -81,15 +81,17 @@ function M.entry(state)
     -- rather than formForMon(rows, mon), the identical substitution
     -- src/mega.lua's own Gen 2 branch makes and for the same reason:
     -- Ultranecrozium Z is stamped through src/stone.lua's PAIRED install,
-    -- and that install's `use(ctx)` closure reads ctx.target -- a field
-    -- Gold's own item dispatch never populates (Game2:usePartyItem's
-    -- `ItemEffects.partyAction(itemId)` call, no `data` argument, can only
-    -- ever resolve the engine's own built-in records -- confirmed against a
-    -- real Gold boot for every mod's Gen 2 field item, CHANGELOG.md's own
-    -- 0.39.0 entry) -- so eligibility.STAMP is never written there and
-    -- formForMon would always answer nil. mon.item, the real held-item slot
-    -- GIVE writes directly, is the only field that can ever say a Gold
-    -- Necrozma is holding the crystal.
+    -- and that install deliberately keeps USE off Gold's PACK for every
+    -- stone, orb and crystal it registers (fieldMenu/battleMenu =
+    -- "ITEMMENU_NOUSE", 0.42.0) -- a held item is never USEd in the real
+    -- games either, GIVE is the sole and correct trigger, and that stays
+    -- true independent of the engine's own #8 fix
+    -- (Game2:usePartyItem now DOES pass `data` through as of 0.1.99, so a
+    -- crystal's USE closure would in principle be reachable, but reachable
+    -- is not the same as right here).  So eligibility.STAMP is still never
+    -- written on Gold and formForMon would still always answer nil.
+    -- mon.item, the real held-item slot GIVE writes directly, is the only
+    -- field that can ever say a Gold Necrozma is holding the crystal.
     available = function(battle)
       if not deps.keyitems.held(battle, deps.keyitems.Z_RING) then
         return false

@@ -276,16 +276,26 @@ return function(mod)
   -- gen2/gen2forms: the same pair src/persistent.lua's own M.apply branches
   -- on, and for the identical reason -- Gen 2 has no battler wrapper at all,
   -- so src/forms.lua's becomeForm would find no target and silently apply
-  -- nothing to a genuinely fused Necrozma or Kyurem there.  This does NOT by
-  -- itself make fusion reachable on Gold: the item that TRIGGERS a fusion
-  -- cannot be used there at all (Game2:usePartyItem's own dispatch gap,
-  -- confirmed for every mod's Gen 2 field item as of 0.39.0) -- what this
-  -- wires is the mechanism a fused mon would need once it exists, the
-  -- identical scope src/mega.lua's and src/persistent.lua's own Gen 2
-  -- branches already established.
+  -- nothing to a genuinely fused Necrozma or Kyurem there.  Fusion is
+  -- reachable on Gold as of this version: the engine's own PR #1434 (finding
+  -- #8) fixed Game2:usePartyItem's dispatch gap, and src/fusion.lua's own
+  -- M.install now registers the Gen 2 item_effects shape that gap used to
+  -- make pointless to build, plus the save.created/save.loaded listener
+  -- below that hands it the one thing Gold's own ctx never carries -- the
+  -- live save.
   fusion.bind({ forms = m["src/forms.lua"], rows = fusionRows, log = mod.log,
                 price = m["src/stone.lua"].PRICE, battlerof = battlerof,
                 gen2 = gen2, gen2forms = gen2forms })
+  -- The one thing Gold's own item_effects ctx never carries (src/fusion.lua's
+  -- own M.onSaveReady header has the full reasoning): the save itself, which
+  -- `fuse`/`split` need to find a partner in and deposit one to.  Both
+  -- events, not just save.created, because self.save is reassigned wholesale
+  -- on CONTINUE as well as on NEW GAME.  Gen 1 fires the same two events too,
+  -- but src/fusion.lua's own Gen 1 branch reads ctx.save directly and never
+  -- consults what this captures, so binding it unconditionally costs nothing
+  -- there.
+  mod.events:on("save.created", function(ev) fusion.onSaveReady(ev) end)
+  mod.events:on("save.loaded", function(ev) fusion.onSaveReady(ev) end)
 
   -- The sixth family, and the only one whose pairing table has a single row:
   -- Ultranecrozium Z fits Necrozma alone.  No option ever gates it, so `all`
@@ -382,16 +392,29 @@ return function(mod)
     -- Terastallization needs only the trainer's own item on Gold (no
     -- pairing table, no species gate), so selling it is what turns this
     -- pass's Gen 2 branch into a feature a player can actually reach rather
-    -- than code nothing sells the key to.  The Dynamax Band and the Z-Ring
-    -- stay off this shelf -- Dynamax needs a move-substitution primitive
-    -- this pass does not build, and Ultra Burst (the one mechanic here that
-    -- needs the Z-Ring) sits on top of fusion, whose own trigger item
-    -- cannot be used on Gold at all (src/fusion.lua's own header) -- selling
-    -- either would be a purchase that does nothing.
+    -- than code nothing sells the key to.  The Dynamax Band stays off this
+    -- shelf -- Dynamax needs a move-substitution primitive this pass does
+    -- not build, and arming it would either be inert or risk writing a Gen 2
+    -- move list wrong, a save-corruption class of mistake this mod has
+    -- avoided since 0.2.1.
     indigoIndices[keyitems.KEY_STONE] = keyIndices[keyitems.KEY_STONE]
     indigoIndices[keyitems.TERA_ORB] = keyIndices[keyitems.TERA_ORB]
     for stoneId in pairs(megaset.stoneIds(megas)) do
       indigoIndices[stoneId] = indices[stoneId]
+    end
+    -- The four fusion items and Ultranecrozium Z join the same counter, and
+    -- the Z-Ring joins the key items above it: all three are now reachable
+    -- prerequisites rather than the dead ends they were before src/fusion.lua
+    -- and src/main.lua's own item_effects and save-capture work above --
+    -- selling only two of the three would leave Ultra Burst a purchase that
+    -- still does nothing, the exact trap the Dynamax Band's own exclusion
+    -- above is avoiding on purpose.
+    indigoIndices[keyitems.Z_RING] = keyIndices[keyitems.Z_RING]
+    for itemId, index in pairs(fuserIndices) do
+      indigoIndices[itemId] = index
+    end
+    for itemId, index in pairs(ultraCrystalIndices) do
+      indigoIndices[itemId] = index
     end
     m["src/gen2shop.lua"].install(mod, applianceIndices, indigoIndices)
   end

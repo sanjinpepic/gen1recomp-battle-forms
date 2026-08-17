@@ -21,6 +21,8 @@ local Mega = dofile(MOD .. "/src/mega.lua")
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
 local Battlerof = dofile(MOD .. "/src/battlerof.lua")
 local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
+local fuserIndices = dofile(MOD .. "/data/fusers.lua")
+local ultraCrystalIndices = dofile(MOD .. "/data/ultracrystal.lua")
 local megas = Megaset.select(dofile(MOD .. "/data/megas.lua"), Megaset.ALL)
 
 local function makeInput(pressed)
@@ -480,6 +482,22 @@ do
     "the Key Stone is sold at the Indigo Plateau counter on Gold")
   T.check(has(indigoShelf, "CHARIZARDITE_X") or has(indigoShelf, "CHARIZARDITE_Y"),
     "at least one active mega stone is sold there too")
+
+  -- Fusion and Ultra Burst, the same reachability requirement: a mechanism
+  -- proven correct in isolation is not a reachable feature if nothing sells
+  -- what it needs (this file's own comment above, on the Key Stone and the
+  -- mega stones).  All three items this pair of mechanics needs -- the four
+  -- fusion items, Ultranecrozium Z, and the Z-Ring Ultra Burst's own
+  -- `available()` checks -- have to be on this shelf together, or one
+  -- mechanism is reachable and the other is a purchase that does nothing.
+  T.check(has(indigoShelf, "Z_RING"),
+    "the Z-Ring is sold at the Indigo Plateau counter on Gold")
+  for itemId in pairs(fuserIndices) do
+    T.check(has(indigoShelf, itemId), itemId .. " is sold there too")
+  end
+  for itemId in pairs(ultraCrystalIndices) do
+    T.check(has(indigoShelf, itemId), itemId .. " is sold there too")
+  end
 
   -- ---------------------------------------------------------------------
   -- Terastallization, through the SAME loaded mod and the SAME wrapped

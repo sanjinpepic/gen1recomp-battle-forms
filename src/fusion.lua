@@ -49,6 +49,26 @@ local deps = nil
 
 function M.bind(modules) deps = modules end
 
+-- The live save, on Gen 2 only.  Gold's own item_effects ctx is {item, mon,
+-- data} -- no `save` -- because every OTHER family here only ever needs the
+-- one mon it is handed (src/persistent.lua's own Gen 2 branch reads exactly
+-- that ctx and nothing more).  Fusion is the one family that needs the ARRAY
+-- around the mon too: `fuse` finds a partner by walking the party, `split`
+-- puts one back into it, and both need the save itself for Boxes.deposit.
+-- Bound to save.created/save.loaded in main.lua -- the sanctioned way a mod
+-- holds the live save past the moment it is handed one
+-- (docs/preparing-your-mod-for-gen2.md's own "Capturing state" section) --
+-- rather than required at file scope, which would capture the load-time nil
+-- every mod's entry chunk runs before a save exists.  Both events, not just
+-- one, because self.save is reassigned wholesale on NEW GAME and on
+-- CONTINUE, and the stale table a listener bound only to the first would
+-- otherwise still hold is not the one Game2:usePartyItem goes on to mutate.
+local liveSave = nil
+
+function M.onSaveReady(ev)
+  liveSave = ev and ev.save
+end
+
 -- On the survivor: the species of the Pokemon it was fused with.
 M.STAMP = "battleFormsFusedWith"
 -- On the boxed partner: the species it is inside.  A tag, not a link -- there
@@ -405,8 +425,69 @@ function M.install(mod, rows, indices)
         index = index,
         effect = itemId,
         needsTarget = true,
+        -- Gold's mid-battle PACK dispatch (game/src/ui/gen2/BattleState.lua's
+        -- own useItem, the first thing it checks) gates purely on THIS field,
+        -- not on item_effects' own `battle = false` below -- that guard is
+        -- never even reached from a Gen 2 battle, since the mid-fight caller
+        -- runs ItemEffects.useOnMon directly rather than through anything
+        -- that reads `battle`.  Without this a fusion USE would reach the
+        -- real party list mid-battle and remove a Pokemon a live fight holds
+        -- a direct reference to.  fieldMenu is left unset on purpose: unlike
+        -- a persistent form (src/persistent.lua's own registration, both
+        -- fields NOUSE), USE from the field PACK is fusion's own trigger and
+        -- has to stay on -- GIVE cannot stand in for an action that moves a
+        -- second Pokemon into the PC.
+        battleMenu = deps.gen2 and "ITEMMENU_NOUSE" or nil,
       })
-      mod.content.item_effects:register(itemId, {
+      mod.content.item_effects:register(itemId, deps.gen2 and {
+        needsTarget = true,
+        -- Any value Game2:usePartyItem's own "stone"/"candy"/"pp" special
+        -- cases do not name -- none of the three describe moving a second
+        -- Pokemon into the PC, and this closure's `used` is always false
+        -- (see below), so the branch that actually reads `action` past this
+        -- point is never taken anyway.
+        action = "fusion",
+        use = function(ctx)
+          local mon = ctx and ctx.mon
+          if not mon then return { used = false, text = NO_EFFECT[1] } end
+          local byItem = rows[mon.species]
+          local byPartner = byItem and byItem[itemId]
+          if not byPartner then return { used = false, text = NO_EFFECT[1] } end
+
+          if not liveSave or type(liveSave.party) ~= "table" then
+            if deps.log then
+              deps.log:error(
+                "battle_forms: %s was used with no party to read -- nothing "
+                  .. "was changed", itemId)
+            end
+            return { used = false, text = NO_EFFECT[1] }
+          end
+
+          -- fuse/split read ctx.save and ctx.data; Gold's own ctx carries
+          -- neither the save (see M.onSaveReady's own header) nor `data`
+          -- under that name (it is `ctx.data` already, matching Gen 1's), so
+          -- this is the save substituted in and nothing else changed.
+          local innerCtx = { save = liveSave, data = ctx and ctx.data }
+          local partner = M.partnerOf(mon)
+          local status, pages
+          if partner then
+            if not byPartner[partner] then
+              return { used = false, text = NO_EFFECT[1] }
+            end
+            status, pages = split(innerCtx, mon)
+          else
+            status, pages = fuse(innerCtx, mon, byPartner)
+          end
+          -- `used` stays false on every branch, success and refusal alike:
+          -- this item is KEPT, not consumed, on both generations (this
+          -- file's own header on the item, and src/persistent.lua's
+          -- identical choice for the appliances) -- the undo is the same
+          -- item used again, and Gen 2's dispatcher spends the item whenever
+          -- `used` comes back true, the one lever this closure has to say
+          -- otherwise.
+          return { used = false, text = table.concat(pages, "\f") }
+        end,
+      } or {
         needsTarget = true,
         -- The most load-bearing field in this file.  A battle holds direct
         -- references to party mons (battle.player.mon, the enemy party, the

@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.47.0
+
+### Added
+
+- **Fusion and Ultra Burst are reachable on Gold for the first time.** The engine's own PR #1434 (finding #8, merged into the player's 0.1.99) fixed `Game2:usePartyItem` to call `ItemEffects.partyAction` with the `data` argument it had always been missing, closing the dispatch gap that kept every mod's Gen 2 item effect unreachable through USE. That alone was not enough: `src/fusion.lua`'s own item registration now carries the Gen 2 shape `src/persistent.lua`'s held-item forms already use (`action`, `use(ctx)` reading `ctx.mon`/`ctx.data` rather than Gen 1's `ctx.target`/`ctx.save`), plus something no persistent form ever needed -- the live save itself, captured off `save.created`/`save.loaded` by a new `M.onSaveReady`, since fusing has to find a partner in the party array and deposit one to the PC rather than mutate only the one mon ctx hands it. The four fusion items also gained `battleMenu = "ITEMMENU_NOUSE"` on their item record, the field Gold's mid-battle PACK dispatch checks directly (the item_effects `battle = false` refusal Gen 1 relies on is never reached there), so a live fight still cannot be asked to remove a Pokemon out from under it -- persistent held-item forms are untouched and stay GIVE-only, correct and faithful to the real games, since USE is fusion's own trigger and was always meant to work. The four fusion items, Ultranecrozium Z and the Z-Ring now sell at the Indigo Plateau counter too, without which none of this was reachable regardless of how correct the dispatch is. Confirmed end to end by a headless suite that drives the real `Game2:usePartyItem` against the real `Gen2PartyMenu` screen and reads a fusion back off the real save, plus the four refusal guards (no partner, a blackout, a full PC, a full party on splitting) proven again through that same Gen 2 dispatch.
+
 ## 0.46.0
 
 ### Fixed

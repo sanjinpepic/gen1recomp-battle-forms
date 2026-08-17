@@ -11,7 +11,48 @@
 -- species and level is not the same thing as the Reshiram that went in, and a
 -- suite that compared fields would pass on a mechanic that quietly handed back
 -- a different Pokemon.
+--
+-- The Gen 2 reachability section near the end of this file drives the real
+-- src.core.Game2, which pulls in UI modules that touch love-side helpers at
+-- load time.  Nothing here draws, so the stub is the same no-op surface
+-- game/tests/gen2_field_items_test.lua -- the engine's own suite for this
+-- exact dispatch -- already uses; declared up top so it exists before
+-- anything requires a module that reads it at load time, not only at the
+-- point a Gen 2 fixture is finally built.
 package.path = "./?.lua;./?/init.lua;" .. package.path
+
+love = love or {}
+love.graphics = love.graphics or {
+  getColor = function() return 1, 1, 1, 1 end,
+  setColor = function() end,
+  rectangle = function() end,
+  print = function() end,
+  printf = function() end,
+  draw = function() end,
+  newQuad = function() return {} end,
+  newImage = function() return nil end,
+  getShader = function() return nil end,
+  setShader = function() end,
+  newShader = function() error("no shaders in this harness") end,
+  getDimensions = function() return 160, 144 end,
+  push = function() end, pop = function() end,
+  translate = function() end, scale = function() end,
+  circle = function() end, clear = function() end,
+}
+love.math = love.math or {
+  random = function(a, b)
+    if b then return a end
+    return a and 1 or 0.5
+  end,
+}
+love.filesystem = love.filesystem or {
+  load = function() return nil end,
+  getInfo = function() return nil end,
+  read = function() return nil end,
+  write = function() return true end,
+  remove = function() return true end,
+}
+love.timer = love.timer or { getTime = function() return 0 end }
 
 local T = require("tests.modkit")
 local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
@@ -752,21 +793,25 @@ end
 -- src/persistent.lua's own Gen 2 branch exactly, because it is the same
 -- primitive for the same reason.
 --
--- NOTE ON REACHABILITY, established by reading rather than a live boot (this
--- environment cannot drive one): the fusion ITEM itself cannot be triggered
--- on Gold. `Game2:usePartyItem` calls `ItemEffects.partyAction(itemId)` with
--- no `data` argument (game/src/core/Game2.lua:683), so it can only resolve
--- the engine's own built-in item_effects table -- confirmed already, in a
--- real Gold boot, for every mod's Gen 2 field item regardless of what it
--- registers (CHANGELOG.md's own 0.39.0 entry). DNA_SPLICERS is never in
--- that built-in table, so `action` comes back nil and `usePartyItem`
--- returns before it ever opens the party picker -- no message, nothing.
--- Unlike a persistent form, GIVE cannot stand in for this: a persistent form
--- only needs the mon to HOLD the item, where fusion needs an ACTION (move a
--- second Pokemon into the PC, write two markers) that nothing but a working
--- USE effect can perform. So this proves the MECHANISM is correct and ready
--- -- for a save a debug tool or a future engine fix could produce a fused
--- Gen 2 mon from -- without claiming a player can reach it on Gold today.
+-- REACHABILITY, as of the engine's own 0.1.99 (upstream PR #1434, finding
+-- #8): `Game2:usePartyItem` now calls `ItemEffects.partyAction(itemId,
+-- self.data)` WITH the data argument, so a mod's merged `gen2ItemEffects`
+-- table is consulted and the party picker opens for real.  That alone was
+-- not enough -- M.install's item_effects record still needed a Gen 2 shape
+-- of its own (`action`, and `use(ctx)` reading `ctx.mon`/`ctx.data` rather
+-- than Gen 1's `ctx.target`/`ctx.save`, the identical fork src/persistent.lua
+-- already made in 0.39.0) -- and a `save` to find a partner in and deposit
+-- one to, which Gold's own ctx never carries at all (a persistent form only
+-- ever needed the ONE mon ctx hands it).  M.onSaveReady captures that off
+-- the `save.created`/`save.loaded` payload, the sanctioned way a mod holds
+-- the live save past the moment it is handed one
+-- (docs/preparing-your-mod-for-gen2.md's own "Capturing state" section).
+-- The sections below prove the dispatch shape directly, the way
+-- tests/battle_forms_persistent_test.lua's own "Gen 2 item_effects
+-- dispatch" section does, and then drive the REAL `Game2:usePartyItem`
+-- against the REAL `Gen2PartyMenu` screen -- the discipline this repo holds
+-- to after a hand-built screen object passed here for a mechanic the real
+-- screen did nothing for, three times already.
 -- ---------------------------------------------------------------------
 local Gen2Forms = dofile(MOD .. "/src/gen2forms.lua")
 local Mon2 = require("src.battle.gen2.Mon")
@@ -822,6 +867,297 @@ do
   Fusion.onBattleStarted({ battle = emptyBattle })
   T.eq(barren.stats.attack, baseAttack,
     "a missing record on Gen 2 leaves the real stats field untouched")
+end
+
+-- ------- the Gen 2 item_effects dispatch --------------------------------
+--
+-- Gold's own PACK reads a record shaped { action, use(ctx) -> {used, text} }
+-- out of data.gen2ItemEffects, ctx = {item, mon, data} -- no `save` at all,
+-- unlike a persistent form's identical ctx, because fusion is the one family
+-- here that needs the ARRAY around the mon (to find a partner, to splice one
+-- out) and not just the mon itself.  M.onSaveReady is what closes that gap:
+-- it is bound to save.created/save.loaded in main.lua, and this pins the
+-- closure down directly, the way tests/battle_forms_persistent_test.lua's own
+-- "Gen 2 item_effects dispatch" section pins its simpler, save-free one.
+do
+  Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+                battlerof = Battlerof, gen2 = true })
+  local mod = fakeMod()
+  Fusion.install(mod, rows, fuserIndices)
+
+  local item = mod.items.DNA_SPLICERS
+  T.eq(item.battleMenu, "ITEMMENU_NOUSE",
+    "Gold's own mid-battle PACK dispatch (BattleState.lua:3017) gates purely "
+      .. "on the ITEM record's battleMenu field, not on item_effects' own "
+      .. "`battle = false` -- that guard is never even reached there, since a "
+      .. "battle holds direct references to party mons")
+  T.eq(item.fieldMenu, nil,
+    "fieldMenu is left alone: unlike a persistent form, USE from the field "
+      .. "PACK is fusion's own trigger and has to stay on")
+
+  local effect = mod.effects.DNA_SPLICERS
+  T.check(effect ~= nil, "DNA_SPLICERS still registers an item effect on Gen 2")
+  T.check(effect.action ~= nil,
+    "and it names an action -- without one Game2:usePartyItem's dispatch "
+      .. "silently does nothing at all, exactly as it used to for every "
+      .. "mod's Gen 2 item before the engine passed `data` through")
+  T.check(effect.action ~= "pp" and effect.action ~= "stone"
+    and effect.action ~= "candy",
+    "and not one of the three actions Game2:usePartyItem special-cases, none "
+      .. "of which describe moving a second Pokemon into the PC")
+
+  -- No save captured yet -- the state a fresh boot is in before
+  -- save.created/save.loaded has fired even once.
+  local blind = newMon("KYUREM")
+  local refused = effect.use({ item = "DNA_SPLICERS", mon = blind, data = DATA })
+  T.check(type(refused) == "table", "the Gen 2 shape returns one table, not "
+    .. "Gen 1's (status, messages) pair")
+  T.eq(refused.used, false, "with no captured save the item is refused")
+  T.eq(blind[Fusion.STAMP], nil, "and stamps nothing")
+
+  local kyurem, reshiram = newMon("KYUREM"), newMon("RESHIRAM", 62)
+  local save = newSave({ kyurem, reshiram })
+  Fusion.onSaveReady({ save = save })
+
+  local result = effect.use({ item = "DNA_SPLICERS", mon = kyurem, data = DATA })
+  T.eq(result.used, false,
+    "and reports NOT used -- Gen 2's dispatcher spends the item whenever "
+      .. "`used` is true, and this item is kept, not consumed, on either "
+      .. "generation, exactly like the real games' own reusable DNA Splicers")
+  T.eq(kyurem[Fusion.STAMP], "RESHIRAM", "the fusion happened for real")
+  T.eq(kyurem.form, "WHITE", "and the marker was derived the same way it is on Gen 1")
+  T.eq(#save.party, 1, "the partner left the party through the Gen 2 path too")
+  T.check(inBoxes(save, reshiram) ~= nil, "and landed in the PC, the same table")
+  T.check(result.text:find("fused", 1, true) ~= nil,
+    "with the same flavour text Gen 1 shows")
+
+  -- The undo, same item, same as Gen 1's.
+  local again = effect.use({ item = "DNA_SPLICERS", mon = kyurem, data = DATA })
+  T.eq(again.used, false, "using it again is not a refusal either")
+  T.eq(kyurem[Fusion.STAMP], nil, "it separates them")
+  T.eq(#save.party, 2, "and the partner is back in the party")
+
+  Fusion.onSaveReady({ save = nil })
+  Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+                battlerof = Battlerof })
+end
+
+-- The same four guards the Gen 1 sections above hold this mechanic to,
+-- proven again through the Gen 2 dispatch shape -- built for Gen 1 and,
+-- until now, never run on Gold at all.
+do
+  Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+                battlerof = Battlerof, gen2 = true })
+  local mod = fakeMod()
+  Fusion.install(mod, rows, fuserIndices)
+  local use = mod.effects.DNA_SPLICERS.use
+
+  do
+    local kyurem = newMon("KYUREM")
+    local save = newSave({ kyurem, newMon("ALAKAZAM") })
+    Fusion.onSaveReady({ save = save })
+    local result = use({ item = "DNA_SPLICERS", mon = kyurem, data = DATA })
+    T.eq(result.used, false,
+      "Gen 2: with no partner in the party the item refuses")
+    T.eq(kyurem[Fusion.STAMP], nil, "and records nothing")
+    T.eq(#save.party, 2, "and moved nothing")
+  end
+
+  do
+    local kyurem, reshiram = newMon("KYUREM"), newMon("RESHIRAM")
+    kyurem.hp = 0
+    local save = newSave({ kyurem, reshiram })
+    Fusion.onSaveReady({ save = save })
+    local result = use({ item = "DNA_SPLICERS", mon = kyurem, data = DATA })
+    T.eq(result.used, false,
+      "Gen 2: fusing the party's only healthy Pokemon into a fainted one is "
+        .. "refused, the blackout guard")
+    T.eq(kyurem[Fusion.STAMP], nil, "nothing was recorded")
+    T.eq(#save.party, 2, "and moved nothing")
+  end
+
+  do
+    local kyurem, reshiram = newMon("KYUREM"), newMon("RESHIRAM")
+    local save = newSave({ kyurem, reshiram, newMon("ALAKAZAM") })
+    for b = 1, Boxes.COUNT do
+      for _ = 1, Boxes.CAPACITY do
+        table.insert(Boxes.ensure(save)[b], newMon("ALAKAZAM"))
+      end
+    end
+    local before = population(save)
+    Fusion.onSaveReady({ save = save })
+    local result = use({ item = "DNA_SPLICERS", mon = kyurem, data = DATA })
+    T.eq(result.used, false, "Gen 2: with every box full the fusion is refused")
+    T.eq(population(save), before, "no Pokemon was lost between the two lists")
+    T.eq(save.party[2], reshiram,
+      "and the partner went back into the exact slot it came out of")
+    T.eq(kyurem[Fusion.STAMP], nil, "and the base records nothing")
+  end
+
+  do
+    local kyurem, reshiram = newMon("KYUREM"), newMon("RESHIRAM")
+    local save = newSave({ kyurem, reshiram })
+    Fusion.onSaveReady({ save = save })
+    use({ item = "DNA_SPLICERS", mon = kyurem, data = DATA })
+    for _ = 1, Party.MAX - 1 do table.insert(save.party, newMon("ALAKAZAM")) end
+    T.eq(#save.party, Party.MAX, "the party is full")
+    local result = use({ item = "DNA_SPLICERS", mon = kyurem, data = DATA })
+    T.eq(result.used, false, "Gen 2: a full party refuses the separation")
+    T.eq(kyurem[Fusion.STAMP], "RESHIRAM", "the pair is exactly as it was")
+    T.eq(kyurem.form, "WHITE", "still wearing its form")
+  end
+
+  Fusion.onSaveReady({ save = nil })
+  Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+                battlerof = Battlerof })
+end
+
+-- ------- the whole chain, through the real Game2 -------------------------
+--
+-- Everything above proves the registered closure is correct.  This proves
+-- the DISPATCH is: the real Game2:usePartyItem, resolving the real merged
+-- data.gen2ItemEffects, opening the real Gen2PartyMenu screen and running a
+-- real A press through it -- the discipline this repo holds verification to
+-- after a hand-built screen object passed here for a mechanic the real
+-- screen did nothing for. Mirrors game/tests/gen2_field_items_test.lua's own
+-- "#8 regression" section, which is the engine's own proof that the dispatch
+-- half of this gap is closed; this is the mod-side half.
+do
+  local Game2 = require("src.core.Game2")
+  -- No font asset in this fixture, so drawing the party list's own mon name
+  -- warns per glyph -- noise, not a check, and the engine's own
+  -- gen2_field_items_test.lua silences the same way.
+  require("src.core.Logger").warn = function() end
+
+  local GEN2_ROSTER = { pokemon = { growthRates = {
+    GROWTH_MEDIUM_SLOW = { numerator = 6, denominator = 5, squared = -15,
+                            linear = 100, constant = 140 },
+  } } }
+  GEN2_ROSTER.pokemon.KYUREM = {
+    id = "KYUREM", name = "KYUREM", growthRate = "GROWTH_MEDIUM_SLOW",
+    types = { "DRAGON", "ICE" },
+    baseStats = { hp = 125, attack = 130, defense = 90, speed = 95,
+                  specialAttack = 130, specialDefense = 90 },
+  }
+  GEN2_ROSTER.pokemon.KYUREM_WHITE = {
+    id = "KYUREM_WHITE", name = "KYUREM WHITE", form = "WHITE",
+    types = { "DRAGON", "ICE" },
+    baseStats = { hp = 125, attack = 120, defense = 90, speed = 95,
+                  specialAttack = 170, specialDefense = 100 },
+  }
+  GEN2_ROSTER.pokemon.RESHIRAM = {
+    id = "RESHIRAM", name = "RESHIRAM", growthRate = "GROWTH_MEDIUM_SLOW",
+    types = { "DRAGON", "FIRE" },
+    baseStats = { hp = 100, attack = 120, defense = 100, speed = 90,
+                  specialAttack = 150, specialDefense = 120 },
+  }
+  GEN2_ROSTER.gen2MenuGfx = {}
+  GEN2_ROSTER.gen2Icons = { species = {}, icons = {} }
+  GEN2_ROSTER.audio = { sfx = {}, sfxOrder = {} }
+  GEN2_ROSTER.tokens = require("src.render.TextBox").TOKENS
+
+  Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+                battlerof = Battlerof, gen2 = true })
+  local realMod = fakeMod()
+  Fusion.install(realMod, rows, fuserIndices)
+  GEN2_ROSTER.items = { DNA_SPLICERS = realMod.items.DNA_SPLICERS }
+  GEN2_ROSTER.gen2ItemEffects = { DNA_SPLICERS = realMod.effects.DNA_SPLICERS }
+
+  local function gen2RealMon(species, level, opts)
+    opts = opts or {}
+    local def = GEN2_ROSTER.pokemon[species]
+    local mon = { species = species, level = level,
+                  dvs = opts.dvs or { attack = 15, defense = 15, speed = 15,
+                                      special = 15 },
+                  statExp = {}, moves = { { id = "TACKLE", pp = 35 } } }
+    mon.stats = Mon2.stats(def.baseStats, mon.dvs, level, mon.statExp)
+    mon.maxHp = mon.stats.hp
+    mon.hp = opts.hp or mon.stats.hp
+    return mon
+  end
+
+  local function newInput()
+    local input = { pressed = {}, down = {} }
+    function input:press(button) self.pressed[button] = true end
+    function input:wasPressed(button)
+      if self.pressed[button] then
+        self.pressed[button] = nil
+        return true
+      end
+      return false
+    end
+    function input:isDown() return false end
+    return input
+  end
+
+  local function newStack()
+    return {
+      _items = {},
+      push = function(self, s) self._items[#self._items + 1] = s end,
+      pop = function(self) return table.remove(self._items) end,
+      top = function(self) return self._items[#self._items] end,
+      clear = function(self) while #self._items > 0 do self:pop() end end,
+    }
+  end
+
+  -- Drives whatever is on top of the stack with an A press per frame, the
+  -- same shape game/tests/gen2_field_items_test.lua's own `drive` uses.
+  local function drive(game, predicate, frames)
+    for _ = 1, frames or 600 do
+      if predicate() then return true end
+      local top = game.stack:top()
+      if not top then return predicate() end
+      game.input:press("a")
+      if top.update then top:update(1 / 60) end
+    end
+    return predicate()
+  end
+
+  local function newHost(inventory, party)
+    return setmetatable({
+      data = GEN2_ROSTER,
+      save = { player = { name = "GOLD" }, party = party,
+               inventory = inventory or {}, options = {} },
+      options = {}, input = newInput(), stack = newStack(),
+    }, { __index = Game2 })
+  end
+
+  local kyurem = gen2RealMon("KYUREM", 50)
+  local reshiram = gen2RealMon("RESHIRAM", 62)
+  local host = newHost({ DNA_SPLICERS = 1 }, { kyurem, reshiram })
+  -- The captured save is exactly this host's own -- the real save.created /
+  -- save.loaded payload's shape, {save = ...} -- so the closure reads the
+  -- SAME table Game2:usePartyItem is mutating, not a copy of it.
+  Fusion.onSaveReady({ save = host.save })
+
+  host:useFieldItem("DNA_SPLICERS")
+  local party = host.stack:top()
+  T.check(party ~= nil and party.prompt ~= nil,
+    "USE on the real Game2:usePartyItem opens the real Gen2PartyMenu -- the "
+      .. "engine's own #8 fix (partyAction now reads `data`) reaching a "
+      .. "mod's own registered action, not just its own built-ins")
+
+  drive(host, function() return host.stack:top() ~= party end)
+  T.eq(kyurem[Fusion.STAMP], "RESHIRAM",
+    "picking the Kyurem through the real party list fused it for real")
+  T.eq(#host.save.party, 1, "the Reshiram left the party through the real dispatch")
+  T.check(host.save.inventory.DNA_SPLICERS ~= nil,
+    "and the DNA Splicers were NOT spent -- kept, not consumed, matching the "
+      .. "real games and this mod's Gen 1 behaviour")
+  local box = host.stack:top()
+  T.check(box ~= nil and box.pages ~= nil,
+    "the pick lands a real TextBox with the fusion's own message")
+
+  -- Mid-battle refusal: BattleState.lua:3017 gates purely on the item
+  -- record's own battleMenu field, which M.install now sets for exactly
+  -- this reason.
+  T.eq(GEN2_ROSTER.items.DNA_SPLICERS.battleMenu, "ITEMMENU_NOUSE",
+    "and the same item record refuses a mid-battle USE before any of this "
+      .. "dispatch is even reached there")
+
+  Fusion.onSaveReady({ save = nil })
+  Fusion.bind({ forms = Forms, rows = rows, log = log, price = Stone.PRICE,
+                battlerof = Battlerof })
 end
 
 T.finish("battle_forms_fusion")
