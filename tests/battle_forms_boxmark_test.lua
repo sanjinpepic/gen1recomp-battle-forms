@@ -285,6 +285,129 @@ do
     "and its guard flag was cleared, so a later fix can install cleanly")
 end
 
+-- ---------------------------------------------------------------------
+-- Gen 2: Gold's own PC panel (BoxMenu.drawPanel) and its own STATS screen
+-- (Gen2SummaryMenu / src.ui.gen2.SummaryMenu.upperPlacements). The list
+-- rows themselves are refused -- see src/boxmark.lua's own header on
+-- M.installGen2 for why a Gen 2 nickname leaves no column guaranteed free.
+-- ---------------------------------------------------------------------
+local savedLoadedGen2 = {}
+for _, name in ipairs({ "src.ui.gen2.BoxMenu", "src.ui.gen2.SummaryMenu" }) do
+  savedLoadedGen2[name] = package.loaded[name]
+end
+
+local function stubGen2Engine()
+  local calls = { drawFont = {} }
+  local BoxMenu2 = {
+    drawPanel = function(self)
+      calls.vanillaPanelDraw = (calls.vanillaPanelDraw or 0) + 1
+    end,
+    panelMon = function(self) return self.current end,
+  }
+  local SummaryMenu2 = {
+    upperPlacements = function(self)
+      return { { text = "\xe2\x84\x96.", x = 8, y = 0 }, { text = "025", x = 10, y = 0 } }
+    end,
+  }
+  local Font = {
+    draw = function(text, x, y)
+      calls.drawFont[#calls.drawFont + 1] = { text = text, x = x, y = y }
+    end,
+  }
+  package.loaded["src.ui.gen2.BoxMenu"] = BoxMenu2
+  package.loaded["src.ui.gen2.SummaryMenu"] = SummaryMenu2
+  package.loaded["src.render.Font"] = Font
+  return BoxMenu2, SummaryMenu2, Font, calls
+end
+
+do
+  local BoxMenu2, SummaryMenu2, Font, calls = stubGen2Engine()
+  T.eq(Boxmark.installGen2(fakeMod()), true, "gen2 install succeeds")
+
+  local partner = fusedMon("RESHIRAM", "KYUREM_WHITE")
+  local plain = { species = "PIDGEY" }
+
+  local boxMenuInstance = setmetatable({ current = partner }, { __index = BoxMenu2 })
+  BoxMenu2.drawPanel(boxMenuInstance)
+  T.eq(calls.vanillaPanelDraw, 1, "the vanilla panel draw still ran first")
+  T.eq(#calls.drawFont, 1, "one glyph is drawn for a fused partner")
+  T.eq(calls.drawFont[1].text, Boxmark.GLYPH, "the same marker as Gen 1's")
+  T.eq(calls.drawFont[1].x, 48, "in the panel's free column")
+  T.eq(calls.drawFont[1].y, 96, "on the level/gender row")
+
+  calls.drawFont = {}
+  boxMenuInstance.current = plain
+  BoxMenu2.drawPanel(boxMenuInstance)
+  T.eq(#calls.drawFont, 0, "an ordinary mon gets no panel marker")
+
+  calls.drawFont = {}
+  boxMenuInstance.current = nil
+  BoxMenu2.drawPanel(boxMenuInstance)
+  T.eq(#calls.drawFont, 0, "no selection at all draws no marker and does not throw")
+
+  local placements = SummaryMenu2.upperPlacements({ mon = partner })
+  T.eq(#placements, 3, "one entry was appended to the real layout")
+  T.eq(placements[3].text, Boxmark.GLYPH, "the fused partner's own marker")
+  T.eq(placements[3].x, 13, "in the dex-number row's own free column")
+  T.eq(placements[3].y, 0, "on the dex-number row")
+
+  local plainPlacements = SummaryMenu2.upperPlacements({ mon = plain })
+  T.eq(#plainPlacements, 2, "an ordinary mon's placements are untouched")
+end
+
+-- A guard that refuses must say so out loud, on Gold's own seams too.
+do
+  stubGen2Engine()
+  package.loaded["src.ui.gen2.BoxMenu"] = { drawPanel = "not a function" }
+  local mod = fakeMod()
+  T.eq(Boxmark.installGen2(mod), false,
+    "a gen2 BoxMenu.drawPanel that is not a function refuses rather than "
+      .. "patching it")
+  T.check(firstLogged(mod, "battle_forms:") ~= nil, "and says so through mod.log")
+end
+
+do
+  stubGen2Engine()
+  package.loaded["src.ui.gen2.BoxMenu"] = nil
+  package.preload["src.ui.gen2.BoxMenu"] = function() error("no such module") end
+  local mod = fakeMod()
+  T.eq(Boxmark.installGen2(mod), false, "an unrequireable gen2 BoxMenu refuses cleanly")
+  T.check(firstLogged(mod, "battle_forms:") ~= nil, "and says so")
+  package.preload["src.ui.gen2.BoxMenu"] = nil
+end
+
+-- Atomic: the panel wrap that DID succeed is reverted when the STATS half
+-- cannot be built, the identical discipline M.install keeps for Gen 1.
+do
+  local BoxMenu2 = stubGen2Engine()
+  local vanillaPanel = BoxMenu2.drawPanel
+  package.loaded["src.ui.gen2.SummaryMenu"] = { upperPlacements = "not a function" }
+  local mod = fakeMod()
+
+  T.eq(Boxmark.installGen2(mod), false,
+    "the whole gen2 install fails when either half cannot be wrapped")
+  T.eq(BoxMenu2.drawPanel, vanillaPanel,
+    "the panel wrap that DID succeed was reverted rather than left standing alone")
+  T.eq(BoxMenu2._battleFormsBoxMarked, nil,
+    "and its guard flag was cleared, so a later fix can install cleanly")
+end
+
+-- Idempotency: a second gen2 install wraps nothing further.
+do
+  local BoxMenu2, SummaryMenu2 = stubGen2Engine()
+  local vanillaPanel, vanillaUpper = BoxMenu2.drawPanel, SummaryMenu2.upperPlacements
+
+  T.eq(Boxmark.installGen2(fakeMod()), true, "first gen2 install succeeds")
+  local wrappedPanel, wrappedUpper = BoxMenu2.drawPanel, SummaryMenu2.upperPlacements
+  T.check(wrappedPanel ~= vanillaPanel, "BoxMenu.drawPanel was wrapped")
+  T.check(wrappedUpper ~= vanillaUpper, "SummaryMenu.upperPlacements was wrapped")
+
+  T.eq(Boxmark.installGen2(fakeMod()), true, "a second gen2 install still reports success")
+  T.eq(BoxMenu2.drawPanel, wrappedPanel, "and wraps BoxMenu.drawPanel no further")
+  T.eq(SummaryMenu2.upperPlacements, wrappedUpper, "nor SummaryMenu.upperPlacements")
+end
+
+for name, value in pairs(savedLoadedGen2) do package.loaded[name] = value end
 for name, value in pairs(savedLoaded) do package.loaded[name] = value end
 
 T.finish("battle_forms_boxmark")

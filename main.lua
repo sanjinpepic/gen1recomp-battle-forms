@@ -896,6 +896,13 @@ return function(mod)
   local boxmark = m["src/boxmark.lua"]
   boxmark.bind({ fusion = fusion, diag = diag })
   boxmark.install(mod)
+  -- Gold's own two seams for the identical marker: the PC panel and the
+  -- STATS screen reached from it (src/boxmark.lua's own header on
+  -- M.installGen2 has the full investigation of what Gold's BoxMenu
+  -- actually offers). Gen 2 only, the way every other Gold-specific install
+  -- in this file is gated -- there is no src.ui.gen2.BoxMenu on a Gen 1 boot
+  -- to patch.
+  if gen2 then boxmark.installGen2(mod) end
 
   -- The same STATS screen, a third reason to reach it: a persistent form or
   -- a fusion changes a Pokemon's types and stats on the battler

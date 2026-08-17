@@ -194,6 +194,180 @@ local function installSummary(mod)
   end
 end
 
+-- ---- Gen 2: the PC panel and Gold's own STATS screen ---------------------
+--
+-- Gold's BoxMenu (game/src/ui/gen2/BoxMenu.lua) was recorded in HANDOFF.md
+-- as "a self-drawn icon grid ... with no text slot", and reading the class
+-- turns out to say otherwise on both counts: its withdraw/release list
+-- draws plain nickname TEXT (Chrome.print at BoxMenu.lua:738, no per-row
+-- icon anywhere in the file), and PCMonInfo's own left-hand info panel
+-- (drawPanel, :704-800) carries a text slot too -- just not one every row
+-- can safely share.
+--
+-- THE LIST ROWS ARE REFUSED, though, and for a reason worth keeping
+-- explicit: PlaceNickname prints a Gen 2 nickname verbatim, up to the full
+-- ten-tile width of the list box (LIST_X=9 through the box's own right
+-- edge), with no separate field the way Gen 1's ListMenu gives item.right.
+-- There is no column guaranteed empty for every row a ten-character
+-- nickname might occupy, and truncating a boxed Pokemon's own name to make
+-- room for this mod's marker would show the player a name they did not
+-- give it -- worse than the marker this module exists to add.  So nothing
+-- wraps the list draw on Gold; see M.installGen2's own refusal being a
+-- deliberate no-op there, not a shortfall.
+--
+-- THE PANEL IS NOT REFUSED.  drawPanel prints the level as "<LV>" plus at
+-- most three digits, starting at PIC_X=1 (four tiles, columns 1-4), and a
+-- gender glyph at column 5 only when the mon actually has one -- so columns
+-- 6 and 7 of PCMonInfo's own eight-tile-wide panel (:12) are empty for
+-- every mon, gendered or not, level 1 or level 100.  The panel already
+-- redraws for whichever mon the cursor currently sits on, and RELEASE is
+-- one menu deeper than that (under "What's up?"), so marking it satisfies
+-- the identical "in front of the player before they press A on RELEASE"
+-- requirement the two Gen 1 seams above exist for -- continuously, as the
+-- player scrolls, rather than needing a marker on every row at once.
+--
+-- THE STATS SCREEN is reached the way Gen 1's is: BoxMenu:openStats pushes
+-- "Gen2SummaryMenu" (src/ui/gen2/SummaryMenu.lua, resolved through
+-- game/src/ui/Screens.lua's own Gen2 prefix table) -- a different class
+-- from src.ui.SummaryMenu, wrapped above.  Its own dex-number row
+-- (upperPlacements, SummaryMenu.lua:407-428) leaves column 13 empty: the
+-- three-digit dex number ends at column 12 and the level text does not
+-- start until column 14, on every mon regardless of dex number or level.
+-- upperPlacements builds a plain { text, x, y } list rather than drawing
+-- directly -- that class's own header says why: "so the layout can be
+-- asserted without a graphics device" -- so this wraps THAT method rather
+-- than draw(), and the marker becomes one more entry in the exact list
+-- SummaryMenu:drawPlacements already walks, provable with no love.graphics
+-- stub at all.
+local function gen2PanelMon(boxMenu)
+  local ok, mon = pcall(boxMenu.panelMon, boxMenu)
+  return ok and mon or nil
+end
+
+-- Pixel coordinates, matching MARK_X/MARK_Y's own convention above: PCMonInfo's
+-- panel is 8 tiles wide (columns 0-7), the level/gender row is row 12, and
+-- columns 6-7 are the free pair this module's own header measures.
+local PANEL_MARK_X, PANEL_MARK_Y = 48, 96
+
+local function installGen2BoxMenu(mod)
+  local ok, BoxMenu = pcall(require, "src.ui.gen2.BoxMenu")
+  if not ok or type(BoxMenu) ~= "table" then
+    record("boxmark: require(src.ui.gen2.BoxMenu) failed (%s)", tostring(BoxMenu))
+    if mod.log then
+      mod.log:error("battle_forms: src.ui.gen2.BoxMenu is unavailable -- the "
+        .. "boxed fusion partner marker is disabled on Gold's PC panel")
+    end
+    return false, function() end
+  end
+  if BoxMenu._battleFormsBoxMarked then
+    record("boxmark: gen2 BoxMenu was already patched -- this load wrapped "
+      .. "nothing and the wrapper in place belongs to an earlier load")
+    return true, function() end
+  end
+  if type(BoxMenu.drawPanel) ~= "function" then
+    record("boxmark: gen2 BoxMenu.drawPanel is not a function -- the marker "
+      .. "is disabled on Gold's PC panel")
+    if mod.log then
+      mod.log:error("battle_forms: src.ui.gen2.BoxMenu.drawPanel has changed "
+        .. "shape -- the boxed fusion partner marker is disabled on Gold's "
+        .. "PC panel")
+    end
+    return false, function() end
+  end
+
+  local okFont, Font = pcall(require, "src.render.Font")
+  if not okFont then Font = nil end
+
+  local vanillaDrawPanel = BoxMenu.drawPanel
+  BoxMenu._battleFormsBoxMarked = true
+  BoxMenu.drawPanel = function(self)
+    vanillaDrawPanel(self)
+    if not Font or not isFusedPartner(gen2PanelMon(self)) then return end
+    local ok2, err = pcall(function()
+      love.graphics.setColor(0, 0, 0, 1)
+      Font.draw(M.GLYPH, PANEL_MARK_X, PANEL_MARK_Y)
+      love.graphics.setColor(1, 1, 1, 1)
+    end)
+    if not ok2 then
+      record("boxmark: gen2 BoxMenu.drawPanel marker failed (%s)", tostring(err))
+    end
+  end
+  record("boxmark: install: wrapped gen2 BoxMenu.drawPanel")
+  return true, function()
+    BoxMenu.drawPanel = vanillaDrawPanel
+    BoxMenu._battleFormsBoxMarked = nil
+  end
+end
+
+-- Tile coordinates, the shape upperPlacements' own { text, x, y } rows carry
+-- (SummaryMenu:drawPlacements multiplies by 8 itself through Chrome.print).
+local SUMMARY_MARK_X, SUMMARY_MARK_Y = 13, 0
+
+local function installGen2Summary(mod)
+  local ok, SummaryMenu = pcall(require, "src.ui.gen2.SummaryMenu")
+  if not ok or type(SummaryMenu) ~= "table" then
+    record("boxmark: require(src.ui.gen2.SummaryMenu) failed (%s)",
+      tostring(SummaryMenu))
+    if mod.log then
+      mod.log:error("battle_forms: src.ui.gen2.SummaryMenu is unavailable -- "
+        .. "the boxed fusion partner marker is disabled on Gold's STATS "
+        .. "screen")
+    end
+    return false, function() end
+  end
+  if SummaryMenu._battleFormsBoxMarked then
+    record("boxmark: gen2 SummaryMenu was already patched -- this load "
+      .. "wrapped nothing and the wrapper in place belongs to an earlier load")
+    return true, function() end
+  end
+  if type(SummaryMenu.upperPlacements) ~= "function" then
+    record("boxmark: gen2 SummaryMenu.upperPlacements is not a function -- "
+      .. "the marker is disabled on Gold's STATS screen")
+    if mod.log then
+      mod.log:error("battle_forms: src.ui.gen2.SummaryMenu.upperPlacements "
+        .. "has changed shape -- the boxed fusion partner marker is "
+        .. "disabled on Gold's STATS screen")
+    end
+    return false, function() end
+  end
+
+  local vanillaUpper = SummaryMenu.upperPlacements
+  SummaryMenu._battleFormsBoxMarked = true
+  SummaryMenu.upperPlacements = function(self)
+    local out = vanillaUpper(self)
+    if type(out) == "table" and isFusedPartner(self and self.mon) then
+      out[#out + 1] = { text = M.GLYPH, x = SUMMARY_MARK_X, y = SUMMARY_MARK_Y }
+    end
+    return out
+  end
+  record("boxmark: install: wrapped gen2 SummaryMenu.upperPlacements")
+  return true, function()
+    SummaryMenu.upperPlacements = vanillaUpper
+    SummaryMenu._battleFormsBoxMarked = nil
+  end
+end
+
+-- Both Gen 2 seams or neither, for the identical reason M.install keeps its
+-- own two Gen 1 halves atomic: a marker in the PC panel with none on the
+-- STATS screen it opens into (or the reverse) is worse than no marker.
+function M.installGen2(mod)
+  local panelOk, undoPanel = installGen2BoxMenu(mod)
+  if not panelOk then return false end
+
+  local summaryOk = installGen2Summary(mod)
+  if not summaryOk then
+    undoPanel()
+    if mod.log then
+      mod.log:error("battle_forms: the STATS screen half of Gold's boxed "
+        .. "fusion partner marker could not be built, so the PC panel half "
+        .. "that DID wrap has been reverted too -- a marker in one place "
+        .. "and not the other would be worse than none")
+    end
+    return false
+  end
+  return true
+end
+
 -- Both seams or neither.  A marker that stood in the box list with no
 -- matching one on the STATS screen it opens into (or the other way round)
 -- is worse than no marker, so a failure on either half undoes the other
