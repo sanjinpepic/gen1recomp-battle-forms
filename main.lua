@@ -676,9 +676,18 @@ return function(mod)
                    log = mod.log })
   local speciesZCatalog = speciesz.install(mod, speciesZRows)
 
+  -- gen2/gen2substitute follow src/dynamax.lua's own branch exactly: Gold has
+  -- no `curMoves` array to swap, only the mon's own `moves`, mutated in place
+  -- (src/gen2substitute.lua's own header) -- this is that primitive's SECOND
+  -- real consumer, alongside Dynamax's Max Moves, proven not to collide with
+  -- it by tests/battle_forms_gen2zmoves_test.lua's own collision block: the
+  -- one-transformation-per-battle lock (src/arm.lua) always tears one down
+  -- before the other arms, so the two states are never simultaneously live
+  -- on the same mon.
   zmoves.bind({ substitute = m["src/substitute.lua"], keyitems = keyitems,
                 eligibility = eligibility, announce = announce, anim = anim,
-                speciesz = speciesz, log = mod.log, battlerof = battlerof })
+                speciesz = speciesz, log = mod.log, battlerof = battlerof,
+                gen2 = gen2, gen2substitute = m["src/gen2substitute.lua"] })
   local zCatalog = zmoves.install(mod, zrows)
   local zState = zmoves.new()
   local zOk, zWhy = registry:register(
@@ -937,13 +946,22 @@ return function(mod)
   -- src/gen2movemenu.lua's own header for the full answer to "whether a
   -- second roster can register at all".  Built from the ordinary Max Move
   -- roster's own menuNames (data/maxmoves.lua's `menu` field, unused by Gen
-  -- 1's own zMenuNames merge above) plus the same G-Max names zMenuNames
-  -- already carries, merged the identical way.  Gen 1 only -- there is no
-  -- src.ui.gen2.BattleState on that boot to patch.
+  -- 1's own zMenuNames merge above) plus zMenuNames itself, which by this
+  -- point already carries the G-Max names, the eighteen type Z-Move names
+  -- and the fourteen species Z-Move names merged together above -- reused
+  -- rather than rebuilt a second time, since Gold's own 96px/12-column
+  -- budget (src/gen2movemenu.lua's own header) is the identical budget
+  -- those two rosters' `menu` fields were already built and boundary-tested
+  -- against for Gen 1's widescreen layout, so no second, Gold-specific
+  -- roster is needed. Gen 1 only -- there is no src.ui.gen2.BattleState on
+  -- that boot to patch.
   if gen2 then
     local gen2MenuNames = maxmoves.menuNames(m["data/maxmoves.lua"])
     for id, short in pairs(gmaxmoves.menuNames(m["data/gmaxmoves.lua"],
                                                 m["data/maxmoves.lua"])) do
+      gen2MenuNames[id] = short
+    end
+    for id, short in pairs(zMenuNames) do
       gen2MenuNames[id] = short
     end
     m["src/gen2movemenu.lua"].install(mod, gen2MenuNames, { diag = diag })

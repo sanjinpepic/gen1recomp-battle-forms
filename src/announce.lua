@@ -336,4 +336,15 @@ function M.gen2DynamaxEnded(battle, mon)
   return gen2Push(battle, text(DYNAMAX_END, name))
 end
 
+-- The Z-Power going up, Gen 2-shaped: the mon read straight and the two
+-- pages queued through `emit` rather than Gen 1's sayNext cursor, the
+-- identical shape M.gen2Tera's and M.gen2UltraBurst's own two-page calls
+-- already keep.
+function M.gen2ZPower(battle, mon)
+  local name = gen2Name(battle, mon)
+  if not name then return false end
+  if not gen2Push(battle, text(Z_POWER, name)) then return false end
+  return gen2Push(battle, text(Z_POWER_TAIL))
+end
+
 return M

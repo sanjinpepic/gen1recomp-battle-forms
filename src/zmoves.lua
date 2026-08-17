@@ -224,6 +224,14 @@ end
 -- under a crystal does not become a Z-Move in the real games -- it keeps itself
 -- and gains an extra effect -- and there is no field on a move record here that
 -- could say which effect, so the slot keeps itself and nothing is invented.
+-- deps.gen2 branches the PP-correction shape the same way src/maxmoves.lua's
+-- own M.fieldsFor does: Gold's FIGHT menu draws move.pp/move.maxPp straight
+-- off the slot with no PP-Up arithmetic at all, where Gen 1's draws a
+-- maximum computed from the record's own PP and a ppUps correction.
+-- src/gen2substitute.lua writes `maxPp` onto the SAME slot table it mutates
+-- in place, so what it needs here is the base move's own real maximum as an
+-- absolute number, not a correction meant for a second table Gen 2 never
+-- creates.
 function M.fieldsFor(catalog, data, slot, crystal)
   local entry = catalog.byCrystal[crystal]
   if not entry then return nil end
@@ -234,6 +242,10 @@ function M.fieldsFor(catalog, data, slot, crystal)
   if power <= 0 then return nil end
   local id = entry.rungs[M.powerFor(catalog.rows, power)]
   if not id then return nil end
+
+  if deps and deps.gen2 then
+    return { id = id, maxPp = tonumber(def.pp) or M.RECORD_PP }
+  end
 
   local ppUps = deps and deps.substitute
     and deps.substitute.menuPPUps(M.RECORD_PP, def.pp, slot.ppUps) or nil
@@ -380,15 +392,21 @@ end
 -- armed on -- an armed Z-Move simply stands, section 9's own rule.
 -- `statusBonus` is set only once such a move is actually used, and only
 -- until the turn ends, which is where it is spent.
+-- deps.gen2 picks src/gen2substitute.lua over src/substitute.lua for the
+-- identical reason every other Gen 2 branch in this mod does: Gold has no
+-- `curMoves` array to swap, only the mon's own `moves`, mutated in place
+-- (src/gen2substitute.lua's own header).
 function M.new()
+  local sub = deps and (deps.gen2 and deps.gen2substitute or deps.substitute)
   return { mon = nil, ids = nil, spent = false, statusType = nil, statusBonus = nil,
-           moves = deps and deps.substitute and deps.substitute.new() or nil }
+           moves = sub and sub.new() or nil }
 end
 
 local function forget(state)
   state.mon, state.ids, state.spent = nil, nil, false
   state.statusType, state.statusBonus = nil, nil
-  if deps.substitute then deps.substitute.restore(state.moves) end
+  local sub = deps.gen2 and deps.gen2substitute or deps.substitute
+  if sub then sub.restore(state.moves) end
 end
 
 M.onBattleStarted = forget
@@ -439,6 +457,18 @@ function M.entry(state, catalog, speciesCatalog)
     -- alone: no Z-Ring means no Z-Move whatever crystal the mon in front is
     -- carrying.  Failing here is how the gate stays silent -- the cell is
     -- simply absent rather than present and refusing.
+    -- deps.gen2 reads the real held item (mon.item) rather than the Gen 1
+    -- bag stamp, the identical substitution src/mega.lua's and
+    -- src/primal.lua's own Gen 2 branches already make: GIVE writes
+    -- mon.item directly and never touches eligibility.STAMP, so a crystal
+    -- genuinely held on Gold always read as not held before this branch
+    -- existed. `movesBattler` is a minimal shim rather than a second
+    -- wouldConvert/wouldStatusBonus shape: those two functions (and
+    -- src/speciesz.lua's own wouldConvert) all read `battler.curMoves`,
+    -- which does not exist on a bare Gen 2 mon, so this hands them a table
+    -- carrying the one field they ask for -- Gold's live `mon.moves` under
+    -- the same key Gen 1's battler wrapper already uses -- rather than
+    -- widening three functions' contracts for one caller.
     available = function(battle)
       if not deps.keyitems.held(battle, deps.keyitems.Z_RING) then
         return false
@@ -446,20 +476,34 @@ function M.entry(state, catalog, speciesCatalog)
       local battler = battle.player
       local mon = deps.battlerof.mon(battler)
       if not mon or not mon.species then return false end
-      local crystal = deps.eligibility.stoneOf(mon)
+      local crystal
+      if deps.gen2 then crystal = mon.item else crystal = deps.eligibility.stoneOf(mon) end
       if not crystal then return false end
-      return wouldConvertAny(catalog, speciesCatalog, battle.data, mon, battler, crystal)
+      local movesBattler = deps.gen2 and { curMoves = mon.moves } or battler
+      return wouldConvertAny(catalog, speciesCatalog, battle.data, mon,
+                             movesBattler, crystal)
     end,
 
     -- The whole of the mechanic, done at the moment the cell is armed so that
     -- the FIGHT menu the player is about to open already lists the Z-Move --
     -- the menu reads `curMoves` as it draws, so this is the last moment a swap
     -- is still ahead of the action being chosen.
+    -- deps.gen2 picks src/gen2substitute.lua and its own target, exactly the
+    -- branch src/dynamax.lua's own `arm` already makes: that module mutates
+    -- the mon's own `moves` array in place rather than swapping a
+    -- battler-scoped `curMoves`, so what it applies onto is the mon itself
+    -- (already what `battle.player` IS on Gen 2), never a wrapper. The
+    -- crystal comes off mon.item, never the Gen 1 stamp, for the reason
+    -- `available` above gives.
     arm = function(battle)
-      if not deps.substitute then return false end
+      local sub = deps.gen2 and deps.gen2substitute or deps.substitute
+      if not sub then return false end
       local battler = battle and battle.player
       local mon = deps.battlerof.mon(battler)
-      local crystal = mon and deps.eligibility.stoneOf(mon)
+      local crystal
+      if mon then
+        if deps.gen2 then crystal = mon.item else crystal = deps.eligibility.stoneOf(mon) end
+      end
       if not crystal then return false end
 
       -- The ids are collected from the picker's own answers rather than read
@@ -468,7 +512,8 @@ function M.entry(state, catalog, speciesCatalog)
       -- substitution on a move that was never part of it.
       local picker = pickerAny(catalog, speciesCatalog, battle.data, mon, crystal)
       local ids = {}
-      local applied = deps.substitute.apply(state.moves, battler, function(slot)
+      local target = deps.gen2 and mon or battler
+      local applied = sub.apply(state.moves, target, function(slot)
         local fields = picker(slot)
         if fields then ids[fields.id] = true end
         return fields
@@ -482,8 +527,9 @@ function M.entry(state, catalog, speciesCatalog)
       -- Pokemon may use an unconverted status move of it on a LATER turn too.
       local typeEntry = catalog.byCrystal[crystal]
       local statusType = typeEntry and typeEntry.type
+      local movesBattler = deps.gen2 and { curMoves = mon.moves } or battler
       if not applied and not (statusType
-          and M.wouldStatusBonus(catalog, battle.data, battler, crystal)) then
+          and M.wouldStatusBonus(catalog, battle.data, movesBattler, crystal)) then
         return false
       end
 
@@ -507,7 +553,13 @@ function M.entry(state, catalog, speciesCatalog)
       if not state.mon then return false end
       local battler = battle and battle.player
       if not battler or deps.battlerof.mon(battler) ~= state.mon then return false end
-      if deps.announce then deps.announce.zPower(battle, battler) end
+      if deps.announce then
+        if deps.gen2 then
+          deps.announce.gen2ZPower(battle, state.mon)
+        else
+          deps.announce.zPower(battle, battler)
+        end
+      end
       return true
     end,
   }
