@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.58.0
+
+### Added
+
+- **On Gold, a Dynamaxed Pokemon with no Gigantamax picture now visibly grows instead of standing there unchanged.** The real games' own Dynamax makes every Pokemon bigger; this mod had only ever drawn the 31 species `data/gigantamax.lua` gives a distinct picture, leaving the other several hundred looking exactly like they do outside a Dynamax. `game/src/battle/gen2/BgEffects.lua`'s own `runPicResize` -- the engine's real grow/shrink facility, used for a mon entering or returning to its ball -- turned out to be the wrong seam: it only ever writes a box-size index smaller than or equal to normal, and it is only read while a battle animation is actually running, so it goes stale the instant that animation clears, which is most of a battle. `src/gen2dynamaxgrow.lua` instead wraps `BattleState:picScale`, the multiplier the engine already reads on every draw and already composes with a live resize script (`battle_sprite_scales`, then a species' own `battleScaleFront`/`battleScaleBack`, now this) -- so a Dynamaxed mon returning to its ball still shrinks through the real animation's own steps, just shrinking away from a bigger starting size, with nothing here fighting that mechanism because nothing here writes the field it owns. The growth scale (1.15x) comes from the pic box and HUD geometry directly: a typical pic grows with no overlap into the neighbouring HUD text or off the top of the screen, and only the single largest vanilla front pic gives up a few pixels to either. A species with a real Gigantamax picture applied keeps it and does not also grow; a Gigantamax refused at runtime (the record named in `data/gigantamax.lua` is missing or misnamed) grows instead, since the player is looking at the base picture either way; a mon already wearing a mega or other form's picture when it Dynamaxes does not grow on top of that either. The growth reads `src/dynamax.lua`'s own per-battle state live, so the same four paths that already end a Dynamax -- the three-turn clock, a switch, a faint, and the battle ending -- end the growth in the same instant with nothing new to unwind. Gen 1 is unaffected: Red has no draw-time scaling seam at all, so this is Gold only.
+
 ## 0.57.0
 
 ### Fixed

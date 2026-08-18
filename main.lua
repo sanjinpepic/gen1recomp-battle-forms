@@ -116,6 +116,7 @@ return function(mod)
                   "src/formicons.lua", "src/formresolve.lua",
                   "src/gen2shop.lua", "src/gen2menu.lua",
                   "src/zmovemenu.lua", "src/gen2movemenu.lua", "src/hpscale.lua",
+                  "src/gen2dynamaxgrow.lua",
                   "data/megas.lua", "data/stones.lua", "data/primals.lua",
                   "data/orbs.lua", "data/keyitems.lua", "data/conditional.lua",
                   "data/gigantamax.lua", "data/maxmoves.lua", "data/gmaxmoves.lua",
@@ -649,6 +650,20 @@ return function(mod)
   -- needed at that one hook; gen2 decides only the draw path and the OHKO
   -- gate, which genuinely differ (src/hpscale.lua's own header).
   m["src/hpscale.lua"].install(mod, dynamaxState, battlerof, gen2)
+  -- Gold only, and gated the same way every other Gold-only class patch in
+  -- this file is: it wraps src.ui.gen2.BattleState, a class Red never draws
+  -- through. Red has no draw-time scaling seam to reach at all (frontSize
+  -- is read only at ROM-import time, and battle.overlay fires after the
+  -- engine has already drawn the battler), so a species with no Gigantamax
+  -- form still Dynamaxes in its own unchanged shape there -- only Gold's
+  -- Dynamax visibly grows instead, through src/gen2dynamaxgrow.lua's own
+  -- wrap of BattleState.picScale. `{ dynamaxState }` rather than
+  -- dynamaxState itself: that module reads a LIST of Dynamax-shaped states
+  -- so a future enemy Dynamax (a second, symmetric state Gold does not have
+  -- yet) is one more entry here rather than a change to that module.
+  if gen2 then
+    m["src/gen2dynamaxgrow.lua"].install(mod, { dynamaxState })
+  end
 
   -- The third entry, and the first that is not a form change at all: it
   -- overrides the battler's types and marks nothing, so it is handed neither
