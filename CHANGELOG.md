@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.59.0
+
+### Fixed
+
+- **Against another installed mod that also patches Gold's battle-scale seam, this mod now wins the growth it draws instead of losing it silently.** A peer GAMEPLAY mod on this engine (manifest id `g9-battle-engine`) ships its own Dynamax/Gigantamax implementation and, like `src/gen2dynamaxgrow.lua`, wraps `src.ui.gen2.BattleState:picScale` directly rather than through a priority-ordered hook chain -- so whichever mod's own `main.lua` ran last ended up wrapping the other's, and got first refusal on every draw call. Nothing in this mod's own manifest ordered it relative to that id, so `Loader:_order`'s tie-break (lower `priority` number goes first among otherwise-equal mods) put this mod's own patch first, meaning the peer's patch wrapped it rather than the other way round -- and since that peer's own species table already covers essentially the whole roster (1,227 ids, national_dex-species mostly included), its own resting-scale answer for almost any species intercepted the call before this mod's own Dynamax growth check ever ran, so a Dynamaxed Pokemon on Gold with that mod also installed silently stopped growing for nearly every species in the game, with no error and no log line. `manifest.json` now lists that id under `optional_dependencies`, which orders this mod after it when it is present and changes nothing at all when it is not (confirmed against the real loader both ways) -- so this mod's own patch sits outermost, decides first whether a Dynamax is active, and only then falls through to the peer's own answer for species it doesn't otherwise touch, composing the two instead of either silently discarding the other. The same reordering also fixes a second, lower-stakes case: that peer's own move registration unconditionally overwrites Play Rough's entire move record on Gold, discarding this mod's own `effectModeled` marker in the process (its real stat-drop still lands either way, since that runs off the move id directly rather than off the registry) -- after the fix this mod's own patch runs last and the marker survives.
+
 ## 0.58.0
 
 ### Added

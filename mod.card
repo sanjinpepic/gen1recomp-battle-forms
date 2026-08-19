@@ -30,6 +30,7 @@ return {
       "a persistent held-item form (Rotom's appliances, Giratina's Origin Forme and the rest, short of a fusion) now shows correctly in the party list and on the STATS screen the moment the item is given, rather than only after the Pokemon has first been thrown into a battle",
       "on Gold, taking a persistent held item back off a Pokemon no longer leaves it fighting a whole extra battle still dressed as the form that item earned -- the send-out itself now reverts a form this mod applied the moment the item that earned it is confirmed gone, rather than only the battle-end sweep eventually catching it one battle late",
       "on Gold, four more of the species Z-Crystal base moves (Volt Tackle, Sparkling Aria, Play Rough, Clanging Scales) now resolve instead of risking a crash the moment they connected, Giga Impact's recharge and Stone Edge's high critical-hit ratio now actually apply there, and the FORM cell's own DEBUG TRACE diagnostic no longer floods with hundreds of identical lines before a battle reaches the menu phase",
+      "on Gold, a Dynamaxed Pokemon now keeps growing even with another mod installed that also patches the same draw-scale seam for its own, separate gimmick -- this mod's own patch now loads after that one's, so its own growth check gets first refusal instead of being intercepted before it ever ran",
     },
     added = {
       "a form change that resolves before turn order, so megaing never spends a turn or a move",
