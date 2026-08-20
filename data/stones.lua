@@ -4,6 +4,39 @@
 -- save at all -- it will not survive a save/load and no save editor can see
 -- it.  Vanilla occupies 1-97 with no gaps; 98 up is free.
 --
+-- THAT LAST SENTENCE IS ABOUT RED, AND EVERY NUMBER IN THIS DIRECTORY WAS
+-- CHOSEN BY IT.  Gold ships 250 items filling 1-250, leaving 251-255 and
+-- nothing else.  This directory's own tables fill 98-233, so on Gold 140 of
+-- the 141 bytes declared across all of them name an item Gold already has --
+-- 98 is BLACKBELT_I, 101 PNK_APRICORN, 102 BLACKGLASSES, 196-199 the four TMs
+-- a gym leader hands out.  Only data/tm171.lua's 252 escapes it.
+--
+-- Registering an item on an occupied byte does not replace Gold's item, it
+-- puts a second record on the same number, and Gold picks between them by
+-- scanning every registered item for a matching `index` (`itemByIndex` in
+-- game/src/world/gen2/World.lua, behind gym prizes, item balls, NPC gifts and
+-- tree pickups alike).  `pairs` has no defined order, so the winner was
+-- decided per lookup: beating a gym could hand out a Key Stone instead of the
+-- TM, an apricorn tree a Blastoisinite, intermittently.
+--
+-- So the bytes below are registered ON GEN 1 ONLY.  src/stone.lua,
+-- src/keyitems.lua, src/persistent.lua and src/fusion.lua each pass
+-- `(not gen2) and index or nil`, and a record carrying no byte matches nothing
+-- that scan can ask for -- which makes the substitution impossible rather than
+-- merely unlikely.  Moving the numbers instead was never available: five free
+-- bytes, 136 needed.  It is also the treatment data/plates.lua already argued
+-- for and the Plates and Memories already ship with on both games.
+--
+-- Nothing in an existing save moves, because nothing in a save is keyed by
+-- byte: save.inventory, the mart shelves and SaveData's own scrub all work on
+-- item ids (game/src/inventory/Bag.lua's `inv[id]`).  The one cost is that
+-- these items cannot cross a Game Boy .sav export on Gold, since
+-- src/save_convert/GenSave.lua builds its crosswalk from `index` alone.
+--
+-- The numbers below therefore stay exactly as they are.  They are still live
+-- on Red, and they are still permanent for the reason the next paragraph
+-- gives.
+--
 -- These are permanent.  Changing one silently turns every stone already in a
 -- player's bag into a different item, so new stones append and nothing here
 -- is ever renumbered.  98-103 were assigned before this table existed in its

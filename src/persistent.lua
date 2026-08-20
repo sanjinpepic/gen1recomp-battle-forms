@@ -408,7 +408,12 @@ function M.install(mod, rows, indices)
         id = itemId,
         name = itemId:gsub("_", " "),
         price = deps.price,
-        index = index ~= false and index or nil,
+        -- `false` is data/plates.lua's deliberate bytelessness; deps.gen2
+        -- extends the same treatment to every one of these on Gold, where
+        -- their Gen 1 bytes are already Gold's own items and a tree pickup
+        -- resolving one handed out an appliance or a Drive.  data/stones.lua
+        -- holds the argument in full.
+        index = (not deps.gen2) and index ~= false and index or nil,
         effect = itemId,
         needsTarget = true,
         -- Gen 2's own PACK submenu (src/ui/gen2/PackMenu.lua's submenuRows)

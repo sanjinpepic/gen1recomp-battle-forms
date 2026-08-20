@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.59.1
+
+### Fixed
+
+- **On Gold, winning a gym battle or picking a tree handed out this mod's own key items and mega stones instead of the TM, apricorn or berry that was actually awarded.** Every bag byte in `data/` was numbered against Gen 1, where vanilla ends at 97 and 98 upward is genuinely free; Gold ships 250 items filling 1-250, and this mod fills 98-233, so 140 of its 141 declared bytes put a second record on a number Gold had already spoken for. Gold resolves an awarded byte by scanning every registered item for a matching `index` -- `itemByIndex` in `game/src/world/gen2/World.lua`, which sits behind gym prizes, item balls, NPC gifts and tree pickups alike -- and `pairs` has no defined iteration order, so which of the two records won was decided afresh on every lookup, which is why the substitution was intermittent rather than constant. 196-199 are `TM_ROAR`, `TM_TOXIC`, `TM_ZAP_CANNON` and `TM_ROCK_SMASH`, the range gym leaders award from, and they were this mod's four trainer key items; 101 and 102 are `PNK_APRICORN` and `BLACKGLASSES`, and they were the Blastoisinite and the Alakazite. On Gen 2 these items now register with no `index` at all rather than with a different one -- Gold leaves five bytes free and this mod needs 136, so relocating them was never available -- and a record carrying no byte matches nothing that scan can ask for, which makes the substitution impossible rather than unlikely. That is the same treatment the Plates and the Memories have had on both games since `data/plates.lua` first argued for it. Nothing moves in a save that already exists: the bag, the mart shelves and `SaveData`'s own scrub are all keyed by item id rather than by byte, so an item already carried stays exactly what it was, and the single cost is that these items cannot survive a Game Boy `.sav` export on Gold. Gen 1 is untouched and keeps every byte permanently, as the `data/` tables have always required; TM171 keeps its own byte on both games, since 252 sits in the small range Gold itself leaves open.
+
 ## 0.59.0
 
 ### Fixed

@@ -94,7 +94,11 @@ function M.items(pairings, indices)
           id = itemId,
           name = itemId:gsub("_", " "),
           price = M.PRICE,
-          index = index,
+          -- No bag byte on Gold -- data/stones.lua holds the argument.  These
+          -- run from 98 up, which is free on Red and entirely spoken for on
+          -- Gold (101 is PNK_APRICORN, 102 BLACKGLASSES), so keeping them let
+          -- an apricorn or berry tree hand out a mega stone.
+          index = (not gen2) and index or nil,
           effect = itemId,
           needsTarget = true,
           fieldMenu = gen2 and "ITEMMENU_NOUSE" or nil,
@@ -179,7 +183,8 @@ function M.installUnpaired(mod, itemIds, indices)
         id = itemId,
         name = itemId:gsub("_", " "),
         price = M.PRICE,
-        index = index,
+        -- No bag byte on Gold, for the reason M.items above states.
+        index = (not gen2) and index or nil,
         effect = itemId,
         needsTarget = true,
         fieldMenu = gen2 and "ITEMMENU_NOUSE" or nil,

@@ -422,7 +422,8 @@ function M.install(mod, rows, indices)
         id = itemId,
         name = itemId:gsub("_", " "),
         price = deps.price,
-        index = index,
+        -- No bag byte on Gold -- data/stones.lua holds the argument.
+        index = (not deps.gen2) and index or nil,
         effect = itemId,
         needsTarget = true,
         -- Gold's mid-battle PACK dispatch (game/src/ui/gen2/BattleState.lua's

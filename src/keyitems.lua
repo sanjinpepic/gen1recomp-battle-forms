@@ -58,7 +58,17 @@ local function record(itemId, index, gen2)
     id = itemId,
     name = itemId:gsub("_", " "),
     price = M.PRICE,
-    index = index,
+    -- No bag byte on Gold, and data/stones.lua holds the whole argument.  The
+    -- short version: 196-199 are TM_ROAR, TM_TOXIC, TM_ZAP_CANNON and
+    -- TM_ROCK_SMASH there, the TM range is what gym leaders award, and Gold
+    -- resolves an award byte by scanning every registered item for a matching
+    -- `index` -- so a gym prize handed out a Key Stone or a Tera Orb instead
+    -- of the TM.  A record with no index matches no byte and cannot be handed
+    -- out at all.  Gen 1 keeps these four: 98+ really is free there.
+    -- `(not gen2) and index or nil`, never `gen2 and nil or index` -- the
+    -- latter reads correctly and always yields `index`, because `and nil`
+    -- collapses to the false branch.
+    index = (not gen2) and index or nil,
     -- There is nothing to use one on and nothing to spend, so every bag verb
     -- that would move it back out is refused.  `keyItem` is the field the Gen 1
     -- bag, mart and item PC actually read when they refuse to toss, sell or
