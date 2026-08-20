@@ -55,18 +55,27 @@
 -- at all -- M.install's item record carries fieldMenu/battleMenu =
 -- "ITEMMENU_NOUSE", so Gold's own PACK never shows a USE verb for one of
 -- these items, GIVE and TOSS only, matching every held item the real games
--- already ship (Leftovers, the Exp. Share, ...). That is also the faithful
--- answer independent of the bug that made it necessary: confirmed against a
--- real Gold boot, pressing USE on one of these items reached
--- Game2:usePartyItem, whose own call to ItemEffects.partyAction(itemId)
--- passes no `data` argument, so it can only ever consult the engine's
--- built-in item_effects table and never a mod's merged one -- every mod's
--- Gen 2 field item is unreachable through that path today, not just this
--- one, and fixing it would mean patching engine dispatch logic this mod
--- has no seam for. Taking the verb off the screen is the fix this mod can
--- make; M.install's own item_effects registration still builds a
--- correctly-shaped Gen 2 record regardless (see M.install's own header),
--- so nothing here needs a second change if either gap ever closes upstream.
+-- already ship (Leftovers, the Exp. Share, ...).
+--
+-- THAT REASON NOW STANDS ALONE, WHICH IT DID NOT ALWAYS. This refusal was
+-- first written when the verb could not have worked anyway: Gold's own
+-- Game2:usePartyItem called ItemEffects.partyAction(itemId) with no `data`
+-- argument, so the lookup behind it saw the engine's built-in records and
+-- never a mod's merged ones -- every mod's Gen 2 field item was unreachable
+-- through that path, not just these. That gap has since closed upstream.
+-- Game2.lua:689 passes self.data now, ItemEffects.recordFor (gen2/
+-- ItemEffects.lua:374) consults data.gen2ItemEffects AHEAD of its own
+-- RECORDS, and Game2.lua:731 threads the same dataset into useOnMon -- so a
+-- mod's Gen 2 field item does reach its own `use` closure today, which is
+-- exactly the path src/terashop.lua's Tera Orb runs on.
+--
+-- Nothing here changes because of that, and the distinction is worth keeping
+-- straight: these are held items, the real games never offer USE on one out
+-- of the bag, and GIVE and TOSS were the right verbs for them on their own
+-- merits rather than the best available answer to a dispatch that did not
+-- work. M.install's own item_effects registration still builds a correctly-
+-- shaped Gen 2 record (see its own header), so an item here that ever does
+-- want the verb needs only its fieldMenu changed.
 local M = {}
 
 local deps = nil
@@ -424,23 +433,22 @@ function M.install(mod, rows, indices)
         -- already ships shows no USE verb in either pocket menu, GIVE and
         -- TOSS only, and this mod's own held-item forms belong on that same
         -- shelf now that Gen 2 has a real slot for them (see M.formIdFor's
-        -- own header).  Confirmed against a real Gold boot: without these two
-        -- fields, choosing USE on a Griseous Orb reached
-        -- Game2:usePartyItem, which calls
-        -- `ItemEffects.partyAction(itemId)` with NO data argument -- so
-        -- `ItemEffects.recordFor` can only ever check the engine's own
-        -- built-in ItemEffects.RECORDS table, never a mod's
-        -- data.gen2ItemEffects merge, and `action` comes back nil for every
-        -- mod-registered item without exception. `usePartyItem`'s `if not
-        -- action then return end` then does precisely nothing: no party
-        -- picker, no message, no error -- unlike a Berry, which is exactly
-        -- the discrepancy the player noticed. That is an engine-side gap this
-        -- mod cannot close from here (HANDOFF's own standing rule: nothing
-        -- may require an engine change), so rather than leave a USE verb on
-        -- screen that silently does nothing, these two fields take the verb
-        -- off the screen entirely -- which is also the more faithful choice
-        -- on its own terms, independent of the bug.  Gen 1 has neither field
-        -- name and ignores both; USE remains its only mechanism there.
+        -- own header).  The verb also used to do nothing at all if left on:
+        -- choosing USE on a Griseous Orb reached Game2:usePartyItem, which
+        -- called `ItemEffects.partyAction(itemId)` with NO data argument, so
+        -- `ItemEffects.recordFor` could only check the engine's own built-in
+        -- RECORDS table and `action` came back nil for every mod-registered
+        -- item without exception -- `if not action then return end` did
+        -- precisely nothing, no picker, no message, no error, unlike a Berry,
+        -- which is the discrepancy a player reported.  That gap is closed
+        -- upstream now: the engine threads its dataset through
+        -- (Game2.lua:689 and :731) and recordFor consults
+        -- data.gen2ItemEffects ahead of its built-ins, so a mod's Gen 2 field
+        -- item does reach its own `use` today.  These two fields stay
+        -- regardless, because the paragraph above was always the real reason
+        -- and is now the only one: a held item has no USE verb in the real
+        -- games.  Gen 1 has neither field name and ignores both; USE remains
+        -- its only mechanism there.
         fieldMenu = "ITEMMENU_NOUSE",
         battleMenu = "ITEMMENU_NOUSE",
       })

@@ -73,17 +73,25 @@ end
 -- On Gen 2, fieldMenu/battleMenu = "ITEMMENU_NOUSE" take the USE verb off
 -- both PACK pockets, the identical treatment src/persistent.lua's own
 -- registration already gives every held-item form -- and for the identical
--- reason: Gold's own PACK dispatcher (Game2:usePartyItem) calls
--- ItemEffects.partyAction(itemId) with no `data` argument, so it can only
--- ever resolve the engine's own built-in item_effects table and never
--- reaches this module's `use` closure below, on any item, regardless of
--- what it registers (confirmed as of 0.39.0). Leaving USE on screen here
--- would show a verb that silently does nothing -- exactly the report that
--- prompted this fix, a player who tried USE on the Red Orb and read the
--- resulting no-op as primal reversion being broken rather than as GIVE
--- being the only real trigger. GIVE writes mon.item directly and is
--- unaffected; src/mega.lua's and src/primal.lua's own Gen 2 branches read
--- it, never this file's own `use`.
+-- reason: on Gold these ARE held items. GIVE writes mon.item directly, and
+-- src/mega.lua's and src/primal.lua's own Gen 2 branches read that field and
+-- never this file's `use` closure below, so USE has nothing to do there --
+-- exactly as it has nothing to do on a mega stone in the real games.
+-- Leaving the verb on screen shows something that silently does nothing,
+-- which is the report that prompted the fix: a player pressed USE on the Red
+-- Orb, got a no-op, and read it as primal reversion being broken rather than
+-- as GIVE being the only real trigger.
+--
+-- WHEN THIS WAS FIRST WRITTEN THE VERB COULD NOT HAVE WORKED EITHER WAY, and
+-- that half of it is no longer true. Gold's Game2:usePartyItem used to call
+-- ItemEffects.partyAction(itemId) with no `data` argument, so no mod's field
+-- effect was reachable through that path at all, on any item, regardless of
+-- what it registered (confirmed as of 0.39.0). The engine threads self.data
+-- through now -- Game2.lua:689 and :731, and gen2/ItemEffects.lua:374's
+-- recordFor consults data.gen2ItemEffects ahead of its own built-ins -- so a
+-- Gen 2 field item does reach its own `use` today, which is what
+-- src/terashop.lua's Tera Orb runs on. Nothing here changes: the paragraph
+-- above was always the real reason and is now the whole of it.
 function M.items(pairings, indices)
   local out = {}
   for _, byItem in pairs(pairings) do

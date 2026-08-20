@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.61.1
+
+### Fixed
+
+- **Four comments claimed an engine limitation that no longer exists, which would have talked the next reader out of something that now works.** `src/persistent.lua`, `src/stone.lua` and one of the persistent-form tests each stated that Gold's `Game2:usePartyItem` calls `ItemEffects.partyAction(itemId)` with no dataset argument, and concluded from it that every mod's Gen 2 field item was unreachable, on any item, regardless of what it registered. That was accurate when it was written and is not now: the engine passes its dataset through both dispatch calls, and `ItemEffects.recordFor` consults `data.gen2ItemEffects` ahead of its own built-in records -- which is precisely the path this mod's own Tera Orb has been running on since 0.60.0, so the files contradicted working code sitting beside them. Each note now describes the gap in the past tense and says plainly that it closed. No behaviour changed, deliberately: the persistent-form items and the mega stones keep `ITEMMENU_NOUSE` on Gold, because a held item has no USE verb in the real games either, and every one of those comments already carried that as an independent reason -- it was the "and it could never have worked anyway" half that had gone stale, and it was the half a future reader would have stopped at.
+
 ## 0.61.0
 
 ### Added

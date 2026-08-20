@@ -715,16 +715,16 @@ end
 -- record shaped { action, use(ctx) -> {used, text} } out of a DIFFERENT
 -- table (data.gen2ItemEffects) than Gen 1's { needsTarget, battle, use(ctx)
 -- -> status, messages } shape reads (data.item_effects).  This pins that
--- M.install builds the correct Gen 2 shape regardless of whether Gold's own
--- PACK can currently reach it -- confirmed against a real Gold boot that it
--- cannot: fieldMenu/battleMenu (pinned above) already take the USE verb off
--- both menus, and Game2:usePartyItem's own call to
--- ItemEffects.partyAction(itemId) passes no `data`, so `action` comes back
--- nil for every mod's item regardless of what shape it registers -- an
--- engine-side gap outside this mod's reach (this file's own header), not
--- something a different record shape could route around.  The record is
--- still built correctly so nothing here needs a second change if either gap
--- ever closes upstream.
+-- M.install builds the correct Gen 2 shape whether or not these particular
+-- items ever offer the verb that would run it.  They do not, and should not:
+-- fieldMenu/battleMenu (pinned above) take USE off both menus because a held
+-- item has none in the real games.  That is now the whole reason -- the
+-- engine gap this record shape was once merely future-proofing against has
+-- closed, and Game2:usePartyItem threads its dataset through to
+-- ItemEffects.recordFor, so a mod's Gen 2 field effect really does run when
+-- an item asks for the verb (src/terashop.lua's Tera Orb does).  Building the
+-- shape correctly here is what makes that a one-field change for any item
+-- that ever wants it.
 do
   Persistent.bind({ forms = Forms, eligibility = E, rows = rows, log = log,
                     price = Stone.PRICE, battlerof = Battlerof, gen2 = true })
