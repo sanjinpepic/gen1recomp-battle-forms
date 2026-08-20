@@ -260,16 +260,21 @@ do
                                type = "NORMAL", power = 80, accuracy = 100,
                                pp = 10, effect = "NO_ADDITIONAL_EFFECT" }
 
-  -- mod.options:get("tera_type") defaults to NORMAL (main.lua's own TERA_TYPE
-  -- option), so the real cell arms the NORMAL variant here -- a DIFFERENT
-  -- registered id from the base TERABLAST despite sharing a type, since
-  -- M.fieldsFor substitutes on the type CHOICE, never on whether it happens
-  -- to already match.
+  -- mod.options:get("tera_type") now defaults to AUTO, which asks the Pokemon
+  -- (src/teratype.lua).  This mon is stamped instead -- the field a Tera Orb
+  -- writes when a player spends shards on one -- because the fixture dataset
+  -- carries no PIKACHU record for the derivation to read types off, and
+  -- because pinning the type is what this suite is actually about: the real
+  -- cell must arm the NORMAL variant, a DIFFERENT registered id from the base
+  -- TERABLAST despite sharing a type, since M.fieldsFor substitutes on the
+  -- type CHOICE and never on whether it happens to already match.
   local teraId = Tera.idFor("NORMAL")
   T.check(run.data.moves[teraId] ~= nil,
     "the real NORMAL TERA BLAST variant reached the merged registry")
 
+  local TeraType = dofile(MOD .. "/src/teratype.lua")
   local mon = { species = "PIKACHU", level = 50, nickname = "SPARKY", hp = 100,
+                [TeraType.STAMP] = "NORMAL",
                 moves = { { id = "TERABLAST", pp = 10, maxPp = 10 } } }
   local engineBattle = { data = run.data,
                           save = { inventory = { TERA_ORB = 1 } },

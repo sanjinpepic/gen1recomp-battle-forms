@@ -55,6 +55,27 @@ local M = {}
 local CELADON_4F_MART_ID = 26
 local INDIGO_PLATEAU_MART_ID = 32
 
+-- Module-level so a LATER install can add to a shelf the wrap already closed
+-- over.  main.lua registers the Tera Shards after the type chart is complete,
+-- which is well after the persistent-form items go up, and the idempotence
+-- guard below means a second install cannot fit a second wrap -- so without
+-- this the shards would be registered, sold on Gen 1, and silently missing
+-- from Gold's shelf.  Merging into one table keeps the single wrap and lets
+-- the stock arrive in as many passes as main.lua needs.
+local shelves = { [CELADON_4F_MART_ID] = {}, [INDIGO_PLATEAU_MART_ID] = {} }
+
+local function addTo(martId, ids)
+  local shelf = shelves[martId]
+  local seen = {}
+  for _, id in ipairs(shelf) do seen[id] = true end
+  for _, id in ipairs(ids or {}) do
+    if not seen[id] then
+      shelf[#shelf + 1] = id
+      seen[id] = true
+    end
+  end
+end
+
 -- ids sorted the way src/shop.lua's shelf() orders a byteless entry: by its
 -- own bag byte where it has one, alphabetically among the byteless (`false`
 -- in indices, see data/plates.lua and data/memories.lua) entries after every
@@ -90,6 +111,11 @@ function M.install(mod, celadonIndices, indigoIndices)
     end
     return false
   end
+  -- Stock first, wrap second: a later call adds to the shelves the standing
+  -- wrap already reads and then returns, which is what lets main.lua stock this
+  -- in more than one pass.
+  addTo(CELADON_4F_MART_ID, sortedIds(celadonIndices))
+  addTo(INDIGO_PLATEAU_MART_ID, sortedIds(indigoIndices))
   if MartMenu._battleFormsMartPatched then return true end
   if type(MartMenu.inventory) ~= "function" then
     if mod and mod.log then
@@ -98,11 +124,6 @@ function M.install(mod, celadonIndices, indigoIndices)
     end
     return false
   end
-
-  local shelves = {
-    [CELADON_4F_MART_ID] = sortedIds(celadonIndices),
-    [INDIGO_PLATEAU_MART_ID] = sortedIds(indigoIndices),
-  }
 
   local vanillaInventory = MartMenu.inventory
   MartMenu._battleFormsMartPatched = true

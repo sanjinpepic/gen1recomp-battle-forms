@@ -221,8 +221,33 @@ end
 -- comes off the chart record because the id and the name differ for exactly one
 -- type -- PSYCHIC_TYPE prints as PSYCHIC -- and a message reading
 -- "PSYCHIC_TYPE type!" would be this mod showing its own plumbing.
+--
+-- WHERE THE TYPE COMES FROM NOW.  The Pokemon, through src/teratype.lua --
+-- derived from its own DVs, or read off the stamp the Tera Orb writes when a
+-- player spends shards on it.  This file's own header argues that a per-Pokemon
+-- type was impossible on Gen 1, and every constraint it names is still true;
+-- what changed is that a Pokemon turned out to already carry sixteen per-mon
+-- bits nobody had to ask for.  That header stays as written, because the
+-- decision it records was correct for what was available at the time.
+--
+-- The TERA TYPE option is still read, and now means "override every Pokemon
+-- with this one" -- AUTO, its new default, is the derived answer.  Keeping the
+-- explicit choices is not indecision: a player testing a matchup, and this
+-- mod's own suites, need a way to pin the type without breeding for DVs.
 function M.chosenType(battle)
   local id = deps.chosen and deps.chosen() or nil
+  if id == "auto" or id == nil or id == "" then
+    local mon = deps.battlerof.mon(battle and battle.player)
+    local data = battle and battle.data
+    -- Spelled out rather than `deps.teratype and deps.teratype.of(...) or nil`:
+    -- that form collapses the pair to its first value, so every refusal came
+    -- back reasonless and the log line said "no_teratype" whatever had actually
+    -- gone wrong.
+    local derived, why = nil, "no_teratype"
+    if deps.teratype then derived, why = deps.teratype.of(data, mon) end
+    if not derived then return nil, why end
+    id = derived
+  end
   if type(id) ~= "string" or id == "" then return nil, "unset" end
   local types = typesOf(battle)
   if not types then return nil, "no_chart" end

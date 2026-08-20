@@ -554,8 +554,14 @@ do
   run.data.type_chart.types = run.data.type_chart.types or {}
   run.data.type_chart.types.NORMAL = { name = "NORMAL" }
 
+  -- Stamped rather than left to the derivation: TERA TYPE now defaults to AUTO
+  -- and asks the Pokemon (src/teratype.lua), and this fixture dataset carries
+  -- no CHARIZARD record for it to read types off.  The stamp is the field a
+  -- Tera Orb writes, so this is a real path rather than a test-only hook, and
+  -- it keeps the assertion below pinned to one type.
   local teraMon = { species = "CHARIZARD", level = 50, dvs = {}, statExp = {},
-                    hp = 100 }
+                    hp = 100,
+                    [dofile(MOD .. "/src/teratype.lua").STAMP] = "NORMAL" }
   teraMon.stats = { hp = 78, attack = 84, defense = 78, speed = 100,
                     specialAttack = 85, specialDefense = 85 }
   local RealBattleForMessages = require("src.battle.gen2.Battle")

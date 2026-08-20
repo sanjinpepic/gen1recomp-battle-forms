@@ -105,6 +105,21 @@ function M.installAppliances(mod, indices)
   shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
 end
 
+-- The Tera Shards sell on the department store floor rather than at the Indigo
+-- Plateau lobby where the Tera Orb itself does, and the split is deliberate:
+-- the Orb is a key item bought once and gated behind the endgame with the other
+-- three, where shards are a consumable a player comes back for fifty at a time.
+-- A currency belongs where the shopping happens.
+--
+-- Ahead of the ninety-odd stones for the appliances' reason -- eighteen rows
+-- that a player has to find -- and main.lua calls this before them.  Every
+-- shard registered is a shard sold: the only thing that keeps one off this
+-- shelf is the running chart having no record for its type, which
+-- src/terashards.lua has already refused out loud by the time this is reached.
+function M.installShards(mod, indices)
+  shelf(mod, "CeladonMart4F", "TEXT_CELADONMART4F_CLERK", indices, nil)
+end
+
 -- The orbs sell at the Indigo Plateau lobby, the last counter before the
 -- Elite Four, rather than on the mega stones' shelf.  They are a different
 -- transformation type and Groudon and Kyogre are endgame Pokemon, so the two

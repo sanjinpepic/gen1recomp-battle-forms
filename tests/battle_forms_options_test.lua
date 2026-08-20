@@ -48,6 +48,21 @@ local tmIndices = dofile(MOD .. "/data/tm171.lua")
 local tmCount = 0
 for _ in pairs(tmIndices) do tmCount = tmCount + 1 end
 local KeyItems = dofile(MOD .. "/src/keyitems.lua")
+local TeraShards = dofile(MOD .. "/src/terashards.lua")
+
+-- The Tera Shards sell on that shelf too, and their count is NOT eighteen here:
+-- src/terashards.lua registers one per type the running chart can resolve, and
+-- this fixture boots a Red-era chart, which has fifteen.  Counted off the shelf
+-- rather than written down for that exact reason -- a literal would pin the
+-- number to whichever chart happened to load, and the whole point of reading
+-- the chart live is that it varies.
+local function shardsOn(mart)
+  local n = 0
+  for _, id in ipairs(mart) do
+    if TeraShards.typeFor(id) then n = n + 1 end
+  end
+  return n
+end
 
 local function readFile(path)
   local handle = assert(io.open(path, "rb"), "cannot open " .. path)
@@ -171,12 +186,16 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   local mart = martOf(data)
   local sold = {}
   for _, id in ipairs(mart) do sold[id] = true end
+  local shardCount = shardsOn(mart)
+  T.check(shardCount > 0, "the Tera Shards reached the shelf")
   T.eq(#mart,
     #FLOOR_STOCK + #KeyItems.ITEMS + tmCount + crystalCount + ultraCrystalCount
-      + speciesZCrystalCount + applianceCount + (case.all and 95 or 47),
+      + speciesZCrystalCount + applianceCount + shardCount
+      + (case.all and 95 or 47),
     "the Celadon shelf holds the floor's own stock, every key item, TM171, "
       .. "every crystal, Ultranecrozium Z, every species crystal, every "
-      .. "appliance and " .. (case.all and "every" or "only the official")
+      .. "appliance, every Tera Shard this chart has a type for and "
+      .. (case.all and "every" or "only the official")
       .. " stone with the option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
     T.check(sold[id], "the floor's own stock survives with the option "
@@ -237,9 +256,21 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
       itemId .. " is a registered item with the option " .. case.label)
     T.eq(data.items[itemId].index, keyIndices[itemId],
       itemId .. " keeps its permanent bag byte with the option " .. case.label)
-    T.check(data.item_effects == nil or data.item_effects[itemId] == nil,
-      itemId .. " registers no item effect -- it gates a mechanic, it is not "
-        .. "used on anything (option " .. case.label .. ")")
+    -- Three of the four gate a mechanic and are used on nothing, so they carry
+    -- no effect.  The Tera Orb is the exception and has to be: a Pokemon's Tera
+    -- type is derived from its DVs (src/teratype.lua) and appears on no screen
+    -- anywhere, so without an item that reads it back the player cannot see
+    -- what they would be spending fifty shards to change.  See
+    -- src/terashop.lua.
+    if itemId == KeyItems.TERA_ORB then
+      T.check(data.item_effects and data.item_effects[itemId] ~= nil,
+        itemId .. " registers the effect that reads a Pokemon's Tera type "
+          .. "back (option " .. case.label .. ")")
+    else
+      T.check(data.item_effects == nil or data.item_effects[itemId] == nil,
+        itemId .. " registers no item effect -- it gates a mechanic, it is not "
+          .. "used on anything (option " .. case.label .. ")")
+    end
     T.check(sold[itemId],
       itemId .. " is sold on the Celadon shelf with the option " .. case.label)
   end

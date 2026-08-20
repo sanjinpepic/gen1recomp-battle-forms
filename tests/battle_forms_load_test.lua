@@ -63,21 +63,21 @@ T.eq(megasRow and megasRow.choices and megasRow.choices[1][2], "official",
 T.eq(megasRow and megasRow.choices and megasRow.choices[2][2], "all",
   "ALL is the second")
 
--- TERA TYPE is on that screen for the same reason and matters more: it is the
--- only place a player can decide what a Terastallization does, so an option
--- that failed to reach the settings screen would be a mechanic with no way to
--- aim it.  NORMAL is the default because terastallizing into the type the
--- Pokemon already is changes nothing at all.
+-- TERA TYPE is on that screen for the same reason, though it no longer decides
+-- the mechanic on its own: AUTO -- the default -- hands the question to the
+-- Pokemon, which answers it from its own DVs (src/teratype.lua).  The eighteen
+-- explicit rows behind it are an override, kept so a matchup can be pinned on
+-- purpose.  AUTO stands first so the row opens on the default.
 local teraRow
 for _, row in ipairs(schema or {}) do
   if row.key == "tera_type" then teraRow = row end
 end
 T.check(teraRow ~= nil, "the tera_type option is defined")
-T.eq(teraRow and teraRow.default, "NORMAL", "it defaults to NORMAL")
-T.eq(teraRow and teraRow.choices and #teraRow.choices, 18,
-  "it offers all eighteen types")
-T.eq(teraRow and teraRow.choices and teraRow.choices[1][2], "NORMAL",
-  "NORMAL is the first choice, so the default is where the row opens")
+T.eq(teraRow and teraRow.default, "auto", "it defaults to AUTO")
+T.eq(teraRow and teraRow.choices and #teraRow.choices, 19,
+  "it offers AUTO plus all eighteen types")
+T.eq(teraRow and teraRow.choices and teraRow.choices[1][2], "auto",
+  "AUTO is the first choice, so the default is where the row opens")
 do
   local stored = {}
   for _, choice in ipairs(teraRow and teraRow.choices or {}) do

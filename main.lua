@@ -63,7 +63,12 @@ end
 -- three that may not resolve sit at the far end of it rather than in the middle
 -- of it.  Only PSYCHIC differs between what is stored and what is shown: the
 -- engine's id for it is PSYCHIC_TYPE.
+-- AUTO stands first because it is the default and because it is the only entry
+-- that is not a type: it means "ask the Pokemon", which src/teratype.lua
+-- answers from its own DVs.  The eighteen explicit rows below it stay as an
+-- override for a player pinning a matchup on purpose.
 local TERA_CHOICES = {
+  { "AUTO", "auto" },
   { "NORMAL", "NORMAL" }, { "FIGHTING", "FIGHTING" }, { "FLYING", "FLYING" },
   { "POISON", "POISON" }, { "GROUND", "GROUND" }, { "ROCK", "ROCK" },
   { "BUG", "BUG" }, { "GHOST", "GHOST" }, { "FIRE", "FIRE" },
@@ -81,13 +86,14 @@ return function(mod)
     { key = "megas", label = "MEGA EVOLUTIONS", type = "choice",
       default = "official", choices = { { "OFFICIAL", "official" },
                                         { "ALL", "all" } } },
-    -- Which type a Terastallization changes the Pokemon into.  It is an option
-    -- rather than something carried on the Pokemon because there is nowhere on
-    -- a Gen 1 Pokemon a player could set one -- see src/tera.lua -- and NORMAL
-    -- rather than the mon's own type because terastallizing into the type you
-    -- already are is a mechanic that does nothing at all.
+    -- Which type a Terastallization changes the Pokemon into.  AUTO -- the
+    -- default -- reads it off the Pokemon itself (src/teratype.lua derives it
+    -- from that Pokemon's own DVs, or from the stamp a Tera Orb wrote), which
+    -- is what makes two Charizard able to differ.  The explicit rows override
+    -- every Pokemon with one type, which is what this option used to be and is
+    -- still worth having for testing a matchup deliberately.
     { key = "tera_type", label = "TERA TYPE", type = "choice",
-      default = "NORMAL", choices = TERA_CHOICES },
+      default = "auto", choices = TERA_CHOICES },
     -- diagnostic: records why the menu cell and primal reversion did or did
     -- not happen, into mod storage (src/diag.lua).  Off unless a bug is being
     -- chased -- it answers questions a player never has.
@@ -104,7 +110,9 @@ return function(mod)
                   "src/dynamax.lua",
                   "src/substitute.lua", "src/gen2substitute.lua",
                   "src/maxmoves.lua", "src/gmaxmoves.lua",
-                  "src/tera.lua", "src/zmoves.lua", "src/speciesz.lua",
+                  "src/tera.lua", "src/teratype.lua", "src/terashards.lua",
+                  "src/terashop.lua",
+                  "src/zmoves.lua", "src/speciesz.lua",
                   "src/resolve.lua", "src/deferred.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
                   "src/fusionanim.lua",
@@ -684,12 +692,39 @@ return function(mod)
               substitute = m["src/substitute.lua"], anim = anim,
               battlerof = battlerof, gen2 = gen2,
               gen2substitute = m["src/gen2substitute.lua"],
+              teratype = m["src/teratype.lua"],
               chosen = function() return mod.options:get("tera_type") end })
   -- TERA BLAST's own roster: one record per type the running game's chart
   -- can resolve, registered unconditionally like the Max Moves and the
   -- Z-Moves, because a battle can hold a move id and a move id with no
   -- record behind it is a battle that cannot be drawn or saved.
   local teraBlastCatalog = tera.install(mod, m["data/terablast.lua"])
+
+  -- One shard per type the chart resolves, off the same list the Tera Blast
+  -- variants are built from -- so a type that has no variant has no shard
+  -- either, and the two can never disagree about which types this game has.
+  -- Registered here rather than beside the other items because that list is
+  -- what both of them read.
+  local shardIds = m["src/terashards.lua"].install(mod, m["data/terablast.lua"])
+  local shardIndices = {}
+  for _, itemId in ipairs(shardIds) do shardIndices[itemId] = false end
+  m["src/shop.lua"].installShards(mod, shardIndices)
+  if gen2 then
+    m["src/gen2shop.lua"].install(mod, shardIndices, nil)
+  end
+
+  -- The Tera Orb reads a Pokemon's Tera type back; a shard spends fifty of
+  -- itself to change one.  src/terashop.lua's header has why the type is
+  -- chosen by which shard rather than by a picker on the Orb.
+  local terashop = m["src/terashop.lua"]
+  terashop.bind({ teratype = m["src/teratype.lua"],
+                  terashards = m["src/terashards.lua"],
+                  keyitems = keyitems })
+  terashop.install(mod, shardIds, gen2)
+  -- Both, never one: save.created and save.loaded each replace save wholesale,
+  -- the same pair src/fusion.lua binds for the same reason.
+  mod.events:on("save.created", terashop.onSaveReady)
+  mod.events:on("save.loaded", terashop.onSaveReady)
   local teraState = tera.new()
   local teraOk, teraWhy = registry:register(tera.entry(teraState, teraBlastCatalog))
   if not teraOk then
