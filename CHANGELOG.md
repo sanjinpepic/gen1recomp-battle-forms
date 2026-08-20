@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.61.0
+
+### Added
+
+- **Stellar, the Tera type that changes no typing at all.** Every other Tera type here works by replacing what the Pokemon is -- a one-element `curTypes` on Gen 1, `mon.formTypes` on Gold -- and lets the type chart do the rest. Stellar cannot: it has no chart record, nothing is weak to it and it resists nothing, and inventing a STELLAR type row to make it fit would mean writing eighteen matchups nobody asked for and dragging National Dex into a change that belongs entirely to this mod. So a Stellar-terastallized Charizard is still Fire/Flying -- still quadruple weak to Rock, still resisting Grass, still getting its ordinary STAB -- and what changes is damage, through the `battle.damage` hook chain both engines already expose. Once per move TYPE per Terastallization, a move the Pokemon has STAB on lands at x2 instead of x1.5, and a move it does not lands at x1.2 instead of x1; every later move of that same type is ordinary again. The boost is per type rather than per move, so it rewards a varied moveset once rather than one move repeatedly, and a status move never spends a type's boost on its way past. The multiplier applied is 2/1.5 rather than 2, because the engines have already applied their own STAB inside the calculation this wraps -- scaling by 2 there would land at x3 and read as a Pokemon hitting three times too hard for no findable reason. No Pokemon is ever born Stellar: it is not in any species' own types and not in the chart, so the only way to hold it is a Stellar Shard, which sells beside the other eighteen at five times their price and is spent fifty at a time like all of them. Tera Blast stays Normal for a Stellar Pokemon and takes the same boost as any other move, rather than becoming a Stellar-typed variant whose type the chart could not resolve -- the refusal this mod already makes out loud for DARK on a Red-era chart.
+
 ## 0.60.0
 
 ### Added

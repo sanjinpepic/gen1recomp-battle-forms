@@ -198,6 +198,10 @@ end
 local function clear(state)
   state.mon, state.type, state.was = nil, nil, nil
   state.warned = false
+  -- Safe to call blind, and it has to be: this runs on battle start as well as
+  -- on every teardown, so a Stellar boost table left standing by a crash or an
+  -- adopted battle cannot follow a Pokemon into the next fight.
+  if deps and deps.stellar then deps.stellar.clear() end
   -- Safe to call blind, and it has to run here rather than only at the
   -- battler-specific teardown paths below: a battle starting mid-Tera (an
   -- adopted battle, or a state left standing by a crash) must not carry a
@@ -249,6 +253,13 @@ function M.chosenType(battle)
     id = derived
   end
   if type(id) ~= "string" or id == "" then return nil, "unset" end
+  -- Stellar has no chart record and must not be looked for in one -- it does
+  -- not replace the Pokemon's typing at all, it scales damage
+  -- (src/stellar.lua).  Answered here so the three chart checks below never see
+  -- it and never refuse it as an unknown type.
+  if deps.stellar and id == deps.stellar.TYPE then
+    return id, deps.stellar.NAME
+  end
   local types = typesOf(battle)
   if not types then return nil, "no_chart" end
   local record = types[id]
@@ -367,6 +378,21 @@ function M.entry(state, catalog)
       local id, name = M.chosenType(battle)
       if not id then return false end
 
+      -- Stellar changes no typing at all, so it takes neither branch below:
+      -- state.was stays nil, nothing is written to curTypes or formTypes, and
+      -- the only thing that happens is that damage starts being scaled.  The
+      -- announcement still runs, because with no type change and no picture
+      -- the line is once again the entire visible event.
+      if deps.stellar and id == deps.stellar.TYPE then
+        state.mon, state.type, state.was = mon, id, nil
+        deps.stellar.begin(mon)
+        if deps.announce then
+          if deps.gen2 then deps.announce.gen2Tera(battle, mon, name)
+          else deps.announce.tera(battle, battle.player, name) end
+        end
+        return true
+      end
+
       if deps.gen2 then
         state.mon, state.type, state.was = mon, id, mon.formTypes
         mon.formTypes = { id }
@@ -403,6 +429,13 @@ function M.onBattlerSwitched(state, ev)
   local battler = ev and ev.battler
   local mon = deps.battlerof.mon(battler)
   if not mon or state.mon ~= mon or not state.type then return end
+
+  -- Stellar has no type override to reassert.  Reaching the code below with it
+  -- would write { "STELLAR" } into curTypes or formTypes -- a type the chart
+  -- has no record for, on a mechanic whose whole definition is that it leaves
+  -- the typing alone -- and every matchup for that Pokemon would silently
+  -- become neutral for the rest of the battle.
+  if deps.stellar and state.type == deps.stellar.TYPE then return end
 
   -- Gen 2's mon.formTypes lives on the mon rather than a rebuilt battler, so
   -- it survives a switch on its own -- there is nothing here to REBUILD the
@@ -460,7 +493,13 @@ end
 local function finish(state, battler)
   local restore = state.was
   local mon = state.mon
+  local wasStellar = deps.stellar and state.type == deps.stellar.TYPE
   clear(state)
+  -- Nothing to put back, and putting `restore` back would be actively wrong on
+  -- Gen 2: that branch assigns unconditionally, so a nil `was` -- which is
+  -- what Stellar always has -- would clear a persistent form's own formTypes
+  -- that this mechanic never touched.
+  if wasStellar then return mon ~= nil end
   if not mon or not battler or deps.battlerof.mon(battler) ~= mon then return false end
   if deps.gen2 then
     -- Unlike Gen 1's battler.curTypes -- seeded from the species record and

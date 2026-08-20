@@ -56,6 +56,11 @@ local M = {}
 -- with its original Tera type rather than to one with none.
 M.STAMP = "battleFormsTeraType"
 
+-- Named here as well as in src/stellar.lua so this file needs no dependency on
+-- that one to know the single id it must not validate against the chart.  The
+-- two are pinned equal by tests/battle_forms_stellar_test.lua.
+M.STELLAR = "STELLAR"
+
 -- One Pokemon in this many carries a type that is not its own.
 --
 -- Sixteen because it wants to be noticeable across a playthrough and not across
@@ -178,6 +183,11 @@ function M.of(data, mon)
 
   local stamped = mon[M.STAMP]
   if type(stamped) == "string" and stamped ~= "" then
+    -- Stellar is the one Tera type with no chart record, on purpose
+    -- (src/stellar.lua), so the validation below must not be allowed to see it
+    -- -- it would read as a stamp for a type this game has never heard of and
+    -- refuse the only type a Pokemon can never be born with.
+    if stamped == M.STELLAR then return stamped, "stamp" end
     local chart = data and data.type_chart and data.type_chart.types
     if chart and not chart[stamped] then return nil, "stamp_unknown_type" end
     return stamped, "stamp"

@@ -74,8 +74,9 @@ for _, row in ipairs(schema or {}) do
 end
 T.check(teraRow ~= nil, "the tera_type option is defined")
 T.eq(teraRow and teraRow.default, "auto", "it defaults to AUTO")
-T.eq(teraRow and teraRow.choices and #teraRow.choices, 19,
-  "it offers AUTO plus all eighteen types")
+T.eq(teraRow and teraRow.choices and #teraRow.choices, 20,
+  "it offers AUTO, all eighteen types, and STELLAR -- which is not one of them "
+    .. "and changes no typing at all (src/stellar.lua)")
 T.eq(teraRow and teraRow.choices and teraRow.choices[1][2], "auto",
   "AUTO is the first choice, so the default is where the row opens")
 do

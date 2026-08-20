@@ -75,6 +75,9 @@ local TERA_CHOICES = {
   { "WATER", "WATER" }, { "GRASS", "GRASS" }, { "ELECTRIC", "ELECTRIC" },
   { "PSYCHIC", "PSYCHIC_TYPE" }, { "ICE", "ICE" }, { "DRAGON", "DRAGON" },
   { "DARK", "DARK" }, { "STEEL", "STEEL" }, { "FAIRY", "FAIRY" },
+  -- Last, and the only row that is not in the type chart at all: Stellar
+  -- changes no typing and is a damage rule instead (src/stellar.lua).
+  { "STELLAR", "STELLAR" },
 }
 
 return function(mod)
@@ -111,7 +114,7 @@ return function(mod)
                   "src/substitute.lua", "src/gen2substitute.lua",
                   "src/maxmoves.lua", "src/gmaxmoves.lua",
                   "src/tera.lua", "src/teratype.lua", "src/terashards.lua",
-                  "src/terashop.lua",
+                  "src/terashop.lua", "src/stellar.lua",
                   "src/zmoves.lua", "src/speciesz.lua",
                   "src/resolve.lua", "src/deferred.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
@@ -693,6 +696,7 @@ return function(mod)
               battlerof = battlerof, gen2 = gen2,
               gen2substitute = m["src/gen2substitute.lua"],
               teratype = m["src/teratype.lua"],
+              stellar = m["src/stellar.lua"],
               chosen = function() return mod.options:get("tera_type") end })
   -- TERA BLAST's own roster: one record per type the running game's chart
   -- can resolve, registered unconditionally like the Max Moves and the
@@ -706,6 +710,20 @@ return function(mod)
   -- Registered here rather than beside the other items because that list is
   -- what both of them read.
   local shardIds = m["src/terashards.lua"].install(mod, m["data/terablast.lua"])
+
+  -- Stellar's own shard, registered outside that loop because the loop is
+  -- driven by the type chart and Stellar is deliberately not in it
+  -- (src/stellar.lua). Appended to the same list, so it sells on the same
+  -- shelf and spends through the same item effect as the other eighteen.
+  local stellar = m["src/stellar.lua"]
+  stellar.bind({ terashards = m["src/terashards.lua"], battlerof = battlerof })
+  shardIds[#shardIds + 1] = stellar.installShard(mod)
+  -- The damage multiplier IS the mechanic; there is no type override to carry
+  -- it. Installed unconditionally for src/hpscale.lua's reason: the hook is
+  -- inert unless a Stellar Terastallization is live, and gating it on anything
+  -- else would make it missing for reasons unrelated to it.
+  stellar.install(mod)
+
   local shardIndices = {}
   for _, itemId in ipairs(shardIds) do shardIndices[itemId] = false end
   m["src/shop.lua"].installShards(mod, shardIndices)
