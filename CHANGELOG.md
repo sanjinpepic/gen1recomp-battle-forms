@@ -3,6 +3,14 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.62.0
+
+### Added
+
+- **Dynamax Level: a Pokemon now brings its own HP multiplier, from x1.5 to x2, and Max Candy is how it climbs.** Every Dynamax before this was a flat x2 for everything, which is exactly Level 10 -- `1.5 + 0.05 * level` is `(30 + level) / 20` as an exact rational, and level 10 is `40/20`, so levels generalise the existing HP machinery rather than replacing it. The multiplier stays two integers rather than one float on purpose: `src/hpscale.lua` never writes HP at all, it scales incoming damage and paints a scaled readout over the real bar, and that only stays honest because the fraction of a hit point each scaled hit leaves behind is carried forward exactly. A float would let the bar drift a point over a long battle in a way nobody could reproduce. The level is written to the Pokemon rather than derived the way a Tera type is, and it had to be: a Tera type is an identity and can come from DVs that never change, where this is progress a player spends items on. That has one real cost, stated rather than buried -- a Game Boy `.sav` export drops it, and unlike a Tera type there is nothing to re-derive it from, so a Pokemon back from a cartridge needs its Candy again.
+- **Existing Pokemon start at Level 0, and Max Candy is on the Celadon shelf.** This is a genuine balance change to saves that already exist: a Pokemon that Dynamaxed at x2 yesterday now does so at x1.5. It is deliberate, because a level every Pokemon already holds at maximum is a mechanic with nothing to do. Max Candy sells beside the Tera Shards at ¥400, ten of them take one Pokemon from x1.5 to x2, and feeding a Pokemon already at ten is refused rather than charged -- so the Candy stays in the bag and a misclick costs nothing.
+- **The Dynamax Band reads a Pokemon's Dynamax Level back.** The same necessity that gave the Tera Orb its own USE verb in 0.60.0: the level is written data that appears on no screen anywhere, so without something to read it with a player cannot tell a Pokemon they have fed ten Candies from one they have fed none, and has no way to know when to stop buying. Using the Band on a Pokemon names its level out of ten and costs nothing. The Key Stone and the Z-Ring still gate a mechanic, are used on nothing, and carry no effect at all.
+
 ## 0.61.1
 
 ### Fixed

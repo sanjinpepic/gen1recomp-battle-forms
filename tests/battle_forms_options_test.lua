@@ -188,13 +188,18 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
   for _, id in ipairs(mart) do sold[id] = true end
   local shardCount = shardsOn(mart)
   T.check(shardCount > 0, "the Tera Shards reached the shelf")
+  -- The Max Candy shares that shelf without being a shard: it is a consumable
+  -- a player comes back for, and ten of them take one Pokemon from x1.5 to x2.
+  local DynamaxLevel = dofile(MOD .. "/src/dynamaxlevel.lua")
+  T.check(sold[DynamaxLevel.CANDY], "the Max Candy reached the shelf too")
   T.eq(#mart,
     #FLOOR_STOCK + #KeyItems.ITEMS + tmCount + crystalCount + ultraCrystalCount
-      + speciesZCrystalCount + applianceCount + shardCount
+      + speciesZCrystalCount + applianceCount + shardCount + 1
       + (case.all and 95 or 47),
     "the Celadon shelf holds the floor's own stock, every key item, TM171, "
       .. "every crystal, Ultranecrozium Z, every species crystal, every "
-      .. "appliance, every Tera Shard this chart has a type for and "
+      .. "appliance, every Tera Shard this chart has a type for, the Max "
+      .. "Candy, and "
       .. (case.all and "every" or "only the official")
       .. " stone with the option " .. case.label)
   for _, id in ipairs(FLOOR_STOCK) do
@@ -262,9 +267,15 @@ for _, case in ipairs({ { stored = nil, label = "unset", all = false },
     -- anywhere, so without an item that reads it back the player cannot see
     -- what they would be spending fifty shards to change.  See
     -- src/terashop.lua.
-    if itemId == KeyItems.TERA_ORB then
+    if itemId == KeyItems.TERA_ORB or itemId == KeyItems.DYNAMAX_BAND then
+      -- The two key items whose mechanic hides a per-Pokemon value the player
+      -- would otherwise have no way to see: a Tera type derived from DVs
+      -- (src/teratype.lua) and a Dynamax Level raised by Candy
+      -- (src/dynamaxlevel.lua). Each reads its own value back and costs
+      -- nothing. The Key Stone and the Z-Ring gate a mechanic and are used on
+      -- nothing, so they still carry no effect at all.
       T.check(data.item_effects and data.item_effects[itemId] ~= nil,
-        itemId .. " registers the effect that reads a Pokemon's Tera type "
+        itemId .. " registers the effect that reads its own per-Pokemon value "
           .. "back (option " .. case.label .. ")")
     else
       T.check(data.item_effects == nil or data.item_effects[itemId] == nil,

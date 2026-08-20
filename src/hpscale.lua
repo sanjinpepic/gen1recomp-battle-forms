@@ -65,43 +65,70 @@
 -- target has, doubled or not, so scaling it a second time would double-count.
 local M = {}
 
--- Per-hit floor(D/2) drifts from the doubled-HP model it stands in for.
+-- Per-hit floor(D/m) drifts from the scaled-HP model it stands in for.
 -- Two hits of 3 against a doubled 20 HP mon leave 20-3-3=14, i.e. 7 on this
--- (undoubled) scale -- but two INDEPENDENT floor(3/2) halvings only take
--- 1+1=2 off, leaving 8.  The difference is the half-point each hit drops on
--- the floor.  `state.carry` is that dropped half-point, carried forward
--- into the next hit rather than discarded, which is what makes the sum of
--- every applied halving equal floor(sum of D so far / 2) exactly -- the
--- same number the doubled model's own total would floor down to.  The test
--- suite proves this by induction, not just by example.
+-- (unscaled) scale -- but two INDEPENDENT floor(3/2) halvings only take
+-- 1+1=2 off, leaving 8.  The difference is the fraction of a point each hit
+-- drops on the floor.  `state.carry` is that dropped fraction, carried
+-- forward into the next hit rather than discarded, which is what makes the
+-- sum of every applied scaling equal floor(sum of D so far / m) exactly --
+-- the same number the scaled model's own total would floor down to.  The
+-- test suite proves this by induction, not just by example.
 --
+-- THE MULTIPLIER IS NOW A POKEMON'S OWN, not a constant 2.  A Dynamax Level
+-- of L gives (30 + L)/20 (src/dynamaxlevel.lua): level 0 is 30/20 = x1.5 and
+-- level 10 is 40/20 = x2, which is exactly what this file did before levels
+-- existed.  Kept as two integers rather than one float on purpose -- the
+-- carry above is an exact-arithmetic argument, and a float multiplier would
+-- let it drift by a point over a long battle in a way nobody could
+-- reproduce.
+--
+-- `carry` is therefore in units of 1/DENOMINATOR of a hit point rather than
+-- of a half.  Nothing outside this file reads it, and everything inside it
+-- goes through M.numerator, so the change of unit is contained -- but it is
+-- why displayedCurrent divides by the denominator where it used to subtract
+-- the carry directly.
+-- src/dynamaxlevel.lua, handed in by M.install.  Absent it, the answer is the
+-- flat x2 this file gave before levels existed -- which is also level 10, so
+-- an unbound build is weaker than it looks only in that every Pokemon is at
+-- the ceiling rather than at its own level.
+local dynamaxlevel = nil
+
+local function numeratorFor(mon)
+  if not dynamaxlevel then return 2, 1 end
+  return dynamaxlevel.numerator(dynamaxlevel.of(mon)), dynamaxlevel.DENOMINATOR
+end
+
 -- `mon` is the party Pokemon the incoming hit is landing on (ctx.target.mon
--- at the battle.damage seam); halving only ever applies when it is the one
+-- at the battle.damage seam); scaling only ever applies when it is the one
 -- `state.mon` names, because only the player's own side can Dynamax here
 -- and there is never a second Dynamax to confuse it with.
 function M.scaleDamage(state, mon, dmg)
   if not mon or state.mon ~= mon then return dmg end
-  local total = dmg + (state.carry or 0)
-  local applied = math.floor(total / 2)
-  state.carry = total % 2
+  local num, den = numeratorFor(mon)
+  local total = dmg * den + (state.carry or 0)
+  local applied = math.floor(total / num)
+  state.carry = total % num
   return applied
 end
 
--- The doubled-scale numbers the overlay paints over the real ones.  Current
--- HP is corrected for a pending carry so it always equals what the doubled
--- model itself would show -- 2*mon.hp alone overshoots by the carry, since
--- that half-point has been counted toward mon.hp's own reduction but not
--- yet subtracted off (scaleDamage's own comment works the arithmetic).
+-- The scaled numbers the overlay paints over the real ones.  Current HP is
+-- corrected for a pending carry so it always equals what the scaled model
+-- itself would show -- num/den * mon.hp alone overshoots by the carry, since
+-- that fraction has been counted toward mon.hp's own reduction but not yet
+-- subtracted off (scaleDamage's own comment works the arithmetic).
 -- Both answer nil when `mon` is not the one currently Dynamaxed, which is
 -- the overlay's own signal to paint nothing.
 function M.displayedCurrent(state, mon)
   if not mon or state.mon ~= mon then return nil end
-  return 2 * mon.hp - (state.carry or 0)
+  local num, den = numeratorFor(mon)
+  return math.floor((mon.hp * num - (state.carry or 0)) / den)
 end
 
 function M.displayedMax(state, mon)
   if not mon or state.mon ~= mon then return nil end
-  return 2 * mon.stats.hp
+  local num, den = numeratorFor(mon)
+  return math.floor(mon.stats.hp * num / den)
 end
 
 -- Required at load time like src/forms.lua's Stats and src/fusion.lua's
@@ -277,7 +304,8 @@ end
 -- that id is simply never dispatched on a Gen 2 boot, the identical
 -- harmless-elsewhere shape every other Gen-1-only registration in this mod
 -- already has.
-function M.install(mod, state, battlerof, gen2)
+function M.install(mod, state, battlerof, gen2, levelModule)
+  dynamaxlevel = levelModule
   mod.hooks:wrap("battle.damage", function(nextFn, ctx)
     local dmg, info = nextFn(ctx)
     local target = ctx and ctx.target

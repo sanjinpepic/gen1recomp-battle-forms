@@ -114,7 +114,7 @@ return function(mod)
                   "src/substitute.lua", "src/gen2substitute.lua",
                   "src/maxmoves.lua", "src/gmaxmoves.lua",
                   "src/tera.lua", "src/teratype.lua", "src/terashards.lua",
-                  "src/terashop.lua", "src/stellar.lua",
+                  "src/terashop.lua", "src/stellar.lua", "src/dynamaxlevel.lua",
                   "src/zmoves.lua", "src/speciesz.lua",
                   "src/resolve.lua", "src/deferred.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
@@ -660,7 +660,8 @@ return function(mod)
   -- battlerof reads ctx.target on either payload shape with no `gen2` branch
   -- needed at that one hook; gen2 decides only the draw path and the OHKO
   -- gate, which genuinely differ (src/hpscale.lua's own header).
-  m["src/hpscale.lua"].install(mod, dynamaxState, battlerof, gen2)
+  m["src/hpscale.lua"].install(mod, dynamaxState, battlerof, gen2,
+    m["src/dynamaxlevel.lua"])
   -- Gold only, and gated the same way every other Gold-only class patch in
   -- this file is: it wraps src.ui.gen2.BattleState, a class Red never draws
   -- through. Red has no draw-time scaling seam to reach at all (frontSize
@@ -726,6 +727,15 @@ return function(mod)
 
   local shardIndices = {}
   for _, itemId in ipairs(shardIds) do shardIndices[itemId] = false end
+  -- The Candy that raises a Dynamax Level, and the Band's own read verb.
+  -- On the shard shelf rather than beside the key items: like a shard it is a
+  -- consumable a player comes back for, and ten of them take one Pokemon from
+  -- x1.5 to x2.
+  local dynamaxlevel = m["src/dynamaxlevel.lua"]
+  dynamaxlevel.bind({ keyitems = keyitems })
+  dynamaxlevel.install(mod, gen2)
+  shardIndices[dynamaxlevel.CANDY] = false
+
   m["src/shop.lua"].installShards(mod, shardIndices)
   if gen2 then
     m["src/gen2shop.lua"].install(mod, shardIndices, nil)
