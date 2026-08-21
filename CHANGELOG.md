@@ -3,6 +3,14 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.62.1
+
+### Fixed
+
+- **Alongside a peer battle-engine mod that now ships its own Tera damage layer, one Pokemon showed two different Tera types.** That peer stores its Tera type in a field of its own and draws it on its stats screen, filling it with an independently rolled default on first read; this mod derives a Pokemon's Tera type from its DVs and stored it somewhere else entirely. Damage was never wrong -- the peer reads the type it multiplies out of `curTypes`, which is this mod's own override -- but the number on its screen had nothing to do with the type the Pokemon actually terastallized into, and a shard spend never reached it. Both fields are now written together at the two moments a Tera type becomes a fact about a Pokemon: when shards buy one, and when a Terastallization resolves a derived one. The mirror is deliberately one-directional. A value already sitting in the peer's field does not override this mod's own derivation, because behaviour must not change depending on what else happens to be installed.
+- **With that peer installed, a wild Pokemon could be born with the one Tera type that is supposed to cost fifty shards.** Stellar has no type-chart record here on purpose, and the rare off-type roll was built to read whatever the chart held -- so its absence was the only thing keeping Stellar out of it. The peer registers a Stellar identity record of its own, and the moment it loads, Stellar joined the roll. The roll now excludes Stellar by name rather than by trusting it to be missing, which is the difference between a guarantee and an assumption another mod can invalidate. A Pokemon that paid for Stellar still has it.
+- **The peer's manifest id had moved, so the load-order edge that keeps this mod's own patches outermost was not forming at all.** `optional_dependencies` named the superseded id; it now names the current one, and only that one. Two ids for one peer would be a list that goes stale silently while reading as though both had been checked.
+
 ## 0.62.0
 
 ### Added

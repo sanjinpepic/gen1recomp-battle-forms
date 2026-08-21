@@ -378,6 +378,14 @@ function M.entry(state, catalog)
       local id, name = M.chosenType(battle)
       if not id then return false end
 
+      -- The one moment a DERIVED Tera type becomes a fact about this Pokemon
+      -- rather than a function of its DVs, so it is where the mirror has to be
+      -- written: a peer battle-engine mod reads the type out of curTypes for
+      -- damage (which this is about to set) but draws its stats row from its
+      -- own field, and without this that row would show a type this
+      -- Terastallization is not using.
+      if deps.teratype then deps.teratype.mirror(mon, id) end
+
       -- Stellar changes no typing at all, so it takes neither branch below:
       -- state.was stays nil, nothing is written to curTypes or formTypes, and
       -- the only thing that happens is that damage starts being scaled.  The

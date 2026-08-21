@@ -37,7 +37,7 @@ end
 -- optional_dependencies entry matches on -- not a reference to any mod's
 -- source or a hint at where to find one (CLAUDE.md's own carve-out for a
 -- "mod id the code matches on").
-local PEER_ID = "g9-battle-engine"
+local PEER_ID = "g9-battle-engine-beta"
 
 local function baseFiles()
   return {
@@ -50,7 +50,7 @@ local function baseFiles()
   }
 end
 
--- priority 100: higher than battle_forms's own 80, matching the real peer
+-- priority 95: higher than battle_forms's own 80, matching the real peer
 -- manifest this id belongs to -- without the optional_dependencies edge,
 -- Loader:_order's own tie-break (lower priority number goes first among
 -- ready nodes) would place battle_forms BEFORE this id, which is exactly
@@ -58,7 +58,7 @@ end
 -- INSIDE this mod's, not outside it.
 local PEER_MANIFEST = ([[{
   "id": "%s", "name": "Peer Gimmick Mod", "version": "1.0.0",
-  "entry": "main.lua", "api": 2, "priority": 100,
+  "entry": "main.lua", "api": 2, "priority": 95,
   "games": ["gen2"], "dependencies": ["national_dex"]
 }]]):format(PEER_ID)
 

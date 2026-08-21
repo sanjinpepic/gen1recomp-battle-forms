@@ -127,6 +127,9 @@ function M.change(data, mon, typeId)
   end
 
   mon[deps.teratype.STAMP] = typeId
+  -- Mirrored so a peer battle-engine mod's own TERA row shows what was just
+  -- paid for rather than a value it rolled itself; see teratype.M.mirror.
+  deps.teratype.mirror(mon, typeId)
   shards.spend(save, typeId, shards.COST)
 
   return true, lines(monName(mon) .. "'s Tera Type", "became " .. typeName(data, typeId) .. "!")

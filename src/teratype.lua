@@ -61,6 +61,31 @@ M.STAMP = "battleFormsTeraType"
 -- two are pinned equal by tests/battle_forms_stellar_test.lua.
 M.STELLAR = "STELLAR"
 
+-- The field a peer battle-engine mod stores its own Tera type in, and the one
+-- its stats screen draws.  Mirrored into rather than read from: this mod
+-- derives a Tera type per Pokemon from its DVs and that stays the source of
+-- truth, because behaviour must not change depending on what else is
+-- installed.  Writing it costs nothing when no peer is loaded -- it is one
+-- string on a table -- and when one is, its TERA row stops showing a value
+-- rolled independently of the one this mod actually terastallizes into.
+--
+-- A bare field name, which CLAUDE.md's own carve-out covers: this is the
+-- functional string the two mods meet on, and renaming it to tidy a mention
+-- would change what the program does.
+M.MIRROR = "teraType"
+
+-- Writes the mirror.  Every path that establishes or changes a Pokemon's Tera
+-- type calls this, so the two fields cannot drift: src/terashop.lua when
+-- shards are spent, and src/tera.lua when a Terastallization resolves a type
+-- (which is what makes a derived type -- never written anywhere until that
+-- moment -- visible to a peer at all).
+function M.mirror(mon, typeId)
+  if not mon or type(typeId) ~= "string" or typeId == "" then return false end
+  if mon[M.MIRROR] == typeId then return false end
+  mon[M.MIRROR] = typeId
+  return true
+end
+
 -- One Pokemon in this many carries a type that is not its own.
 --
 -- Sixteen because it wants to be noticeable across a playthrough and not across
@@ -142,7 +167,16 @@ function M.chartTypes(data)
   local types = chart and chart.types
   if type(types) ~= "table" then return nil end
   local out = {}
-  for id in pairs(types) do out[#out + 1] = id end
+  for id in pairs(types) do
+    -- STELLAR is excluded BY NAME rather than by trusting it to be absent.
+    -- This mod deliberately keeps it out of the chart (src/stellar.lua), and
+    -- that used to be the whole guarantee that no Pokemon could be born with
+    -- it -- but a peer battle-engine mod registers a STELLAR identity record
+    -- of its own, and the moment it is installed the rare roll below would
+    -- start handing out the one Tera type that is supposed to cost fifty
+    -- shards.  An assumption another mod can invalidate is not a guarantee.
+    if id ~= M.STELLAR then out[#out + 1] = id end
+  end
   if #out == 0 then return nil end
   table.sort(out)
   return out

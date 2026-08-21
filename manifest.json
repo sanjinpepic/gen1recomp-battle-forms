@@ -1,7 +1,7 @@
 {
   "id": "battle_forms",
   "name": "Battle Forms",
-  "version": "0.62.0",
+  "version": "0.62.1",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -17,7 +17,7 @@
   ],
   "optional_dependencies": [
     "universal_sprites",
-    "g9-battle-engine"
+    "g9-battle-engine-beta"
   ],
   "conflicts": [],
   "permissions": [
