@@ -3,6 +3,14 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.65.0
+
+### Added
+
+- **A Terastallized Pokemon now says so for as long as it lasts, where before the activation message was the only thing that ever marked it.** No form, no picture, no name change and no animation was a defensible answer while the Tera type was a mod option the player had set themselves -- they knew what they picked. It stopped being one in 0.60.0, when the type became a property of the Pokemon derived from its own DVs: a player can now genuinely not know what their Charizard turned into, and once the text scrolled away nothing on screen would tell them. A three-letter tag -- `WTR`, `DRG`, `STR` for Stellar -- now sits where the level does for as long as the Terastallization stands, on Red and on Gold. Built through `battle.overlay`, the same draw-only seam the scaled Dynamax HP numbers are painted through: it repaints over an already-composited HUD, holds no state the draw path could disagree with, and calls the rest of the overlay chain first and unconditionally, so another mod's overlay still runs whether or not a Terastallization is live.
+- **The slot is the level's, which is not an invention.** Both games print the level at the same tile and both already hand that exact slot to a three-character status tag when a Pokemon is poisoned or burned -- so this shows something other than its default in a place the engines themselves treat as swappable, at a width they chose. The name row was the other candidate and was rejected: the nickname is right-aligned into its tiles, so the gap in front of it exists only for short names and closes the moment somebody names their Charizard CHARIZARD. An indicator that collides with the name it prefixes, depending on how long that name is, is worse than no indicator.
+- **A status tag wins the slot, and the Tera tag stands down.** The engines have already decided that space belongs to the status, and being told a Pokemon is paralysed matters more in the moment than being reminded what it terastallized into. The cost is that the tag is invisible on a statused Pokemon, which is written down here rather than left to be discovered. One other collision is worth knowing: `PSN` is the tag for a Poison Tera type and is also the poison status tag. The two can never be on screen at once, since a status suppresses this entirely, but a player who sees `PSN` where the level was is looking at a Poison-Tera Pokemon rather than a poisoned one.
+
 ## 0.64.0
 
 ### Added

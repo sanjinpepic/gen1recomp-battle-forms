@@ -115,6 +115,7 @@ return function(mod)
                   "src/maxmoves.lua", "src/gmaxmoves.lua",
                   "src/tera.lua", "src/teratype.lua", "src/terashards.lua",
                   "src/terashop.lua", "src/stellar.lua", "src/dynamaxlevel.lua",
+                  "src/teraview.lua",
                   "src/zmoves.lua", "src/speciesz.lua",
                   "src/resolve.lua", "src/deferred.lua",
                   "src/primal.lua", "src/persistent.lua", "src/fusion.lua",
@@ -755,6 +756,11 @@ return function(mod)
   mod.events:on("save.created", terashop.onSaveReady)
   mod.events:on("save.loaded", terashop.onSaveReady)
   local teraState = tera.new()
+  -- The only thing on screen that says a Terastallization is standing. Built
+  -- on battle.overlay, the same draw-only seam src/hpscale.lua paints the
+  -- scaled Dynamax HP through -- see src/teraview.lua's own header for the
+  -- slot and why the name row was rejected.
+  m["src/teraview.lua"].install(mod, teraState, gen2)
   local teraOk, teraWhy = registry:register(tera.entry(teraState, teraBlastCatalog))
   if not teraOk then
     mod.log:error("battle_forms: Terastallization was refused a place on the "
