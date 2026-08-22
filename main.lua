@@ -124,7 +124,7 @@ return function(mod)
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/formmenu.lua", "src/menu.lua", "src/boxmark.lua",
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
-                  "src/formicons.lua", "src/formresolve.lua",
+                  "src/formicons.lua", "src/formresolve.lua", "src/formapi.lua",
                   "src/gen2shop.lua", "src/gen2menu.lua",
                   "src/zmovemenu.lua", "src/gen2movemenu.lua", "src/hpscale.lua",
                   "src/gen2dynamaxgrow.lua",
@@ -1024,6 +1024,27 @@ return function(mod)
   -- Gen 2. Bound once, ahead of every reader that calls it.
   local formresolve = m["src/formresolve.lua"]
   formresolve.bind({ fusion = fusion, persistent = persistent })
+
+  -- The one thing this mod says to anything OUTSIDE it: an event when a form
+  -- is applied or taken off, and an exports table a peer can ask "what is
+  -- this Pokemon right now" without hearing anything -- see
+  -- src/formapi.lua's own header for why the announcement is fired from the
+  -- two primitives rather than from the eight mechanics that call them.
+  --
+  -- Bound here rather than beside the primitives themselves because
+  -- describe() needs formresolve, which is only bound on the line above;
+  -- nothing fires during the load, so a bind this late still precedes every
+  -- form change there will ever be.  Both primitives are handed it
+  -- unconditionally, on either game, the way src/persistent.lua and
+  -- src/fusion.lua are already handed both: `gen2` alone decides which of
+  -- the two a form change actually goes through, and a module bound on a
+  -- boot that never calls it costs one table.
+  local formapi = m["src/formapi.lua"]
+  formapi.bind({ events = mod.events, log = mod.log, gen2 = gen2,
+                 formresolve = formresolve })
+  formapi.install(mod)
+  m["src/forms.lua"].bind({ api = formapi })
+  gen2forms.bind({ api = formapi })
 
   -- The same STATS screen, a third reason to reach it: a persistent form or
   -- a fusion changes a Pokemon's types and stats on the battler

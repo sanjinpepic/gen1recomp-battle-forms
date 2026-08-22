@@ -21,6 +21,22 @@ local Stats = require("src.pokemon.Stats")
 
 local M = {}
 
+local deps = nil
+
+-- `api` alone: src/formapi.lua, the outward-facing announcement of a form
+-- change (that file's own header on why the announcement is fired from this
+-- primitive rather than from the eight mechanics that call it).  Bound by
+-- main.lua and deliberately optional -- this module is dofile()d bare by
+-- half a dozen suites that never wire anything, and a primitive that
+-- applied a form correctly only once something had been bound to it would
+-- be a worse primitive than one that simply says nothing to nobody.
+function M.bind(modules) deps = modules end
+
+local function report(fn, fields)
+  local api = deps and deps.api
+  if api and api[fn] then api[fn](fields) end
+end
+
 -- The battle picture is rebuilt through the real send-out constructor rather
 -- than merely invalidated: BattleState builds battler.sprite once and the
 -- draw path just blits whatever is cached there, so clearing it with nothing
@@ -70,20 +86,43 @@ function M.becomeForm(data, battler, formId, battle)
   battler.curStats = Stats.calc(formDef, mon.level, mon.dvs, mon.statExp)
   battler.curTypes = formDef.types
   reloadSprite(battle, battler)
+  -- Last, once the form is actually standing: a listener that reads off
+  -- payload.mon has to see the same world the payload describes.
+  report("applied", { mon = mon, form = formDef.form, formId = formId,
+                      stats = battler.curStats, types = battler.curTypes,
+                      isPlayer = battler.isPlayer })
   return true
+end
+
+-- The marker write itself, split out of M.revertMon so that M.revertForm can
+-- clear it FIRST and announce LAST, once the battler's own fields are back:
+-- announcing from inside revertMon, the way revertForm used to call it,
+-- would have fired a payload carrying the mon's out-of-battle block while
+-- the battler was still holding the form's -- the one moment those two
+-- disagree. Returns the form that came off, so the announcement can name it.
+--
+-- `form` is cleared to nil, not to false or "" -- the save writer re-emits
+-- whatever field it finds on the mon, and a falsy-but-present key would
+-- round-trip into the save file as a lingering, meaningless entry instead
+-- of vanishing the way an untransformed mon's save always looked.
+local function clearMark(mon)
+  if not mon or not mon.form then return nil end
+  local was = mon.form
+  mon.form = nil
+  return was
 end
 
 -- Clears the marker on a mon with no battler in hand: the battle-end sweep
 -- walks the whole party, where a mon that transformed and then switched out
 -- has no battler at all. Reverting an untransformed mon is a no-op so the
--- sweep can be blunt. `form` is cleared to nil, not to false or "" -- the
--- save writer re-emits whatever field it finds on the mon, and a
--- falsy-but-present key would round-trip into the save file as a lingering,
--- meaningless entry instead of vanishing the way an untransformed mon's
--- save always looked.
+-- sweep can be blunt.
 function M.revertMon(mon)
-  if not mon or not mon.form then return nil end
-  mon.form = nil
+  local was = clearMark(mon)
+  if not was then return nil end
+  -- No battler in hand at all here (this is the party sweep's path), so the
+  -- block named is the mon's own -- which, out of battle, is exactly what
+  -- the Pokemon has.
+  report("reverted", { mon = mon, form = was, stats = mon.stats })
   return true
 end
 
@@ -93,11 +132,14 @@ end
 -- and the mon's own stat block are always the right values to fall back to.
 function M.revertForm(battler, data, battle)
   local mon = battler and battler.mon
-  if not M.revertMon(mon) then return nil end
+  local was = clearMark(mon)
+  if not was then return nil end
   local baseDef = data and data.pokemon and data.pokemon[mon.species]
   battler.curStats = mon.stats
   battler.curTypes = baseDef and baseDef.types or battler.curTypes
   reloadSprite(battle, battler)
+  report("reverted", { mon = mon, form = was, stats = battler.curStats,
+                       types = battler.curTypes, isPlayer = battler.isPlayer })
   return true
 end
 

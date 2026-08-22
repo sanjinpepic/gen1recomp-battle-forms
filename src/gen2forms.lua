@@ -56,6 +56,21 @@ local Mon = require("src.battle.gen2.Mon")
 
 local M = {}
 
+local deps = nil
+
+-- `api` alone, and for the identical reason src/forms.lua's own bind takes
+-- it: src/formapi.lua announces a form change to anything outside this mod,
+-- and it is announced from the two primitives rather than from the eight
+-- mechanics that call them so that a mechanic added later cannot apply a
+-- form nobody outside hears about. Optional at every point of use -- this
+-- module is dofile()d bare by several suites that wire nothing.
+function M.bind(modules) deps = modules end
+
+local function report(fn, fields)
+  local api = deps and deps.api
+  if api and api[fn] then api[fn](fields) end
+end
+
 -- Copied in this order and no other: `hp` is deliberately absent, the same
 -- exclusion Battle:transform's own loop makes (Battle.lua:2151-2152) for the
 -- same reason -- the HP bar's denominator is not supposed to move for a form.
@@ -89,6 +104,14 @@ function M.becomeForm(data, mon, formId)
   -- never touched, which is what tells that wrapper to answer with the real
   -- species' own types unchanged.
   mon.formTypes = formDef.types
+  -- Last, once the form is actually standing, exactly as src/forms.lua's own
+  -- becomeForm announces: a listener reading off payload.mon sees the same
+  -- world the payload describes. `isPlayer` is deliberately absent -- Gen 2
+  -- has no battler wrapper to read a side off (src/battlerof.lua's own
+  -- header), and guessing one from a battle this primitive is never handed
+  -- would be inventing a field rather than reporting one.
+  report("applied", { mon = mon, form = formDef.form, formId = formId,
+                      stats = mon.stats, types = mon.formTypes })
   return true
 end
 
@@ -99,12 +122,19 @@ end
 -- same way src/forms.lua's own revertMon is.
 function M.revertMon(mon, data)
   if not mon or not mon.form then return nil end
+  local was = mon.form
   local baseDef = data and data.pokemon and data.pokemon[mon.species]
   if baseDef and baseDef.baseStats then
     applyStats(mon, Mon.stats(baseDef.baseStats, mon.dvs, mon.level, mon.statExp))
   end
   mon.form = nil
   mon.formTypes = nil
+  -- The types named are the species' own, read back off the record rather
+  -- than off mon.formTypes, which is nil by now and was the FORM's anyway.
+  -- Absent on a call made with no dataset in hand -- the same degradation
+  -- the stat restore above already makes, reported rather than faked.
+  report("reverted", { mon = mon, form = was, stats = mon.stats,
+                       types = baseDef and baseDef.types or nil })
   return true
 end
 
