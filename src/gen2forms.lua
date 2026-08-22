@@ -110,7 +110,7 @@ function M.becomeForm(data, mon, formId)
   -- has no battler wrapper to read a side off (src/battlerof.lua's own
   -- header), and guessing one from a battle this primitive is never handed
   -- would be inventing a field rather than reporting one.
-  report("applied", { mon = mon, form = formDef.form, formId = formId,
+  report("applied", { data = data, mon = mon, form = formDef.form, formId = formId,
                       stats = mon.stats, types = mon.formTypes })
   return true
 end
@@ -133,7 +133,7 @@ function M.revertMon(mon, data)
   -- than off mon.formTypes, which is nil by now and was the FORM's anyway.
   -- Absent on a call made with no dataset in hand -- the same degradation
   -- the stat restore above already makes, reported rather than faked.
-  report("reverted", { mon = mon, form = was, stats = mon.stats,
+  report("reverted", { data = data, mon = mon, form = was, stats = mon.stats,
                        types = baseDef and baseDef.types or nil })
   return true
 end

@@ -398,6 +398,12 @@ function M.entry(state, catalog)
           if deps.gen2 then deps.announce.gen2Tera(battle, mon, name)
           else deps.announce.tera(battle, battle.player, name) end
         end
+        -- After the state is set, so a listener reading the payload's own
+        -- `tera` sub-table sees the Terastallization that just happened
+        -- rather than the absence of one.
+        if deps.api then
+          deps.api.tera(true, { mon = mon, data = battle.data })
+        end
         return true
       end
 
@@ -405,6 +411,9 @@ function M.entry(state, catalog)
         state.mon, state.type, state.was = mon, id, mon.formTypes
         mon.formTypes = { id }
         if deps.announce then deps.announce.gen2Tera(battle, mon, name) end
+        if deps.api then
+          deps.api.tera(true, { mon = mon, data = battle.data })
+        end
         return true
       end
 
@@ -418,6 +427,9 @@ function M.entry(state, catalog)
       -- only said it happened would leave the player to work out what it did
       -- from the damage numbers.
       if deps.announce then deps.announce.tera(battle, battler, name) end
+      if deps.api then
+        deps.api.tera(true, { mon = mon, data = battle.data })
+      end
       return true
     end,
   }
@@ -503,6 +515,10 @@ local function finish(state, battler)
   local mon = state.mon
   local wasStellar = deps.stellar and state.type == deps.stellar.TYPE
   clear(state)
+  -- After clear(), so the payload's own `tera` sub-table reads nil: a
+  -- tera_reverted whose live state still said "terastallized" would describe
+  -- the world one instant before the event it is announcing.
+  if mon and deps.api then deps.api.tera(false, { mon = mon }) end
   -- Nothing to put back, and putting `restore` back would be actively wrong on
   -- Gen 2: that branch assigns unconditionally, so a nil `was` -- which is
   -- what Stellar always has -- would clear a persistent form's own formTypes

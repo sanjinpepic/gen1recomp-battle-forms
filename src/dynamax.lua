@@ -147,6 +147,12 @@ local function finish(state, battle, battler)
   local sub = deps.gen2 and deps.gen2substitute or deps.substitute
   if sub then sub.restore(state.moves) end
   if not mon then return false end
+  -- The state is already cleared above, so the payload's own `dynamax` sub-
+  -- table reads nil -- a dynamax_reverted still claiming turns left would
+  -- describe the world one instant before the event it announces.  A
+  -- Gigantamax fires this AND form_reverted, from the form work below: two
+  -- things really did end.
+  if deps.api then deps.api.dynamax(false, { mon = mon }) end
   if form and mon.form == form then
     if deps.gen2 then
       -- Gen 2 has no battler to tell a fainting mon from a benched one --
@@ -315,6 +321,13 @@ function M.entry(state)
         else
           deps.announce.dynamax(battle, battler)
         end
+      end
+      -- Last, so state.form is already settled: a Gigantamax that resolved
+      -- carries its form in the payload, and one that was refused announces
+      -- the plain Dynamax it actually became rather than the Gigantamax it
+      -- tried to be.
+      if deps.api then
+        deps.api.dynamax(true, { mon = mon, data = battle.data })
       end
       return true
     end,

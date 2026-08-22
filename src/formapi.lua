@@ -65,6 +65,23 @@ M.API = 1
 M.APPLIED = "mod.battle_forms.form_applied"
 M.REVERTED = "mod.battle_forms.form_reverted"
 
+-- Terastallization and Dynamax get their OWN names rather than being folded
+-- into the two above, and the reason is that they are not form changes.
+-- Neither applies a form record and neither writes a stat block: a Tera
+-- overrides typing alone and a plain Dynamax scales the HP bar, which is
+-- exactly why neither ever reached the two primitives that fire form_applied.
+-- Announcing them as forms would hand a consumer a payload whose `form` and
+-- `formId` are nil and whose `stats` are the ones the Pokemon already had --
+-- indistinguishable from a bug in this mod.
+--
+-- A Gigantamax still fires form_applied as well, because it genuinely IS a
+-- form record with real stats behind it.  A consumer watching both channels
+-- sees two events for one Gigantamax, which is correct: two things happened.
+M.TERA_APPLIED = "mod.battle_forms.tera_applied"
+M.TERA_REVERTED = "mod.battle_forms.tera_reverted"
+M.DYNAMAX_APPLIED = "mod.battle_forms.dynamax_applied"
+M.DYNAMAX_REVERTED = "mod.battle_forms.dynamax_reverted"
+
 local deps = nil
 
 -- `events` (mod.events), `log` (mod.log), `gen2` (the boot's own flag, so a
@@ -101,6 +118,72 @@ local function generation()
   return (deps and deps.gen2) and 2 or 1
 end
 
+-- The four readers behind the Tera and Dynamax fields.
+--
+-- Every one of them tolerates its dependency being absent and answers nil
+-- rather than throwing, for the reason M.bind's own header gives: this module
+-- is dofile()d bare by its own suite and by half a dozen others, and a payload
+-- that raised an error inside a form change would take the form change with
+-- it.  A missing field is a consumer reading nil; a raised error is a Pokemon
+-- stuck mid-transformation.
+--
+-- THE DATASET IS REMEMBERED, not asked for.  teratype.of needs the merged
+-- data (a species' own types, and the chart it filters them against) and the
+-- mod api hands a mod no handle to it -- it arrives as an argument to the two
+-- form primitives and on a battle.  So the last one seen is kept, and every
+-- reader here falls back to it.  A consumer calling describe() from a party
+-- screen before any battle has ever started gets nil for `teraType` rather
+-- than a wrong answer, which is the honest failure: this mod genuinely does
+-- not know a species' types until something has handed it the dataset.
+local lastData = nil
+
+local function teraTypeOf(mon, data)
+  local teratype = deps and deps.teratype
+  if not (teratype and mon and data) then return nil end
+  local ok, id = pcall(teratype.of, data, mon)
+  return ok and id or nil
+end
+
+local function dynamaxLevelOf(mon)
+  local level = deps and deps.dynamaxlevel
+  if not (level and mon) then return nil end
+  local ok, value = pcall(level.of, mon)
+  return ok and value or nil
+end
+
+-- `state.mon` is the identity check every mechanic in this mod already uses:
+-- only the player's own side can transform here, so there is never a second
+-- Terastallization or Dynamax to tell this one apart from.
+local function teraStateOf(mon)
+  local state = deps and deps.teraState
+  if not (state and mon) or state.mon ~= mon then return nil end
+  local stellar = deps.stellar
+  return {
+    -- The type it is terastallized INTO right now, which is not always the
+    -- persistent one above: the TERA TYPE option can override every Pokemon
+    -- with a single type for a battle (src/tera.lua's own chosenType).
+    type = state.type,
+    -- Broken out rather than left for a consumer to compare against a string:
+    -- Stellar is the one Tera type that changes no typing at all, so a reader
+    -- deciding whether to redraw a type badge needs to know without having to
+    -- know why.
+    stellar = stellar ~= nil and state.type == stellar.TYPE or false,
+  }
+end
+
+local function dynamaxStateOf(mon)
+  local state = deps and deps.dynamaxState
+  if not (state and mon) or state.mon ~= mon then return nil end
+  return {
+    -- Turns left on the three-turn clock, counting the one it was armed on.
+    turns = state.turns,
+    -- The Gigantamax form record's own suffix, or nil for a plain Dynamax.
+    -- A Gigantamax also fires form_applied; a plain one has no form at all,
+    -- which is the whole distinction this field exists to carry.
+    form = state.form,
+  }
+end
+
 -- The one shape, built in one place, so the event payloads and describe()'s
 -- own answer cannot drift into being two different things a consumer has to
 -- tell apart.
@@ -114,6 +197,10 @@ end
 -- damage math wants exactly what is here.
 local function payload(event, fields)
   local mon = fields.mon
+  -- Remembered here rather than at each call site, so every path that has a
+  -- dataset feeds the ones that do not.
+  if fields.data then lastData = fields.data end
+  local data = fields.data or lastData
   return {
     api = M.API,
     event = event,
@@ -142,6 +229,27 @@ local function payload(event, fields)
     -- "the enemy" -- a Gen 2 consumer holding the live battle can compare
     -- `battle.player == payload.mon` itself.
     isPlayer = fields.isPlayer,
+
+    -- PERSISTENT, and the half worth having.  Both of these are properties of
+    -- the Pokemon rather than of a battle, so they are answerable from a party
+    -- screen, a PC box or a summary page with no fight in sight -- which is
+    -- what a consumer drawing a stats row actually needs.  The live state
+    -- below can only ever say something mid-battle.
+    --
+    -- `teraType` is the type this Pokemon WOULD terastallize into, whether or
+    -- not it ever has: src/teratype.lua derives it from the Pokemon's own DVs
+    -- unless shards have bought it something else.  Never nil for a Pokemon
+    -- with a species record, which is why it is worth asking for.
+    teraType = teraTypeOf(mon, data),
+    -- 0-10 (src/dynamaxlevel.lua).  0 is a real answer -- an unfed Pokemon --
+    -- and never "unknown".
+    dynamaxLevel = dynamaxLevelOf(mon),
+
+    -- LIVE, and nil when nothing is standing.  Present on every payload
+    -- shape, including describe()'s, so one reader answers "is this Pokemon
+    -- terastallized right now" without needing to have heard the event.
+    tera = teraStateOf(mon),
+    dynamax = dynamaxStateOf(mon),
   }
 end
 
@@ -184,6 +292,28 @@ end
 function M.reverted(fields)
   if not (fields and fields.mon) then return false end
   return emit(M.REVERTED, payload("reverted", fields))
+end
+
+-- Terastallization and Dynamax, announced from their own mechanics rather
+-- than from the form primitives -- they never reach those, which is the whole
+-- reason these two pairs exist.
+--
+-- `fields.mon` alone is required.  Everything a consumer wants about the
+-- transformation is read live off the state tables by the payload builder, so
+-- a caller cannot announce something the state does not agree with: these are
+-- called AFTER the state is set on the way in and BEFORE it is cleared on the
+-- way out, and both `tera` and `dynamax` in the payload will be populated or
+-- nil accordingly with no second copy of the truth to drift.
+function M.tera(applied, fields)
+  if not (fields and fields.mon) then return false end
+  return emit(applied and M.TERA_APPLIED or M.TERA_REVERTED,
+    payload(applied and "tera_applied" or "tera_reverted", fields))
+end
+
+function M.dynamax(applied, fields)
+  if not (fields and fields.mon) then return false end
+  return emit(applied and M.DYNAMAX_APPLIED or M.DYNAMAX_REVERTED,
+    payload(applied and "dynamax_applied" or "dynamax_reverted", fields))
 end
 
 -- The call-style answer, and the export a peer actually holds.
@@ -243,7 +373,11 @@ function M.install(mod)
   exports.api = M.API
   -- The event names, so a consumer subscribes to a value it was given
   -- rather than to a string it retyped.
-  exports.events = { applied = M.APPLIED, reverted = M.REVERTED }
+  exports.events = {
+    applied = M.APPLIED, reverted = M.REVERTED,
+    teraApplied = M.TERA_APPLIED, teraReverted = M.TERA_REVERTED,
+    dynamaxApplied = M.DYNAMAX_APPLIED, dynamaxReverted = M.DYNAMAX_REVERTED,
+  }
   exports.describe = function(first, second, third)
     if first == exports then return M.describe(second, third) end
     return M.describe(first, second)

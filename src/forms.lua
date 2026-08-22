@@ -88,7 +88,7 @@ function M.becomeForm(data, battler, formId, battle)
   reloadSprite(battle, battler)
   -- Last, once the form is actually standing: a listener that reads off
   -- payload.mon has to see the same world the payload describes.
-  report("applied", { mon = mon, form = formDef.form, formId = formId,
+  report("applied", { data = data, mon = mon, form = formDef.form, formId = formId,
                       stats = battler.curStats, types = battler.curTypes,
                       isPlayer = battler.isPlayer })
   return true
@@ -138,7 +138,7 @@ function M.revertForm(battler, data, battle)
   battler.curStats = mon.stats
   battler.curTypes = baseDef and baseDef.types or battler.curTypes
   reloadSprite(battle, battler)
-  report("reverted", { mon = mon, form = was, stats = battler.curStats,
+  report("reverted", { data = data, mon = mon, form = was, stats = battler.curStats,
                        types = battler.curTypes, isPlayer = battler.isPlayer })
   return true
 end

@@ -3,6 +3,14 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.64.0
+
+### Added
+
+- **Terastallization and Dynamax are on the outward-facing API now, and the Tera type a Pokemon carries can be asked for without a battle.** 0.63.0 said outright that neither fired: a Terastallization applies no form and no stat block -- it overrides typing alone -- and a plain Dynamax scales the HP bar and nothing else, so neither ever reached the two form primitives that fire `form_applied`. They still do not. They have their own names instead: `mod.battle_forms.tera_applied` and `tera_reverted`, `dynamax_applied` and `dynamax_reverted`, all handed out through the exports beside the two form names so a consumer subscribes to a value rather than a string it retyped. Folding them into the form events was the other option and was rejected: it would have handed a consumer a payload with a nil `form`, a nil `formId` and stats the Pokemon already had, which is shaped exactly like a bug in this mod rather than like a Terastallization. A Gigantamax now fires on both channels, which is correct -- it really is a Dynamax and a form record, and two things happened.
+- **Four fields, and the split between them is the point.** `teraType` and `dynamaxLevel` are properties of the Pokemon, so they answer from a party screen, a PC box or a summary page with no fight anywhere -- which is what a consumer drawing a stats row actually needs, and what the live records can never give it. `tera` and `dynamax` are the live per-battle records and are nil unless something is standing right now: `tera` names the type it is terastallized into and breaks out `stellar` separately, because Stellar is the one Tera type that changes no typing at all and a reader deciding whether to redraw a type badge should not have to know why; `dynamax` carries the turns left on the clock and the Gigantamax form, where a nil form is what makes it a plain Dynamax. All four are additive, so the payload version stays at 1 -- a reader that ignores a new field cannot be broken by one, which is the rule this API set for itself.
+- **The dataset is remembered rather than demanded.** Answering `teraType` means resolving a species' own types against the running chart, and the mod api hands a mod no handle to the merged data -- it arrives as an argument to the two form primitives and on a battle. So the last one seen is kept and every reader falls back to it. A consumer that asks before this mod has been handed one gets nil rather than a wrong answer, which is the honest failure: until something supplies the dataset, this mod genuinely does not know what types a species has.
+
 ## 0.63.0
 
 ### Added

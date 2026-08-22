@@ -631,7 +631,7 @@ return function(mod)
   -- (src/gen2substitute.lua's own header, proven under this exact feature
   -- by tests/battle_forms_gen2dynamax_test.lua).
   local dynamax = m["src/dynamax.lua"]
-  dynamax.bind({ forms = m["src/forms.lua"],
+  dynamax.bind({ forms = m["src/forms.lua"], api = m["src/formapi.lua"],
                  gigantamax = m["data/gigantamax.lua"], keyitems = keyitems,
                  announce = announce, log = mod.log,
                  substitute = m["src/substitute.lua"],
@@ -698,6 +698,7 @@ return function(mod)
               gen2substitute = m["src/gen2substitute.lua"],
               teratype = m["src/teratype.lua"],
               stellar = m["src/stellar.lua"],
+              api = m["src/formapi.lua"],
               chosen = function() return mod.options:get("tera_type") end })
   -- TERA BLAST's own roster: one record per type the running game's chart
   -- can resolve, registered unconditionally like the Max Moves and the
@@ -1040,8 +1041,18 @@ return function(mod)
   -- the two a form change actually goes through, and a module bound on a
   -- boot that never calls it costs one table.
   local formapi = m["src/formapi.lua"]
+  -- teraState/dynamaxState are the live per-battle records the two mechanics
+  -- already keep; formapi only ever reads `state.mon` off them for identity
+  -- and never writes. teratype/dynamaxlevel answer the two PERSISTENT
+  -- questions -- what type would this Pokemon terastallize into, and what is
+  -- its Dynamax Level -- which are the half a party screen can ask with no
+  -- battle in sight.
   formapi.bind({ events = mod.events, log = mod.log, gen2 = gen2,
-                 formresolve = formresolve })
+                 formresolve = formresolve,
+                 teratype = m["src/teratype.lua"],
+                 dynamaxlevel = m["src/dynamaxlevel.lua"],
+                 stellar = m["src/stellar.lua"],
+                 teraState = teraState, dynamaxState = dynamaxState })
   formapi.install(mod)
   m["src/forms.lua"].bind({ api = formapi })
   gen2forms.bind({ api = formapi })
