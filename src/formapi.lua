@@ -87,7 +87,9 @@ local deps = nil
 -- `events` (mod.events), `log` (mod.log), `gen2` (the boot's own flag, so a
 -- payload can say which generation's stat keys it is carrying) and
 -- `formresolve` (src/formresolve.lua, for the out-of-battle half of
--- describe()).  Every one of them is optional at the point of use: this
+-- describe()).  `transforms` (src/transforms.lua's registry) and `armState`
+-- (src/arm.lua's state) back the gimmick half of the exports below, and are
+-- read through here rather than published themselves -- see gimmicks().  Every one of them is optional at the point of use: this
 -- module is dofile()d bare by its own suite, and src/forms.lua is dofile()d
 -- bare by half a dozen others, so an unbound announcement has to be a
 -- silent no-op rather than an error inside a form change.
@@ -386,6 +388,76 @@ function M.install(mod)
     local mon = shift(first, second)
     if not (mon and deps and deps.formresolve) then return nil end
     return deps.formresolve.formIdFor(mon)
+  end
+
+  -- Every manually activated transformation there is, as COPIED rows of
+  -- { id, label, available }.
+  --
+  -- A peer drawing its own battle scene cannot use the cell this mod draws --
+  -- that one is bolted to the native screen's own layout -- but it needs the
+  -- same three facts that cell reads.  So it gets those three and not the
+  -- registry, because the registry is not a read surface: Registry:register
+  -- would let a peer add a transformation, and Registry:all() hands back the
+  -- live list itself, whose ORDER is the order the player's menu cycles in
+  -- (src/transforms.lua's own header).  Neither is a thing to hand out by
+  -- accident.
+  --
+  -- `available` is RESOLVED here rather than passed out as the entry's own
+  -- predicate.  That predicate closes over this mod's internals and expects
+  -- the battle it is being asked about; handing the function to a peer means
+  -- handing over something callable against anything.  Pass the battle, get
+  -- booleans.  A predicate that raises answers false rather than taking the
+  -- caller's scene down with it.
+  exports.gimmicks = function(first, second)
+    local battle = shift(first, second)
+    local out = {}
+    local registry = deps and deps.transforms
+    if not registry then return out end
+    for _, entry in ipairs(registry:all()) do
+      local ok, available = pcall(entry.available, battle)
+      out[#out + 1] = { id = entry.id, label = entry.label,
+                        available = (ok and available) and true or false }
+    end
+    return out
+  end
+
+  -- Arms one of them, or disarms it again, exactly as the player's own cell
+  -- does -- and deliberately NOT the entry's own activate().
+  --
+  -- activate is meant to run at battle.turn_started, where src/resolve.lua's
+  -- M.onTurnStarted pairs it with state:consume(id).  That pairing is the ONE
+  -- place the once-per-battle limit is recorded, so an external activate()
+  -- performs the transformation and never spends the flag -- and the same
+  -- trainer arms a second one, which is the single rule this registry exists
+  -- to enforce.  Arming here leaves the activation to this mod's own
+  -- turn_started listener, the same one every native battle already goes
+  -- through.  toggle() also refuses an id already spent, so the limit holds
+  -- on this path without a second copy of it living here.
+  --
+  -- Answers true when the id is now armed, false when it was disarmed, was
+  -- refused, or names nothing.
+  exports.arm = function(first, second)
+    local id = shift(first, second)
+    local state = deps and deps.armState
+    local registry = deps and deps.transforms
+    if not (state and type(id) == "string") then return false end
+    -- Refused HERE, and the registry check is not redundant: State:toggle
+    -- validates the id's type and its spent flag but never asks whether
+    -- anything registered it, because every internal caller took the id off
+    -- the cell it was already drawing.  arm() is the one door an id can
+    -- arrive through from outside, so it is the one place that has to ask.
+    -- Without it a peer's typo arms a cell that can never fire: the id sticks
+    -- in armedId, and src/resolve.lua's onTurnStarted resolves it to nil and
+    -- quietly does nothing, every turn, for the rest of the battle.
+    if not (registry and registry:get(id)) then return false end
+    return state:toggle(id) == true
+  end
+
+  -- The id currently armed, or nil.  For a scene redrawing its own button.
+  exports.armed = function()
+    local state = deps and deps.armState
+    if not state then return nil end
+    return state:armed()
   end
   return true
 end

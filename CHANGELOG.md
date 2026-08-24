@@ -3,6 +3,19 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.66.0
+
+### Added
+
+- **A mod drawing its own battle scene can now offer the gimmick menu, which until now only this mod's own cell could.** That cell is bolted to the native screen's layout, so a peer replacing the screen had no way to reach it and no way to ask what was on offer. `mod.exports.gimmicks(battle)` answers the same three facts the cell reads -- id, label, and whether each is armable right now -- and `mod.exports.arm(id)` / `mod.exports.armed()` arm and report, the same way the player's own cell does. `api` stays 1: these are added fields, and a reader that ignores them cannot be broken by them.
+- **They hand out copies and a toggle, not the registry and the arm state.** Publishing those two objects was the obvious shape and is the wrong one. `Registry:register` would let a peer add a transformation to the player's menu, and `Registry:all()` returns the live list whose ORDER is the order the cell cycles in -- so a peer that sorted the rows it was handed would reorder somebody's menu. `available` is resolved to a boolean here for the same reason: the entry's predicate closes over this mod's internals, and a peer holding the function could call it against anything. A predicate that raises reports the entry unavailable rather than taking the peer's scene down.
+- **Arming is the external verb, and activation deliberately is not.** `src/resolve.lua`'s `onTurnStarted` is the only caller of an entry's `activate` anywhere in this mod, and it pairs it unconditionally with `state:consume(id)` -- the one place the once-per-battle limit is recorded. An external `activate()` would therefore transform a Pokemon without spending the flag, and the same trainer could arm a second one, which is the single rule this registry exists to enforce. `arm()` toggles and leaves the activation to the listener every native battle already goes through.
+- **`arm()` refuses an id nothing registered, which the internal path never had to.** `State:toggle` checks the id's type and its spent flag but never asks whether anything registered it, because every internal caller took the id off the cell it was already drawing. `arm()` is the one door an id can arrive through from outside, so it is the one place that has to ask -- without it a peer's typo sticks in `armedId`, and `onTurnStarted` resolves it to nil and quietly does nothing for the rest of the battle.
+
+### Fixed
+
+- **`.modkit/pack.json` is now ignored, because a copy in the source tree is always a lie.** `tools/modpack.py` writes that file into the archive at package time, computed from the files actually going in. A copy in the working tree arrives by unpacking a release zip and using it as a checkout, and it describes that zip's files rather than these -- so it is stale from the moment anything is edited, and the packager overwrites it regardless.
+
 ## 0.65.0
 
 ### Added

@@ -2,3 +2,8 @@ dist/
 __pycache__/
 *.zip
 pokemon_alternative_forms_implementation.md
+# Written into the archive by tools/modpack.py at package time. A copy in
+# the source tree is a stale snapshot of some earlier build -- it arrives
+# by unpacking a release zip as a working tree, and describes that zip's
+# files, not these.
+.modkit/
