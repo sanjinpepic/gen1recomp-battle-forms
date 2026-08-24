@@ -578,6 +578,38 @@ return function(mod)
   -- entry rather than a special case: what makes it the only one today is that
   -- it is the only one registered.
   local registry = m["src/transforms.lua"].new()
+  -- Exposed for an external caller -- explicit request, g9-Battle-Scene's
+  -- own custom "Gimmicks" button reads this list (Registry:all(), each
+  -- entry's id/label/available(battle)) to show what's on offer, rather
+  -- than battle_forms reimplementing anything, or g9-Battle-Scene trying
+  -- to reach the native-screen-coupled cell this mod already draws for
+  -- the built-in FIGHT menu. Same table reference every registerMove-
+  -- style call below still populates, so a mod holding this from the
+  -- moment it's exposed sees every entry registered after, not a frozen
+  -- snapshot.
+  --
+  -- Corrected same day: an EXTERNAL caller must never call an entry's
+  -- own activate(battle) directly. Confirmed by reading src/resolve.lua
+  -- :212-223 (M.onTurnStarted, the ONLY real caller of activate anywhere
+  -- in this mod -- grepped): activate is meant to run at
+  -- battle.turn_started, paired unconditionally with state:consume(id)
+  -- right there, which is the ONE place the real once-per-battle limit
+  -- (src/arm.lua's own spentAny) gets recorded. Calling activate any
+  -- other way -- which the first version of this bridge did -- performs
+  -- the transformation but never marks it spent, so the same trainer
+  -- could open the picker again and stack a second one, exactly the rule
+  -- battle_forms exists to enforce. The correct external surface is two
+  -- calls: armState:toggle(id) (below) to ARM a choice (real move-
+  -- substitution included, via src/arm.lua's own retarget), and emitting
+  -- the real "battle.turn_started" event at the right point in a turn
+  -- (Runtime.emit, not mod.events:emit -- this is the same unprefixed,
+  -- engine-level event native's own turn loop raises, confirmed shared
+  -- with mod.events' own bus via Runtime.install, src/mods/Runtime.lua
+  -- :36-37) so THIS mod's own already-correct battle.turn_started
+  -- listener (line ~1216 below) does the real activate+consume itself,
+  -- the same way it already does for every native-turn-loop battle.
+  mod.exports.transforms = registry
+  mod.exports.armState = state
   -- The arm state reaches the registry for one job: a mechanic that substitutes
   -- moves does it when the player arms the cell rather than when it activates,
   -- and the armed flag is the only place that knows about every way of arming
