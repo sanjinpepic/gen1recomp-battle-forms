@@ -54,5 +54,10 @@ does, for as long as it stands, on the player's side and the enemy's: the Tera
 type (`DRG`, `WTR`, `STR` for Stellar), or `MEG`, `DYN`, `GMX`, `ZMV`. A status
 condition still wins that space, the way it always has.
 
+**Other mods can read all of this.** `mod:find("battle_forms").exports` answers
+about any Pokemon rather than about a side, so `describe(mon)` reports the
+enemy's Terastallization, Dynamax or Gigantamax exactly as it reports the
+player's -- type, turns left, and the Gigantamax form where there is one.
+
 Every transformation announces itself. The player's own once-per-battle
 allowance is kept separately and can never be spent by an opponent.

@@ -1093,7 +1093,10 @@ return function(mod)
                  dynamaxlevel = m["src/dynamaxlevel.lua"],
                  stellar = m["src/stellar.lua"],
                  transforms = registry, armState = state,
-                 teraState = teraState, dynamaxState = dynamaxState })
+                 -- BOTH sides: describe() takes a mon rather than a side,
+                 -- so a peer asking about the enemy's Terastallization
+                 -- must get an answer as readily as about the player's.
+                 teraState = teraStates, dynamaxState = dynamaxStates })
   formapi.install(mod)
   m["src/forms.lua"].bind({ api = formapi })
   gen2forms.bind({ api = formapi })

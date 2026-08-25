@@ -170,4 +170,36 @@ T.eq(bareState.dynamaxLevel, nil, "for both persistent fields")
 T.eq(Api.tera(true, { mon = nil }), false, "no Pokemon, no event")
 T.eq(Api.dynamax(false, {}), false, "on either channel")
 
+-- --- the API answers for the ENEMY too --------------------------------------
+-- describe() takes a Pokemon, not a side, so a peer asking about the opposing
+-- Terastallization must get an answer as readily as about the player's. It did
+-- not: this module was bound with the player's single state, under a comment
+-- saying "only the player's own side can transform here, so there is never a
+-- second Terastallization or Dynamax to tell this one apart from". Enemy
+-- trainers transform now, so there is.
+local mine, theirs = { species = "CHARIZARD" }, { species = "GENGAR" }
+local playerTera = { mon = mine, type = "WATER" }
+local enemyTera = { mon = theirs, type = "DRAGON" }
+local playerDyna = { mon = nil }
+local enemyDyna = { mon = theirs, turns = 3, form = "GENGAR_GMAX" }
+
+Api.bind({ teraState = { playerTera, enemyTera },
+           dynamaxState = { playerDyna, enemyDyna },
+           stellar = Stellar })
+
+T.eq(Api.describe(mine).tera.type, "WATER", "the player's Terastallization is reported")
+T.eq(Api.describe(theirs).tera.type, "DRAGON",
+  "and the ENEMY'S is reported too, with its own type")
+T.eq(Api.describe(theirs).dynamax.form, "GENGAR_GMAX",
+  "the enemy's Gigantamax form comes back as well")
+T.eq(Api.describe(mine).dynamax, nil, "and a side with none reports none")
+T.eq(Api.describe({ species = "PIDGEY" }).tera, nil,
+  "a Pokemon in neither state reports neither")
+
+-- A single state still works, since this module is dofile'd bare by its own
+-- suite and handed one.
+Api.bind({ teraState = playerTera, stellar = Stellar })
+T.eq(Api.describe(mine).tera.type, "WATER", "one state, not a list, still resolves")
+T.eq(Api.describe(theirs).tera, nil, "and does not answer for a mon it never claimed")
+
 T.finish("battle_forms_formapi_gimmicks")

@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.73.1
+
+### Fixed
+
+- **The read API could not see an enemy's Terastallization or Dynamax.** `describe(mon)` takes a Pokemon rather than a side, precisely so a peer can ask about anything on the field -- but it was bound with the player's single state, under a comment explaining why that was safe: "only the player's own side can transform here, so there is never a second Terastallization or Dynamax to tell this one apart from". Enemy trainers transform now, so there is, and a consumer asking about an opposing Pokemon mid-Terastallization was told it had none. Both sides' states are passed now and the lookup resolves whichever claims the Pokemon asked about, so an enemy's type, its turns left and its Gigantamax form all come back the same way the player's do. A single state is still accepted, since the module is handed one by its own suite.
+
 ## 0.73.0
 
 ### Added

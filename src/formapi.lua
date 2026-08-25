@@ -153,12 +153,31 @@ local function dynamaxLevelOf(mon)
   return ok and value or nil
 end
 
--- `state.mon` is the identity check every mechanic in this mod already uses:
--- only the player's own side can transform here, so there is never a second
--- Terastallization or Dynamax to tell this one apart from.
+-- `state.mon` is the identity check every mechanic in this mod already uses.
+-- This comment used to add "only the player's own side can transform here, so
+-- there is never a second Terastallization or Dynamax to tell this one apart
+-- from" -- and enemy trainers transform now (src/trainerai.lua), so there is.
+--
+-- Both spellings are live: the boot passes a LIST of the two sides' states,
+-- and this module is handed a single one by its own suite. Resolved by asking
+-- which claims THIS Pokemon, so describe() answers for an enemy exactly as it
+-- does for the player -- which is the whole point of a read API that takes a
+-- mon rather than a side.
+local function claimant(state, mon)
+  if not (state and mon) then return nil end
+  if state.mon == nil and state[1] ~= nil then
+    for _, one in ipairs(state) do
+      if one and one.mon == mon then return one end
+    end
+    return nil
+  end
+  if state.mon ~= mon then return nil end
+  return state
+end
+
 local function teraStateOf(mon)
-  local state = deps and deps.teraState
-  if not (state and mon) or state.mon ~= mon then return nil end
+  local state = claimant(deps and deps.teraState, mon)
+  if not state then return nil end
   local stellar = deps.stellar
   return {
     -- The type it is terastallized INTO right now, which is not always the
@@ -174,8 +193,8 @@ local function teraStateOf(mon)
 end
 
 local function dynamaxStateOf(mon)
-  local state = deps and deps.dynamaxState
-  if not (state and mon) or state.mon ~= mon then return nil end
+  local state = claimant(deps and deps.dynamaxState, mon)
+  if not state then return nil end
   return {
     -- Turns left on the three-turn clock, counting the one it was armed on.
     turns = state.turns,
