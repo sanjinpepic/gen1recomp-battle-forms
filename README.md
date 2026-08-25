@@ -27,12 +27,16 @@ whatever it adds.
 **Which Pokemon.** The strongest in the party, by level, and only once it is
 actually on the field. One gimmick per trainer per battle.
 
-**Which gimmick.** Whatever that Pokemon can genuinely do, picked by a weight
-that leans away from mega evolution so the famous megas do not monopolise
-every important fight. The choice is seeded from the trainer rather than
-rolled, so Brock always reaches for the same thing and Blaine for his own: the
-fight can be learned instead of re-rolled, and the variety lands across the
-roster rather than inside one battle.
+**Which gimmick.** Always something that Pokemon can genuinely do -- but the
+two tiers choose differently. A gym leader, an Elite Four member or a rival
+takes the **strongest** thing on offer, because that fight is the wall the
+player prepares for and should not be rolling dice. Ordinary trainers take a
+weighted pick that leans away from mega evolution, so the famous megas do not
+monopolise every fight and a route stays varied.
+
+Either way the choice is seeded from the trainer rather than rolled fresh, and
+a rematch counts as the same trainer -- so a leader reaches for the same thing
+the second time the player meets them.
 
 **Terastallization picks a type, it does not roll one.** The trainer's brand
 first -- derived from their own party, so a Dragon gym reads as Dragon --

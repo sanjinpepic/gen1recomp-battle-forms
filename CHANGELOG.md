@@ -3,6 +3,17 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.72.0
+
+### Added
+
+- **An enemy Terastallization now shows itself for as long as it stands.** It was the only one of the four transformations with no visible trace: a mega changes the sprite, a Dynamax grows it, a Z-Move names itself as it fires, and a Terastallization did nothing at all once its message had scrolled away -- which is the same reason the player's own three-letter type tag exists. The tag is drawn in the enemy's own level slot, which is not the same tile on the two games and was read off each engine rather than assumed from the player's: Red puts `<LV>` at tile (4,1) and left-aligns the digits after it, Gold pins the glyph to column 6 whatever the level is. A status tag still wins that space on both, the same way it wins the player's.
+- **Big fights take the strongest gimmick on offer rather than rolling for one.** A gym leader, an Elite Four member or a rival is the wall a player prepares for, and dice in that fight make preparation pointless. Ordinary trainers keep the weighted pick, so a route stays varied and a bug catcher does not pull the single best transformation every time. Which one counts as strongest is a ranking in the data block and is meant to be edited: a Dynamax doubles HP as well as boosting moves, a mega evolution is a stat and typing change for the whole battle, a Z-Move is one enormous hit and then nothing, a Terastallization moves typing around without adding a stat point.
+
+### Fixed
+
+- **A rematch used to re-roll the leader's gimmick.** Gold numbers its repeat encounters -- `CLAIR1`, `CLAIR2` -- and the seed was taken from the raw id, so meeting a trainer a second time could produce a different transformation. That is precisely the re-rolling the seed exists to prevent: a fight that changes every attempt cannot be learned. The trailing number is dropped, so a rematch is the same trainer.
+
 ## 0.71.0
 
 ### Fixed

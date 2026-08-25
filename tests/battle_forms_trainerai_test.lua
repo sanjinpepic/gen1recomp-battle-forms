@@ -425,4 +425,47 @@ T.eq(AI.crystalForMon(ZROWS, zdata, { moves = { "GROWL" } }), nil,
   "a Pokemon with only status moves gets no crystal")
 T.eq(AI.crystalForMon(ZROWS, zdata, { moves = {} }), nil, "and neither does one with none")
 
+-- --- big fights take the strongest, routes take variety --------------------
+-- A gym leader or an Elite Four member is the wall the player prepares for, so
+-- that fight should not be rolling dice. Ordinary trainers still roll: a bug
+-- catcher pulling the single best gimmick every time would be exhausting.
+T.eq(AI.strongest({ "tera", "zmove", "mega", "dynamax" }), "dynamax",
+  "the strongest of all four is the Dynamax")
+T.eq(AI.strongest({ "tera", "zmove", "mega" }), "mega", "then the mega")
+T.eq(AI.strongest({ "tera", "zmove" }), "zmove", "then the Z-Move")
+T.eq(AI.strongest({ "tera" }), "tera", "and a lone candidate is its own strongest")
+T.eq(AI.strongest({}), nil, "no candidates, none strongest")
+T.eq(AI.strongest(nil), nil, "and no list at all")
+-- A gimmick the table has no rank for still answers rather than vanishing.
+T.eq(AI.strongest({ "nosuchgimmick" }), "nosuchgimmick", "an unranked one is still returned")
+
+local everythingGoes = function() return true end
+T.eq(decide({ hasAiClass = true, canDo = everythingGoes,
+              unlocked = { KEY_STONE = true } }), "dynamax",
+  "a trainer the engine marks as hard takes the strongest on offer")
+-- ...and does so every time, where an ordinary trainer's pick comes off the
+-- weighted roll instead.
+for _, id in ipairs(ROSTER) do
+  T.eq(decide({ trainerId = id, hasAiClass = true, canDo = everythingGoes,
+                unlocked = { KEY_STONE = true } }), "dynamax",
+    "every hard fight takes it, whoever the trainer is")
+end
+
+-- --- a rematch is the SAME trainer -----------------------------------------
+-- Gold numbers repeat encounters (CLAIR1, CLAIR2). Seeding on the raw id gave
+-- a leader a different gimmick the second time the player met them, which is
+-- the re-rolling the seed exists to prevent.
+T.eq(AI.seedFor("CLAIR1"), AI.seedFor("CLAIR2"), "a rematch seeds identically")
+T.eq(AI.seedFor("CLAIR1"), AI.seedFor("CLAIR"), "and matches the bare class")
+T.check(AI.seedFor("CLAIR1") ~= AI.seedFor("MORTY1"), "two trainers still differ")
+T.eq(AI.seedFor("123"), 0, "an id that is only digits seeds zero rather than raising")
+
+-- The same holds through the whole decision for an ORDINARY trainer, where the
+-- seeded roll is what picks.
+local a = decide({ trainerId = "COOLTRAINER1", hasAiClass = false,
+                   rng = scripted({ 1 }), canDo = everythingGoes })
+local b = decide({ trainerId = "COOLTRAINER2", hasAiClass = false,
+                   rng = scripted({ 1 }), canDo = everythingGoes })
+T.eq(a, b, "a rematched route trainer reaches for the same thing")
+
 T.finish("battle_forms_trainerai")

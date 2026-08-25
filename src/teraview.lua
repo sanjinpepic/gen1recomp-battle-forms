@@ -140,6 +140,33 @@ function M.draw(state, battle, FontOverride)
   paint(SLOT.x + (wide and WIDE_DX or 0), SLOT.y, tag, FontOverride)
 end
 
+-- Whether the ENEMY's HUD block is up and its level slot is free.
+--
+-- Deliberately its own check rather than the player's: the engine hides that
+-- block during the grow-in, the intro slide and the ball throw, and drops the
+-- level entirely while a status tag is up. Reading the same fields it reads is
+-- what keeps a tag from being painted over a status the engine just decided to
+-- show, or onto a HUD that is not on screen.
+function M.enemyVisible(battle)
+  local enemy = battle and battle.enemy
+  if not enemy or enemy.fainted then return false end
+  if enemy.shownStatus then return false end
+  if (battle.introSlide or 0) ~= 0 or battle.introBalls then return false end
+  local okGrow, growing = pcall(battle.growInScale, battle, enemy)
+  if okGrow and growing then return false end
+  return not battle.safari and not battle.demo
+end
+
+--- Red's enemy tag. The slot does not move with the widescreen layout the way
+--- the player's does: that offset shifts the PLAYER's HUD block, and the
+--- enemy's stays where it is.
+function M.drawEnemy(state, battle, FontOverride)
+  local mon = battle and battle.enemy and battle.enemy.mon
+  local tag = M.tagFor(state, mon)
+  if not tag or not M.enemyVisible(battle) then return end
+  paint(ENEMY_SLOT.gen1.x, ENEMY_SLOT.gen1.y, tag, FontOverride)
+end
+
 -- ---- Gen 2 -------------------------------------------------------------
 --
 -- Gold has no widescreen battle path at all, so there is one slot rather than a
@@ -168,6 +195,21 @@ function M.gen2Visible(uiBattle)
   return true
 end
 
+--- Gold's enemy tag. `hudCleared("enemy")` and the enemy's own status tag are
+--- the two the engine itself branches on before it prints a level there.
+function M.drawGen2Enemy(state, uiBattle, FontOverride)
+  local engineBattle = uiBattle and uiBattle.battle
+  local enemy = engineBattle and engineBattle.enemy
+  local tag = M.tagFor(state, enemy)
+  if not tag or not uiBattle then return end
+  if uiBattle.showEnemyHud == false then return end
+  local okCleared, cleared = pcall(uiBattle.hudCleared, uiBattle, "enemy")
+  if okCleared and cleared then return end
+  local okTag, statusTag = pcall(uiBattle.statusTag, uiBattle, enemy)
+  if okTag and statusTag then return end
+  paint(ENEMY_SLOT.gen2.x, ENEMY_SLOT.gen2.y, tag, FontOverride)
+end
+
 function M.drawGen2(state, uiBattle, FontOverride)
   local engineBattle = uiBattle and uiBattle.battle
   -- Gold's UI class carries no top-level `.player`; the engine object's own is
@@ -186,8 +228,10 @@ function M.install(mod, state, gen2)
     nextFn(battle)
     if gen2 then
       M.drawGen2(state, battle)
+      M.drawGen2Enemy(state, battle)
     else
       M.draw(state, battle)
+      M.drawEnemy(state, battle)
     end
   end)
 end

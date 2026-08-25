@@ -92,6 +92,22 @@ M.GATE = {
 -- exactly the aces that have one.
 M.DEFAULT_WEIGHTS = { mega = 1, zmove = 1, dynamax = 3, tera = 3 }
 
+-- How hard each gimmick actually hits, for the fights that should not be
+-- rolling dice at all.
+--
+-- A gym leader, an Elite Four member or a rival is meant to be the wall the
+-- player prepares for, so those take the STRONGEST thing their ace can do
+-- rather than a weighted pick among them. The weights below still govern
+-- ordinary trainers, where variety is the point and a bug catcher pulling the
+-- single best gimmick every time would be exhausting.
+--
+-- The order is a judgement and is meant to be edited: a Dynamax doubles the
+-- Pokemon's HP as well as boosting its moves, so it survives longest and hits
+-- hardest across a whole fight; a mega evolution is a permanent stat and
+-- typing change for the battle; a Z-Move is one enormous hit and then nothing;
+-- a Terastallization moves typing around without adding a point of stat.
+M.STRENGTH = { dynamax = 4, mega = 3, zmove = 2, tera = 1 }
+
 -- trainer id -> a gimmick id it always uses, for a set piece worth authoring.
 -- Empty on purpose: the seeded roll already spreads the eighteen across the
 -- roster, and a table with a line per trainer is a table that goes stale.
@@ -148,6 +164,12 @@ end
 -- gives a spread nobody can reproduce from the inputs.
 function M.seedFor(trainerId)
   if type(trainerId) ~= "string" or trainerId == "" then return 0 end
+  -- A rematch is the SAME trainer. Gold numbers its repeat encounters --
+  -- CLAIR1, CLAIR2 -- and seeding on the raw id would have given a leader a
+  -- different gimmick the second time the player met them, which is exactly
+  -- the re-rolling this seed exists to prevent. The trailing number goes.
+  trainerId = (trainerId:gsub("%d+$", ""))
+  if trainerId == "" then return 0 end
   local hash = 5381
   for index = 1, #trainerId do
     hash = (hash * 33 + trainerId:byte(index)) % 2147483648
@@ -178,6 +200,19 @@ function M.choose(candidates, trainerId, weights)
     if roll < 0 then return id end
   end
   return candidates[#candidates]
+end
+
+--- The hardest-hitting of a candidate list, by M.STRENGTH. Ties -- and any
+--- gimmick the table has no rank for -- fall back to the list's own order,
+--- which is M.ORDER and therefore stable.
+function M.strongest(candidates)
+  if type(candidates) ~= "table" or #candidates == 0 then return nil end
+  local best, bestRank = nil, -1
+  for _, id in ipairs(candidates) do
+    local rank = tonumber(M.STRENGTH[id]) or 0
+    if rank > bestRank then best, bestRank = id, rank end
+  end
+  return best
 end
 
 -- ----------------------------------------------------------------- the tier
@@ -252,6 +287,10 @@ function M.decide(ctx)
     end
   end
   if #candidates == 0 then return nil, "nothing unlocked or nothing it can do" end
+  -- A fight the engine itself marks as hard takes the strongest thing on
+  -- offer; everything else rolls. Variety belongs on the routes, not in the
+  -- fight the player came prepared for.
+  if ctx.hasAiClass then return M.strongest(candidates), ace end
   return M.choose(candidates, ctx.trainerId, ctx.weights), ace
 end
 
