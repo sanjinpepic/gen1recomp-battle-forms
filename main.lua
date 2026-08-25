@@ -783,7 +783,9 @@ return function(mod)
   -- on battle.overlay, the same draw-only seam src/hpscale.lua paints the
   -- scaled Dynamax HP through -- see src/teraview.lua's own header for the
   -- slot and why the name row was rejected.
-  m["src/teraview.lua"].install(mod, teraStates, gen2)
+  m["src/teraview.lua"].install(mod, teraStates, gen2,
+    { tera = teraStates, dynamax = dynamaxStates, zmove = zStates,
+      megas = megas })
   local teraOk, teraWhy = registry:register(tera.entry(teraState, teraBlastCatalog))
   local enemyTeraEntry = tera.entry(enemyTeraState, teraBlastCatalog)
   if not teraOk then

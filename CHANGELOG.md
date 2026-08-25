@@ -3,6 +3,14 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.73.0
+
+### Added
+
+- **Every transformation now shows a tag for as long as it stands, not just Terastallization.** `MEG`, `DYN`, `GMX`, `ZMV`, and the Tera type's own three letters, in the level slot the type tag has used since 0.65.0 -- on the player's side and the enemy's. The gap this closes is Dynamax on Red: Gold's grows the picture visibly (`src/gen2dynamaxgrow.lua`), but Red has no draw-time scaling seam at all -- `frontSize` is read once at ROM-import time and `battle.overlay` fires after the battler is already drawn -- so a Dynamaxed Pokemon there stood in its own unchanged shape, and once the message scrolled away nothing said it still was one. The five can never contend for the space: the trainer's shared once-per-battle rule means a Pokemon wears one of them.
+- **A Gigantamax says `GMX` where a plain Dynamax says `DYN`.** It genuinely is a different shape and the picture already shows that much; a player looking at an unfamiliar silhouette is exactly who wants to know which of the two they are facing.
+- **A mega evolution is told apart from every other form by the pairing table that defines them.** A Gigantamax, a persistent held-item form and a condition-driven form all set the same `form` field, so "is this a mega" is asked of `data/megas.lua` rather than guessed from the field being set -- a Giratina in its Origin form wears no tag, which is correct: nothing the trainer did put it there.
+
 ## 0.72.0
 
 ### Added

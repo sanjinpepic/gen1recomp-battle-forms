@@ -49,5 +49,10 @@ trainer parties hold no mod items, so a mega form and a Z-Crystal are chosen
 for the ace on the same reading the Key Stone gets: a trainer who owns the
 band equipped their Pokemon before the battle.
 
+**Every transformation wears a tag.** A three-letter code sits where the level
+does, for as long as it stands, on the player's side and the enemy's: the Tera
+type (`DRG`, `WTR`, `STR` for Stellar), or `MEG`, `DYN`, `GMX`, `ZMV`. A status
+condition still wins that space, the way it always has.
+
 Every transformation announces itself. The player's own once-per-battle
 allowance is kept separately and can never be spent by an opponent.

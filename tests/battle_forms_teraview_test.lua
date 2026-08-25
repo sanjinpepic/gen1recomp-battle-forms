@@ -149,4 +149,44 @@ T.eq(ran, true,
   "and calls the rest of the chain FIRST and unconditionally, so another "
     .. "mod's overlay runs whether or not a Tera is live")
 
+-- --- one slot, five transformations -----------------------------------------
+-- A Dynamax has no picture of its own and Red has no draw-time scaling seam at
+-- all, so a Dynamaxed Pokemon there stands in its unchanged shape and nothing
+-- said it still was one once the message scrolled. Every transformation now
+-- wears a three-letter tag in the level slot instead. They can never contend
+-- for it: the trainer's once-per-battle rule means a Pokemon wears one.
+local MEGAS = { CHARIZARD = { CHARIZARDITE_X = "CHARIZARD_MEGA_X" },
+                GENGAR = { GENGARITE = "GENGAR_MEGA" } }
+local who = { species = "GENGAR" }
+
+T.eq(View.gimmickTagFor({ dynamax = { mon = who } }, who), "DYN",
+  "a plain Dynamax says DYN")
+T.eq(View.gimmickTagFor({ dynamax = { mon = who, form = "GENGAR_GMAX" } }, who),
+  "GMX", "a Gigantamax says GMX -- it IS a different shape and the player can see it")
+T.eq(View.gimmickTagFor({ zmove = { mon = who } }, who), "ZMV", "a Z-Move says ZMV")
+T.eq(View.gimmickTagFor({ megas = MEGAS },
+  { species = "GENGAR", form = "GENGAR_MEGA" }), "MEG", "a mega says MEG")
+
+-- A mega is told from every OTHER form by the pairing table that defines them,
+-- never by the form field being set: a Gigantamax, a persistent held-item form
+-- and a condition-driven form all set that same field.
+T.eq(View.gimmickTagFor({ megas = MEGAS },
+  { species = "GIRATINA", form = "GIRATINA_ORIGIN" }), nil,
+  "a persistent form is not a mega and wears no tag")
+T.eq(View.gimmickTagFor({ megas = MEGAS }, { species = "GENGAR" }), nil,
+  "and an untransformed Pokemon wears none either")
+
+-- A Terastallization still wins the slot, since its tag says more than "MEG"
+-- would: it names the type.
+local teraState = { mon = who, type = "DRAGON" }
+T.eq(View.gimmickTagFor({ tera = teraState, dynamax = { mon = who } }, who), "DRG",
+  "the Tera type beats the generic tag")
+
+-- Lists work the same as single states, both spellings being live.
+T.eq(View.gimmickTagFor({ dynamax = { { mon = {} }, { mon = who } } }, who), "DYN",
+  "a list of states resolves the one that claims this Pokemon")
+T.eq(View.gimmickTagFor({}, who), nil, "no sources, no tag")
+T.eq(View.gimmickTagFor(nil, who), nil, "and none at all")
+T.eq(View.gimmickTagFor({ dynamax = { mon = who } }, nil), nil, "and no mon")
+
 T.finish("battle_forms_teraview")

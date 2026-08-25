@@ -92,6 +92,91 @@ end
 --- enemy trainers terastallize too (src/trainerai.lua). Resolved by asking
 --- which state claims THIS Pokemon, so a tag can never be painted from the
 --- other side's Terastallization.
+-- A Dynamax has no picture of its own. On Gold it visibly grows instead
+-- (src/gen2dynamaxgrow.lua), but Red has no draw-time scaling seam at all --
+-- frontSize is read once at ROM-import time and battle.overlay fires after the
+-- battler is already drawn -- so a Dynamaxed Pokemon there stands in its own
+-- unchanged shape, and once the message scrolled away nothing said it still
+-- was one.
+--
+-- So it borrows this same slot. A Pokemon can only have ONE of the trainer's
+-- transformations in a battle (src/arm.lua's shared once-per-battle rule), so
+-- a Tera tag and a Dynamax tag can never contend for the space.
+--
+-- A Gigantamax says GMX rather than DYN: it IS a different shape, the picture
+-- already shows that much, and a player looking at an unfamiliar silhouette is
+-- exactly who wants to know which of the two they are facing.
+local DYNAMAX_TAG, GIGANTAMAX_TAG = "DYN", "GMX"
+
+local MEGA_TAG, ZMOVE_TAG = "MEG", "ZMV"
+
+-- Every mega FORM id, as a set, built once per megas table.
+--
+-- A transformed Pokemon carries its form id and nothing that says which
+-- mechanic put it there -- a Gigantamax, a persistent held-item form and a
+-- condition-driven form all set the same field. So "is this a mega" is asked
+-- of the pairing table that defines them rather than guessed from the value.
+local megaForms, megaFormsFrom = nil, nil
+local function megaFormSet(megas)
+  if type(megas) ~= "table" then return nil end
+  if megaForms and megaFormsFrom == megas then return megaForms end
+  local set = {}
+  for _, byStone in pairs(megas) do
+    if type(byStone) == "table" then
+      for _, formId in pairs(byStone) do set[formId] = true end
+    end
+  end
+  megaForms, megaFormsFrom = set, megas
+  return set
+end
+
+--- The one tag this Pokemon should be wearing, or nil.
+---
+--- `sources` carries whichever of the five are wired: `tera` and `dynamax` and
+--- `zmove` are states (one or a list), `megas` is the pairing table. Asked in
+--- a fixed order, which costs nothing to get right because the trainer's
+--- once-per-battle rule (src/arm.lua) means a Pokemon can only ever be wearing
+--- one of them at a time.
+function M.gimmickTagFor(sources, mon)
+  if not mon or type(sources) ~= "table" then return nil end
+  local tag = M.tagFor(sources.tera, mon)
+  if tag then return tag end
+  tag = M.dynamaxTagFor(sources.dynamax, mon)
+  if tag then return tag end
+  if M.zmoveActive(sources.zmove, mon) then return ZMOVE_TAG end
+  local set = megaFormSet(sources.megas)
+  if set and mon.form and set[mon.form] then return MEGA_TAG end
+  return nil
+end
+
+--- Whether a Z-Move is standing on this Pokemon. Its state names the mon the
+--- same way the other two do.
+function M.zmoveActive(states, mon)
+  if not mon or not states then return false end
+  if states.mon == nil and states[1] ~= nil then
+    for _, one in ipairs(states) do
+      if M.zmoveActive(one, mon) then return true end
+    end
+    return false
+  end
+  return states.mon == mon
+end
+
+--- The Dynamax tag for this Pokemon, or nil. `states` is one Dynamax state or
+--- a list of them, the same shape tagFor takes.
+function M.dynamaxTagFor(states, mon)
+  if not mon or not states then return nil end
+  if states.mon == nil and states[1] ~= nil then
+    for _, one in ipairs(states) do
+      local tag = M.dynamaxTagFor(one, mon)
+      if tag then return tag end
+    end
+    return nil
+  end
+  if states.mon ~= mon then return nil end
+  return states.form and GIGANTAMAX_TAG or DYNAMAX_TAG
+end
+
 function M.tagFor(state, mon)
   if not mon or not state then return nil end
   if state.mon == nil and state[1] ~= nil then
@@ -130,9 +215,9 @@ function M.visible(battle)
     and (battle.introSlide or 0) == 0
 end
 
-function M.draw(state, battle, FontOverride)
+function M.draw(state, battle, FontOverride, sources)
   local mon = battle and battle.player and battle.player.mon
-  local tag = M.tagFor(state, mon)
+  local tag = M.tagFor(state, mon) or M.gimmickTagFor(sources, mon)
   if not tag or not M.visible(battle) then return end
   local wide = false
   local okWide, answer = pcall(battle.wideLayout, battle)
@@ -160,9 +245,9 @@ end
 --- Red's enemy tag. The slot does not move with the widescreen layout the way
 --- the player's does: that offset shifts the PLAYER's HUD block, and the
 --- enemy's stays where it is.
-function M.drawEnemy(state, battle, FontOverride)
+function M.drawEnemy(state, battle, FontOverride, sources)
   local mon = battle and battle.enemy and battle.enemy.mon
-  local tag = M.tagFor(state, mon)
+  local tag = M.tagFor(state, mon) or M.gimmickTagFor(sources, mon)
   if not tag or not M.enemyVisible(battle) then return end
   paint(ENEMY_SLOT.gen1.x, ENEMY_SLOT.gen1.y, tag, FontOverride)
 end
@@ -197,10 +282,10 @@ end
 
 --- Gold's enemy tag. `hudCleared("enemy")` and the enemy's own status tag are
 --- the two the engine itself branches on before it prints a level there.
-function M.drawGen2Enemy(state, uiBattle, FontOverride)
+function M.drawGen2Enemy(state, uiBattle, FontOverride, sources)
   local engineBattle = uiBattle and uiBattle.battle
   local enemy = engineBattle and engineBattle.enemy
-  local tag = M.tagFor(state, enemy)
+  local tag = M.tagFor(state, enemy) or M.gimmickTagFor(sources, enemy)
   if not tag or not uiBattle then return end
   if uiBattle.showEnemyHud == false then return end
   local okCleared, cleared = pcall(uiBattle.hudCleared, uiBattle, "enemy")
@@ -210,11 +295,12 @@ function M.drawGen2Enemy(state, uiBattle, FontOverride)
   paint(ENEMY_SLOT.gen2.x, ENEMY_SLOT.gen2.y, tag, FontOverride)
 end
 
-function M.drawGen2(state, uiBattle, FontOverride)
+function M.drawGen2(state, uiBattle, FontOverride, sources)
   local engineBattle = uiBattle and uiBattle.battle
   -- Gold's UI class carries no top-level `.player`; the engine object's own is
   -- a bare mon with no wrapper (src/battlerof.lua's own header).
-  local tag = M.tagFor(state, engineBattle and engineBattle.player)
+  local player = engineBattle and engineBattle.player
+  local tag = M.tagFor(state, player) or M.gimmickTagFor(sources, player)
   if not tag or not M.gen2Visible(uiBattle) then return end
   paint(SLOT.x, SLOT.y, tag, FontOverride)
 end
@@ -223,15 +309,15 @@ end
 -- keeps: an empty chain costs nothing, and a populated one -- another mod's
 -- overlay, or src/hpscale.lua's own -- must still run whether or not a
 -- Terastallization is live right now.
-function M.install(mod, state, gen2)
+function M.install(mod, state, gen2, sources)
   mod.hooks:wrap("battle.overlay", function(nextFn, battle)
     nextFn(battle)
     if gen2 then
-      M.drawGen2(state, battle)
-      M.drawGen2Enemy(state, battle)
+      M.drawGen2(state, battle, nil, sources)
+      M.drawGen2Enemy(state, battle, nil, sources)
     else
-      M.draw(state, battle)
-      M.drawEnemy(state, battle)
+      M.draw(state, battle, nil, sources)
+      M.drawEnemy(state, battle, nil, sources)
     end
   end)
 end
