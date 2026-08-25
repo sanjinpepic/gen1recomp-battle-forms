@@ -120,4 +120,47 @@ end
 T.eq(derivedEver, false,
   "no Pokemon is ever born Stellar -- across all 65536 DV spreads")
 
+-- --- two Stellars at once, which used to be impossible ---------------------
+-- The single slot this table used to be carried a comment explaining why it
+-- did not need to be keyed: "only the player's side reaches the menu and there
+-- is one Terastallization a battle". Enemy trainers terastallize now
+-- (src/trainerai.lua), so both sides can be Stellar in the same fight -- and
+-- with one slot the second one silently took the first one's boosts away.
+local ally, foe = { id = "ally" }, { id = "foe" }
+Stellar.clear()
+Stellar.begin(ally)
+Stellar.begin(foe)
+T.eq(Stellar.active(ally), true, "the player's Stellar is live")
+T.eq(Stellar.active(foe), true, "and the enemy's is too, at the same time")
+
+-- Each side spends its own boosts. Sharing them would mean one side's attack
+-- silently disarming the other's.
+local move = { type = "FIRE", power = 90 }
+local user = { curTypes = { "NORMAL" } }
+local a1 = Stellar.factor(user, ally, move)
+T.check(a1 > 1, "the player gets the Fire boost")
+T.eq(Stellar.factor(user, ally, move), 1, "and spends it")
+local f1 = Stellar.factor(user, foe, move)
+T.check(f1 > 1, "the enemy still has its own Fire boost")
+
+-- Clearing one leaves the other standing.
+Stellar.clear(ally)
+T.eq(Stellar.active(ally), false, "the player's is torn down")
+T.eq(Stellar.active(foe), true, "and the enemy's survives it")
+
+-- Clearing with no argument clears the lot, which is what battle START wants:
+-- a state left standing by a crash or an adopted battle belongs to nobody.
+Stellar.begin(ally)
+Stellar.clear()
+T.eq(Stellar.active(ally), false, "clear-all takes the player's")
+T.eq(Stellar.active(foe), false, "and the enemy's")
+T.eq(Stellar.active(nil), false, "and reports nothing active at all")
+
+-- An unknown Pokemon is simply not Stellar, rather than raising.
+T.eq(Stellar.active({ id = "stranger" }), false, "a mon nobody began is inactive")
+T.eq(Stellar.factor(user, { id = "stranger" }, move), 1, "and gets no factor")
+T.eq(Stellar.factor(user, nil, move), 1, "and neither does no mon at all")
+Stellar.begin(nil)
+T.eq(Stellar.active(nil), false, "beginning nothing begins nothing")
+
 T.finish("battle_forms_stellar")

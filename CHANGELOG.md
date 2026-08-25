@@ -3,6 +3,94 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.71.0
+
+### Fixed
+
+- **An enemy Z-Move was offered and could never happen.** A Z-Move needs a crystal ON the Pokemon -- `mon.item` on Gold, this mod's own stamped field on Red -- and engine trainer parties are the ROM's own data and hold no mod items. The Z-Move was nonetheless offered whenever the mechanic was wired at all, so the weighted roll could pick it, the activation would refuse, and the trainer lost its transformation for that turn with nothing said. A crystal is now resolved from the ace's own strongest damaging move and stamped before the mechanic is asked -- the same reading the Key Stone gets, that a trainer who owns the ring equipped their Pokemon before the battle -- and the Z-Move is offered only where such a crystal exists.
+
+### Added
+
+- **A README, with a short section on how the enemy's transformations work** -- when they unlock, which trainers get one, which Pokemon, how the gimmick and the Tera type are chosen, and which items are resolved rather than required.
+
+## 0.70.0
+
+### Added
+
+- **Holding any one of the four key items now opens all four to the enemy, rather than only its own.** Gating each gimmick on its own item was perfectly symmetric and played badly: the Key Stone is almost always the first of the four a player gets, so the entire early game would have been mega evolutions and nothing else -- and mega evolution reaches 86 species, which on Gold leaves ten of the fourteen gym leaders and Elite Four unable to do anything at all. The reading now is that the player has entered the era where trainers do this sort of thing, rather than that they licensed one specific mechanic. A gimmick is still only ever offered where the ace can actually use it, so this can never announce a transformation that does not happen, and the strict behaviour remains available as `GATE_MODE = "per_gimmick"`.
+
+### Fixed
+
+- **A mega evolution on Gold changed the sprite and printed nothing.** The two games announce through channels that are not interchangeable: Red's `announce.mega` takes a BATTLER and queues through `push`, while Gold's `announce.gen2Mega` takes a MON and goes through `Battle:emit` -- `src/mega.lua`'s own header records why they differ. The enemy path called only Red's, so on Gold the opposing Pokemon transformed, the sprite changed, and it simply attacked with no line explaining what had happened. Each game's own channel is used now, and each names its own side: Red's `displayName` puts "Enemy " in front of a battler whose `isPlayer` is false, Gold's `gen2Name` asks the engine's own `monName`. The other three gimmicks were never affected -- they announce from inside their own `activate`, which already branched per generation.
+
+## 0.69.0
+
+### Added
+
+- **Enemy trainers now reach for all four gimmicks, not just mega evolution.** Terastallization, Dynamax and Z-Moves join it, each gated on the player holding its own key item exactly as mega evolution is gated on the Key Stone. This is what the state widening in 0.68.0 was for, and it matters most on Gold: mega evolution applies to 86 species and the Johto aces mostly are not among them, so only four of the fourteen gym leaders and Elite Four could ever have used one -- Morty, Jasmine, Karen and Lance. Terastallization and Dynamax apply to every species, so every one of them can now do something.
+- **Each of the three runs the mechanic's OWN code rather than a copy of it.** A second entry is built per mechanic against the enemy's own state and handed a view of the battle whose player slot holds the enemy's battler; reads fall through to the real battle and writes land on it, so a message queued during the activation is queued where the player will see it. Reimplementing the activations here would have been a fork that silently diverged the first time one of them was fixed -- and each does real work, announcing, substituting the move array, seeding its state and branching per generation.
+- **The enemy's Tera type is chosen, never derived.** The player's comes from their Pokemon's own DVs, which is right for a Pokemon they raised and wrong for an opponent: a random type is frequently WORSE than the typing the Pokemon already has, and a Terastallization that downgrades its user is a threat on paper and a gift in practice. The enemy's takes the trainer's brand where the ace can use it -- and the brand is derived from the trainer's own party rather than a table of gym types, so Clair's three Dragonair and a Kingdra make Dragon and Morty's Gastly line makes Ghost -- then the type of the ace's strongest damaging move, then its own typing. No step can pick a type the Pokemon has no use for. The choice reaches the unchanged mechanic as a stamp on the Pokemon, which `src/teratype.lua` already prefers over its DV derivation; an enemy party is rebuilt from trainer data every battle, so the stamp is never saved.
+
+### Notes
+
+- An enemy Terastallization announces itself but has no persistent on-screen tag yet. `src/teraview.lua` paints its three-letter type marker at one slot -- the player's level position -- and the enemy's HUD has its own coordinates on both games. The announcement scrolls away, which is the exact reason that tag exists for the player, so this is worth closing.
+
+## 0.68.2
+
+### Fixed
+
+- **Every Gold gym leader read as an ordinary trainer and rolled its one-in-four.** Gold hands a battle the INNER trainer record -- the one keyed `KAREN1` beneath the `KAREN` class, as `class.trainers[1]` -- so the `class` field the gym-leader test needs is frequently absent and the id carries a trailing member number instead. `Battle.isGymLeader(nil)` is false, so Karen, Morty, Jasmine and the rest were treated as bug catchers: eligible, but only a quarter of the time. Class, classId, the raw id and the id with its trailing number stripped are all tried now.
+
+### Added
+
+- **The mod now says why an enemy did nothing, once per battle.** "The enemy declined" and "the enemy was never asked" look identical on screen, and telling them apart by playing has cost two rounds of blind fixes. A single line per battle records the trainer, the gate that stopped it, the ace's species, whether the trainer counted as a big fight and whether anything was unlocked -- enough to name the cause without another playtest.
+
+## 0.68.1
+
+### Fixed
+
+- **Nothing fired on Gold or Silver, again, and for a second reason.** 0.67.1 fixed the trainer id, which Gold spells `class`/`classId` where Red spells `id`. The gate behind it was still Red's: Red's `BattleState` sets `self.kind` to "trainer" or "wild", and **Gold's `Battle` sets no such field at all** -- every `kind` in that class is a damage kind or an action kind and has nothing to do with what sort of battle this is. So `battle.kind ~= "trainer"` was false for every Gold battle ever fought, and the first guard rejected all of them before anything else ran. On screen that is indistinguishable from a trainer simply not qualifying, which is how it survived a playtest. The trainer RECORD is what both games agree on -- a wild battle has none -- so that is what is tested now, with Red's explicit `kind` still honoured where it exists.
+
+## 0.68.0
+
+### Added
+
+- **An enemy mega evolution now says so.** 0.67.0 changed the form and printed nothing, so an opposing Pokemon silently became a different one mid-battle with no line explaining it -- the player could see a new sprite and had no way to know what they were now facing. It announces through the mod's own `announce.mega`, which names whoever it is handed: `displayName` puts "Enemy " in front of a battler whose `isPlayer` is false, and the text box was sized for exactly that case ("Enemy " plus a ten-character nickname plus "'s" is eighteen characters, the width of a Gen 1 row). The line is printed only after the form actually changed, never before, so a refused transformation cannot announce one that did not happen.
+
+### Fixed
+
+- **Stellar was a single slot, and enemy Terastallization would have made two Pokemon fight over it.** `src/stellar.lua` kept one `{ mon, spent }` for the whole battle, under a comment explaining why it never needed keying: "only the player's side reaches the menu and there is one Terastallization a battle, so there is never a second to track." That stopped being true. It is now keyed by Pokemon, with weak keys so a mon nobody explicitly cleared cannot be held alive by the table, and `clear()` takes an argument: one Pokemon on teardown, or every one when called bare, which is what battle start wants. `src/tera.lua` captures the mon before emptying its slot, because clearing blind would have taken the other side's boosts.
+- **The same single-side assumption ran through the display path.** `src/hpscale.lua` scaled the Dynamax HP bar from one state "because only the player's own side can Dynamax here", and `src/teraview.lua` read one state for its type tag. Both now accept either one state or a list and resolve whichever claims the Pokemon being drawn, so neither side's transformation can be painted from the other's record.
+- **Every per-battle gimmick state is now two.** Terastallization, Dynamax and Z-Moves each keep one record per side rather than one per battle, and all fifteen lifecycle handlers -- battle started, battler switched, move used, turn ended, fainted, battle ended -- run for both. No mechanic needed changing to allow it: every one of those states was already passed to its handlers as a parameter and captured nowhere.
+
+### Notes
+
+- The enemy still only reaches for mega evolution. The state work above is what unblocks the other three, but their activation paths and the enemy's Tera type selection are not wired yet. `src/trainerai.lua` carries the type chooser -- the trainer's brand derived from their own party, then the type of the ace's strongest damaging move, then its own typing, so the choice can never be a downgrade -- and it is tested, but nothing calls it yet.
+
+## 0.67.1
+
+### Fixed
+
+- **The feature did nothing whatsoever on Gold and Silver, and said nothing about it.** Red's `BattleState` stores the trainer record under `id` (`OPP_BROCK`); Gold's `gen2/Battle` stores the class under `classId`/`class`. 0.67.0 read only `id`, so every Gold trainer battle exited at the first gate as "no trainer id" -- no enemy ever reached for anything, on either of that game's two versions, with nothing logged and nothing on screen to distinguish it from a trainer simply not qualifying. All four spellings are read now.
+- **The two games answer "is this a big fight" in completely different places.** Red keeps an `ai_classes` registry of eighteen `OPP_*` records and hands it to `TrainerAI.classFor`. Gold has no such registry for its own roster: it carries `Battle.GYM_LEADER_CLASSES` and tests it with `Battle.isGymLeader`. A mod's `require` is not redirected on a Gold boot, so asking for the Gen 1 module there loads real code that reads a table Gold never fills -- every Johto gym leader would have come back ordinary and rolled its one-in-four like a bug catcher. Each game is now asked its own question.
+
+## 0.67.0
+
+### Added
+
+- **Enemy trainers now reach for a gimmick of their own, once you can too.** Every transformation this mod adds was the player's alone: a trainer with a Key Stone could mega evolve their ace and the gym leader across from them never did, which made the whole mod a difficulty reduction and left the big fights playing exactly as they had before it was installed. The new TRAINER GIMMICKS option -- on by default -- gives the enemy's strongest Pokemon one, and the gate is the item already in your own bag. `src/keyitems.lua` models the outer tier the real games use, so holding the Key Stone is what unlocks your access; it now unlocks theirs at the same moment. Nothing new is tracked, the gate is per gimmick rather than global, and it moves on its own if those items are ever sold somewhere else.
+- **Which trainers is the engine's own opinion rather than a list kept here.** `data/scripts/ai_classes.lua` holds eighteen records -- seven Kanto gym leaders and Giovanni, the Elite Four, Rivals 2 and 3, and four tough ordinary classes -- and exists because those trainers get smarter move choice and item use. A trainer with one always qualifies; everybody else rolls one in four. Reusing that registry means the tier tracks whatever the engine adds and costs nothing to maintain.
+- **The pick is seeded from the trainer, not rolled, and that is deliberate.** Availability is very uneven -- Tera and Dynamax apply to every species, mega evolution to 86 -- and the Kanto gym aces are precisely the species with famous megas, so a straight "best fit" would have turned every important fight into a mega evolution. Instead the choice is a weighted roll over what that Pokemon can actually do, seeded from the trainer's own id: Brock always megas, Blaine always reaches for the same thing. A hard fight that does something different on every attempt is arbitrary; one that always does the same thing can be learned. The variation lands across the roster rather than within a single trainer. The same seed picks between a species' two megas, so a given trainer's Charizard is always the same one.
+- **The enemy's ace is not required to hold a stone.** Engine trainer parties are the ROM's own data and carry no mod items, so requiring a real Mega Stone would have meant the feature never firing. The trainer-side item is the whole requirement, and the reading is that a trainer who owns a Key Stone equipped their ace before the battle.
+
+### Fixed
+
+- **The enemy's gimmick can never spend the player's.** `src/arm.lua` holds ONE once-per-battle flag for the battle rather than one per side, so routing an enemy activation through it would have taken the player's allowance with it -- they arm their mega, the gym leader moves first, and their own cell is dead for the rest of the fight with nothing said. The new module keeps its own flag and never calls an entry's `activate()`, which is meant to run at `battle.turn_started` where `src/resolve.lua` pairs it with `consume`. A refused form change does not spend either flag, the same rule the player's path already keeps.
+
+### Notes
+
+- This first slice is **mega evolution only**, and the reason is not obvious from the outside: of the four gimmicks, three keep single-slot per-battle state. `zmoves.new()`, `tera.new()` and `dynamax.new()` each return one record for the whole battle plus one shared move-substitution object, so an enemy activation landing after the player's would overwrite that slot and silently unwind theirs -- and tera's teardown additionally reaches a global Stellar table that a second instance would not dodge. Mega evolution keeps nothing: it writes a form onto the Pokemon and its internals already take a battler. Widening that state from one side to two is a real refactor across three files and is worth doing on its own rather than underneath a new feature. The data block carries the other three rows, commented with their reason, and a test pins their absence so re-enabling one is a deliberate act.
+
 ## 0.66.0
 
 ### Added

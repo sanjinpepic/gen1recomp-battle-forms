@@ -97,6 +97,14 @@ return function(mod)
     -- still worth having for testing a matchup deliberately.
     { key = "tera_type", label = "TERA TYPE", type = "choice",
       default = "auto", choices = TERA_CHOICES },
+    -- Enemy trainers reaching for a gimmick of their own, once the player
+    -- holds its key item -- see src/trainerai.lua for the gate, the tier and
+    -- why the pick is seeded from the trainer rather than rolled.  ON by
+    -- default: without it every transformation this mod adds makes the game
+    -- easier and none of them ever makes it harder.
+    { key = "trainer_ai", label = "TRAINER GIMMICKS", type = "choice",
+      default = "on",
+      choices = { { "ON", "on" }, { "OFF", "off" } } },
     -- diagnostic: records why the menu cell and primal reversion did or did
     -- not happen, into mod storage (src/diag.lua).  Off unless a bug is being
     -- chased -- it answers questions a player never has.
@@ -122,6 +130,7 @@ return function(mod)
                   "src/fusionanim.lua",
                   "src/ultraburst.lua",
                   "src/conditional.lua", "src/diag.lua",
+                  "src/trainerai.lua",
                   "src/anim.lua", "src/announce.lua", "src/adopt.lua",
                   "src/overlay.lua", "src/formmenu.lua", "src/menu.lua", "src/boxmark.lua",
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
@@ -645,7 +654,19 @@ return function(mod)
                    return gmaxmoves.picker(gmaxCatalog, data, mon)
                  end })
   local dynamaxState = dynamax.new()
+  -- The enemy's own, and a SEPARATE INSTANCE rather than a second slot in
+  -- the player's: every one of these states is passed to its handlers as a
+  -- parameter and captured nowhere, so two instances need no change inside
+  -- the mechanics at all.  The registry entry below still gets the player's
+  -- -- only the player's side reaches the menu.
+  local enemyDynamaxState = dynamax.new()
+  local dynamaxStates = { dynamaxState, enemyDynamaxState }
   local dynaOk, dynaWhy = registry:register(dynamax.entry(dynamaxState))
+  -- The same mechanic against the enemy's own state, NOT registered: only
+  -- the player's side reaches the menu. src/trainerai.lua calls this one
+  -- directly, so the enemy's activation runs the mechanic's real code
+  -- rather than a second copy of it that could drift.
+  local enemyDynamaxEntry = dynamax.entry(enemyDynamaxState)
   if not dynaOk then
     mod.log:error("battle_forms: Dynamax was refused a place on the battle "
       .. "menu (%s) -- the cell falls back to mega evolution alone",
@@ -661,7 +682,7 @@ return function(mod)
   -- battlerof reads ctx.target on either payload shape with no `gen2` branch
   -- needed at that one hook; gen2 decides only the draw path and the OHKO
   -- gate, which genuinely differ (src/hpscale.lua's own header).
-  m["src/hpscale.lua"].install(mod, dynamaxState, battlerof, gen2,
+  m["src/hpscale.lua"].install(mod, dynamaxStates, battlerof, gen2,
     m["src/dynamaxlevel.lua"])
   -- Gold only, and gated the same way every other Gold-only class patch in
   -- this file is: it wraps src.ui.gen2.BattleState, a class Red never draws
@@ -675,7 +696,7 @@ return function(mod)
   -- so a future enemy Dynamax (a second, symmetric state Gold does not have
   -- yet) is one more entry here rather than a change to that module.
   if gen2 then
-    m["src/gen2dynamaxgrow.lua"].install(mod, { dynamaxState })
+    m["src/gen2dynamaxgrow.lua"].install(mod, dynamaxStates)
   end
 
   -- The third entry, and the first that is not a form change at all: it
@@ -756,12 +777,15 @@ return function(mod)
   mod.events:on("save.created", terashop.onSaveReady)
   mod.events:on("save.loaded", terashop.onSaveReady)
   local teraState = tera.new()
+  local enemyTeraState = tera.new()
+  local teraStates = { teraState, enemyTeraState }
   -- The only thing on screen that says a Terastallization is standing. Built
   -- on battle.overlay, the same draw-only seam src/hpscale.lua paints the
   -- scaled Dynamax HP through -- see src/teraview.lua's own header for the
   -- slot and why the name row was rejected.
-  m["src/teraview.lua"].install(mod, teraState, gen2)
+  m["src/teraview.lua"].install(mod, teraStates, gen2)
   local teraOk, teraWhy = registry:register(tera.entry(teraState, teraBlastCatalog))
+  local enemyTeraEntry = tera.entry(enemyTeraState, teraBlastCatalog)
   if not teraOk then
     mod.log:error("battle_forms: Terastallization was refused a place on the "
       .. "battle menu (%s) -- the cell keeps the transformations that did "
@@ -801,8 +825,11 @@ return function(mod)
                 gen2 = gen2, gen2substitute = m["src/gen2substitute.lua"] })
   local zCatalog = zmoves.install(mod, zrows)
   local zState = zmoves.new()
+  local enemyZState = zmoves.new()
+  local zStates = { zState, enemyZState }
   local zOk, zWhy = registry:register(
     zmoves.entry(zState, zCatalog, speciesZCatalog))
+  local enemyZEntry = zmoves.entry(enemyZState, zCatalog, speciesZCatalog)
   if not zOk then
     mod.log:error("battle_forms: Z-Moves were refused a place on the battle "
       .. "menu (%s) -- the cell keeps the transformations that did register",
@@ -1171,9 +1198,80 @@ return function(mod)
     if not ok then diag.fault(what, err) end
   end
 
+  -- Enemy trainers reaching for a gimmick of their own.  Bound with the form
+  -- engines rather than the registry: it never touches a registry entry, for
+  -- the reason src/trainerai.lua's header gives -- an entry's activate() is
+  -- paired with arm.lua's consume(), which holds ONE flag for the battle.
+  local trainerai = m["src/trainerai.lua"]
+  trainerai.bind({ megas = megas, eligibility = m["src/eligibility.lua"],
+                   forms = m["src/forms.lua"], gen2forms = gen2forms,
+                   battlerof = battlerof, keyitems = keyitems,
+                   announce = announce, teratype = m["src/teratype.lua"],
+                   zrows = zrows,
+                   entries = { tera = enemyTeraEntry,
+                               dynamax = enemyDynamaxEntry,
+                               zmove = enemyZEntry },
+                   gen2 = gen2, log = mod.log })
+  local aiState = trainerai.newState()
+
+  -- Whether the ENGINE gave this trainer an AI class, which is its own
+  -- statement that the fight is meant to be hard -- eighteen records covering
+  -- the gym leaders, the Elite Four, the rivals and four tough ordinary
+  -- classes.  Reused rather than a list of trainer names kept here, so the
+  -- tier tracks whatever the engine adds.  pcall'd and require'd lazily: a
+  -- build without that registry must cost the tier, never the turn.
+  -- Each game answers this its OWN way, and asking the wrong one is silent.
+  -- Red keeps an ai_classes registry of eighteen OPP_* records and hands it to
+  -- TrainerAI.classFor.  Gold has no such registry for its own roster; it
+  -- carries Battle.GYM_LEADER_CLASSES and tests it with Battle.isGymLeader.
+  -- A mod's require is NOT redirected on a Gold boot, so asking for the Gen 1
+  -- module there would load real code that reads a table Gold never fills --
+  -- every gym leader would come back ordinary and roll like a bug catcher.
+  local function trainerAiClass(ev)
+    local battle = ev and ev.battle
+    -- `kind` is Red's field and Gold has none; see src/trainerai.lua's own
+    -- note. The trainer record is what both games agree on.
+    if not battle or not battle.trainer then return false end
+    if battle.kind ~= nil and battle.kind ~= "trainer" then return false end
+    local trainer = battle.trainer
+    if gen2 then
+      local ok, Gen2Battle = pcall(require, "src.battle.gen2.Battle")
+      if ok and type(Gen2Battle) == "table" and Gen2Battle.isGymLeader then
+        -- Gold hands the battle the INNER trainer record -- the one keyed
+        -- KAREN1 under the KAREN class (Pokegear.lua's own
+        -- `class.trainers[1]`) -- so `class` is frequently absent and the id
+        -- carries a trailing member number. Both spellings are tried, and the
+        -- id has its number stripped, or every gym leader on Gold reads as an
+        -- ordinary trainer and rolls its one-in-four like a bug catcher.
+        local candidates = { trainer and trainer.class,
+                             trainer and trainer.classId }
+        local id = trainer and trainer.id
+        if type(id) == "string" then
+          candidates[#candidates + 1] = id
+          candidates[#candidates + 1] = (id:gsub("%d+$", ""))
+        end
+        for _, candidate in ipairs(candidates) do
+          local okLeader, isLeader = pcall(Gen2Battle.isGymLeader, candidate)
+          if okLeader and isLeader then return true end
+        end
+      end
+      return false
+    end
+    local ok, TrainerAI = pcall(require, "src.battle.TrainerAI")
+    if ok and type(TrainerAI) == "table" and TrainerAI.classFor then
+      local okClass, class = pcall(TrainerAI.classFor, battle)
+      if okClass then return class ~= nil end
+    end
+    return false
+  end
+
   mod.events:on("battle.started", function(ev)
     diag.reached("battle.started", ev)
     run("arm.onBattleStarted", function() state:onBattleStarted(ev) end)
+    -- A fresh flag per battle: the enemy's gimmick is once per FIGHT, and a
+    -- flag carried out of the last one would silently deny the next trainer
+    -- theirs.
+    aiState = trainerai.newState()
     -- Ahead of every mechanic below: a mon.form claim belonging to a
     -- DIFFERENT species than the one carrying it -- state a save editor can
     -- produce that this mod's own mechanics never would (src/resolve.lua's
@@ -1200,10 +1298,10 @@ return function(mod)
     run("persistent.onBattleStarted", function() persistent.onBattleStarted(ev) end)
     run("primal.onBattleStarted", function() primal.onBattleStarted(ev) end)
     run("conditional.onBattleStarted", function() conditional.onBattleStarted(ev) end)
-    run("dynamax.onBattleStarted", function() dynamax.onBattleStarted(dynamaxState) end)
-    run("tera.onBattleStarted", function() tera.onBattleStarted(teraState) end)
+    run("dynamax.onBattleStarted", function() for _, st in ipairs(dynamaxStates) do dynamax.onBattleStarted(st) end end)
+    run("tera.onBattleStarted", function() for _, st in ipairs(teraStates) do tera.onBattleStarted(st) end end)
     run("maxmoves.onBattleStarted", function() maxmoves.onBattleStarted(guardState) end)
-    run("zmoves.onBattleStarted", function() zmoves.onBattleStarted(zState) end)
+    run("zmoves.onBattleStarted", function() for _, st in ipairs(zStates) do zmoves.onBattleStarted(st) end end)
     -- Ultra Burst never auto-transforms on a send-out -- it is manual, like
     -- mega evolution -- so this only drops a stale mon reference a previous
     -- battle (or an adoption) might have left behind.
@@ -1212,6 +1310,16 @@ return function(mod)
   mod.events:on("battle.turn_started", function(ev)
     diag.reached("battle.turn_started", ev)
     run("resolve.onTurnStarted", function() resolve.onTurnStarted(state, ev) end)
+    -- The enemy's own, AFTER the player's and through its own state: the two
+    -- must not share the once-per-battle flag (src/trainerai.lua's header on
+    -- what routing this through arm.lua would spend).  `run` so a fault here
+    -- costs the trainer their gimmick and never the turn.
+    run("trainerai.onTurnStarted", function()
+      trainerai.onTurnStarted(aiState, ev, {
+        enabled = mod.options:get("trainer_ai") ~= "off",
+        hasAiClass = trainerAiClass(ev),
+      })
+    end)
   end)
   mod.events:on("battle.battler_switched", function(ev)
     diag.reached("battle.battler_switched", ev)
@@ -1230,7 +1338,7 @@ return function(mod)
     -- one arriving), so the two never touch the same mon -- but a Dynamax
     -- ending has to clear mon.form before any later handler asks what form the
     -- mon is wearing.
-    run("dynamax.onBattlerSwitched", function() dynamax.onBattlerSwitched(dynamaxState, ev) end)
+    run("dynamax.onBattlerSwitched", function() for _, st in ipairs(dynamaxStates) do dynamax.onBattlerSwitched(st, ev) end end)
     -- Beside Dynamax's rather than beside resolve's mega path above: Necrozma
     -- is never in data/megas.lua, so resolve's own switch-in reapply has
     -- nothing to say about it and this mechanic has to reapply Ultra Necrozma's
@@ -1250,8 +1358,8 @@ return function(mod)
     -- LEFT -- because a Z-Move armed on one Pokemon does not follow another one
     -- in.  Before the Terastallization below only because that one is the
     -- outermost state there is and stays last.
-    run("zmoves.onBattlerSwitched", function() zmoves.onBattlerSwitched(zState, ev) end)
-    run("tera.onBattlerSwitched", function() tera.onBattlerSwitched(teraState, ev) end)
+    run("zmoves.onBattlerSwitched", function() for _, st in ipairs(zStates) do zmoves.onBattlerSwitched(st, ev) end end)
+    run("tera.onBattlerSwitched", function() for _, st in ipairs(teraStates) do tera.onBattlerSwitched(st, ev) end end)
   end)
   -- Subscribing is also what makes these three fire at all: the engine builds
   -- their payloads behind a Runtime.wants check on the exact event name, so an
@@ -1262,7 +1370,7 @@ return function(mod)
     -- The only handler in this mod that reads which move was actually run.  It
     -- marks rather than acts: the move's effect and damage are still ahead of
     -- this event, and the substituted array has to stand until they are done.
-    run("zmoves.onMoveUsed", function() zmoves.onMoveUsed(zState, ev) end)
+    run("zmoves.onMoveUsed", function() for _, st in ipairs(zStates) do zmoves.onMoveUsed(st, ev) end end)
   end)
   mod.events:on("battle.damage_dealt", function(ev)
     diag.reached("battle.damage_dealt", ev)
@@ -1285,7 +1393,7 @@ return function(mod)
   mod.events:on("battle.turn_ended", function(ev)
     diag.reached("battle.turn_ended", ev)
     run("conditional.onTurnEnded", function() conditional.onTurnEnded(ev) end)
-    run("dynamax.onTurnEnded", function() dynamax.onTurnEnded(dynamaxState, ev) end)
+    run("dynamax.onTurnEnded", function() for _, st in ipairs(dynamaxStates) do dynamax.onTurnEnded(st, ev) end end)
     -- Max Guard's shield lasts the turn it went up.  Guarded on its own like
     -- everything beside it, which is what stops a throw above from leaving a
     -- Pokemon semi-invulnerable for the rest of the battle.
@@ -1293,14 +1401,14 @@ return function(mod)
     -- A Z-Move lasts the turn it was used on, which is the whole of "one move,
     -- once" -- and does nothing at all on a turn it was not used, where a
     -- Dynamax's clock would have ticked.
-    run("zmoves.onTurnEnded", function() zmoves.onTurnEnded(zState) end)
+    run("zmoves.onTurnEnded", function() for _, st in ipairs(zStates) do zmoves.onTurnEnded(st) end end)
   end)
   mod.events:on("battle.fainted", function(ev)
     diag.reached("battle.fainted", ev)
     run("resolve.onFainted", function() resolve.onFainted(ev) end)
-    run("dynamax.onFainted", function() dynamax.onFainted(dynamaxState, ev) end)
-    run("tera.onFainted", function() tera.onFainted(teraState, ev) end)
-    run("zmoves.onFainted", function() zmoves.onFainted(zState, ev) end)
+    run("dynamax.onFainted", function() for _, st in ipairs(dynamaxStates) do dynamax.onFainted(st, ev) end end)
+    run("tera.onFainted", function() for _, st in ipairs(teraStates) do tera.onFainted(st, ev) end end)
+    run("zmoves.onFainted", function() for _, st in ipairs(zStates) do zmoves.onFainted(st, ev) end end)
     -- After resolve's own faint handler, which has already reverted mon.form
     -- (and, since the mon is still fused, put its Dusk Mane or Dawn Wings
     -- suffix straight back through src/fusion.lua's settle) -- this only drops
@@ -1315,16 +1423,16 @@ return function(mod)
     -- the same two reasons: the sweep has already taken every form off, and
     -- what is left to drop is the mon reference, which must not outlive the
     -- battle that owned it.
-    run("dynamax.onBattleEnded", function() dynamax.onBattleEnded(dynamaxState) end)
+    run("dynamax.onBattleEnded", function() for _, st in ipairs(dynamaxStates) do dynamax.onBattleEnded(st) end end)
     -- Beside it, and for one reason of its own: this one has a battler to put
     -- back rather than a mon to strip, so it is given the event and not just
     -- the state.
-    run("tera.onBattleEnded", function() tera.onBattleEnded(teraState, ev) end)
+    run("tera.onBattleEnded", function() for _, st in ipairs(teraStates) do tera.onBattleEnded(st, ev) end end)
     run("maxmoves.onBattleEnded", function() maxmoves.onBattleEnded(guardState) end)
     -- Beside them, and for the reason Dynamax's is here: nothing swept the
     -- substituted array, and the battler it is holding must not outlive the
     -- battle that built it.
-    run("zmoves.onBattleEnded", function() zmoves.onBattleEnded(zState) end)
+    run("zmoves.onBattleEnded", function() for _, st in ipairs(zStates) do zmoves.onBattleEnded(st) end end)
     -- Beside them, for the reason Dynamax's is here: resolve's own party sweep
     -- above already reverted every mon.form (a still-fused Necrozma landing
     -- back on its Dusk Mane or Dawn Wings suffix), so this only drops the mon

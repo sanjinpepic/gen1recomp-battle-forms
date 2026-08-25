@@ -196,12 +196,17 @@ function M.new()
 end
 
 local function clear(state)
+  -- Captured BEFORE the slot is emptied: the Stellar table is keyed by
+  -- Pokemon now (src/stellar.lua), so clearing it needs to know whose is
+  -- being torn down. Clearing blind would take the OTHER side's Stellar
+  -- boosts with it -- which is exactly the collision that keying it fixed.
+  local was = state.mon
   state.mon, state.type, state.was = nil, nil, nil
   state.warned = false
   -- Safe to call blind, and it has to be: this runs on battle start as well as
   -- on every teardown, so a Stellar boost table left standing by a crash or an
   -- adopted battle cannot follow a Pokemon into the next fight.
-  if deps and deps.stellar then deps.stellar.clear() end
+  if deps and deps.stellar then deps.stellar.clear(was) end
   -- Safe to call blind, and it has to run here rather than only at the
   -- battler-specific teardown paths below: a battle starting mid-Tera (an
   -- adopted battle, or a state left standing by a crash) must not carry a

@@ -77,18 +77,39 @@ function M.bind(modules) deps = modules end
 -- `spent` is keyed by move type.  It lives here rather than on the mon because
 -- it is battle state -- a Pokemon that switches out and back has not got its
 -- boosts back, and a Pokemon in the next battle has.
-local state = { mon = nil, spent = nil }
+-- KEYED BY POKEMON, not a single slot, and the comment above used to say why
+-- it did not need to be: "only the player's side reaches the menu and there is
+-- one Terastallization a battle". Enemy trainers now terastallize too
+-- (src/trainerai.lua), so both sides can be Stellar at once -- and a single
+-- slot meant the second one silently took the first one's boosts away.
+--
+-- Weak keys: a Pokemon that never gets an explicit clear -- a battle that
+-- ended badly, a mon released from the party -- must not be held alive by this
+-- table for the rest of the process.
+local states = setmetatable({}, { __mode = "k" })
 
 function M.begin(mon)
-  state.mon, state.spent = mon, {}
+  if mon == nil then return end
+  states[mon] = {}
 end
 
-function M.clear()
-  state.mon, state.spent = nil, nil
+--- Clears one Pokemon's Stellar, or EVERY one when called with nothing.
+---
+--- Both arms are used and they are not interchangeable: a teardown clears the
+--- mon it is tearing down, while battle start clears the lot, because a state
+--- left standing by a crash or an adopted battle belongs to nobody and must
+--- not follow anyone into the next fight.
+function M.clear(mon)
+  if mon == nil then
+    for key in pairs(states) do states[key] = nil end
+    return
+  end
+  states[mon] = nil
 end
 
 function M.active(mon)
-  return state.mon ~= nil and (mon == nil or state.mon == mon)
+  if mon ~= nil then return states[mon] ~= nil end
+  return next(states) ~= nil
 end
 
 -- Whether this Pokemon would get ordinary STAB on this move type.
@@ -112,16 +133,17 @@ end
 -- decided not to apply it would be a caller that had already dealt the damage.
 -- The one call site is the hook below.
 function M.factor(user, mon, move)
-  if not state.mon or state.mon ~= mon then return 1 end
+  local spent = mon ~= nil and states[mon] or nil
+  if not spent then return 1 end
   if type(move) ~= "table" then return 1 end
   local moveType = move.type
   if type(moveType) ~= "string" or moveType == "" then return 1 end
   -- A move that deals no damage has nothing to boost, and spending the type's
   -- one boost on a status move would be a trap nobody could see.
   if not move.power or move.power <= 0 then return 1 end
-  if state.spent[moveType] then return 1 end
+  if spent[moveType] then return 1 end
 
-  state.spent[moveType] = true
+  spent[moveType] = true
   -- 2/1.5 where the engine already applied STAB; 1.2 where it applied nothing.
   return hasStab(user, moveType) and (4 / 3) or 1.2
 end

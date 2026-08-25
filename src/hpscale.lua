@@ -103,7 +103,30 @@ end
 -- at the battle.damage seam); scaling only ever applies when it is the one
 -- `state.mon` names, because only the player's own side can Dynamax here
 -- and there is never a second Dynamax to confuse it with.
+-- `state` may be ONE Dynamax state or a LIST of them.
+--
+-- The list spelling arrived with enemy trainers: the comment a few lines above
+-- used to say the scaling could trust one state "because only the player's own
+-- side can Dynamax here", and src/trainerai.lua made that false. Resolved by
+-- asking which state claims THIS Pokemon, so the enemy's Dynamax can never
+-- scale the player's HP bar or the other way round.
+--
+-- Answers nil when no state claims it, which every caller already treats as
+-- "leave this alone".
+local function forMon(state, mon)
+  if not state or not mon then return nil end
+  if state.mon == nil and state[1] ~= nil then
+    for _, one in ipairs(state) do
+      if one and one.mon == mon then return one end
+    end
+    return nil
+  end
+  if state.mon ~= mon then return nil end
+  return state
+end
+
 function M.scaleDamage(state, mon, dmg)
+  state = forMon(state, mon) or state
   if not mon or state.mon ~= mon then return dmg end
   local num, den = numeratorFor(mon)
   local total = dmg * den + (state.carry or 0)
@@ -120,12 +143,14 @@ end
 -- Both answer nil when `mon` is not the one currently Dynamaxed, which is
 -- the overlay's own signal to paint nothing.
 function M.displayedCurrent(state, mon)
+  state = forMon(state, mon) or state
   if not mon or state.mon ~= mon then return nil end
   local num, den = numeratorFor(mon)
   return math.floor((mon.hp * num - (state.carry or 0)) / den)
 end
 
 function M.displayedMax(state, mon)
+  state = forMon(state, mon) or state
   if not mon or state.mon ~= mon then return nil end
   local num, den = numeratorFor(mon)
   return math.floor(mon.stats.hp * num / den)

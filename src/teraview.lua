@@ -87,8 +87,21 @@ end
 -- What to paint for this mon, or nil.  Separated from the drawing for
 -- src/overlay.lua's own reason: a decision made inside a draw function is a
 -- decision that cannot be tested without a graphics context.
+--- `state` may be ONE state or a LIST of them, and both spellings are live:
+--- the player's side passes one, and the boot passes both sides' now that
+--- enemy trainers terastallize too (src/trainerai.lua). Resolved by asking
+--- which state claims THIS Pokemon, so a tag can never be painted from the
+--- other side's Terastallization.
 function M.tagFor(state, mon)
-  if not mon or not state or state.mon ~= mon then return nil end
+  if not mon or not state then return nil end
+  if state.mon == nil and state[1] ~= nil then
+    for _, one in ipairs(state) do
+      local tag = M.tagFor(one, mon)
+      if tag then return tag end
+    end
+    return nil
+  end
+  if state.mon ~= mon then return nil end
   return M.codeFor(state.type)
 end
 
