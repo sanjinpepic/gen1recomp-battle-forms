@@ -432,6 +432,12 @@ function M.install(mod)
     local out = {}
     local registry = deps and deps.transforms
     if not registry then return out end
+    -- Barred species answer an EMPTY list rather than rows a peer would offer
+    -- and this mod would then refuse -- src/eligibility.lua's NO_GIMMICKS.
+    local barredMon = deps.battlerof
+      and deps.battlerof.mon(battle and battle.player)
+    if deps.eligibility and deps.eligibility.barredFromGimmicks
+      and deps.eligibility.barredFromGimmicks(barredMon) then return out end
     for _, entry in ipairs(registry:all()) do
       local ok, available = pcall(entry.available, battle)
       out[#out + 1] = { id = entry.id, label = entry.label,

@@ -353,6 +353,10 @@ end
 function M.canDoFor(pokemon, trainerId, pokemonData)
   return function(mon, gimmickId)
     if not mon then return false end
+    -- The same bar the player's own cell keeps: a species that may never use a
+    -- transformation may not have one used FOR it either.
+    if deps and deps.eligibility and deps.eligibility.barredFromGimmicks
+      and deps.eligibility.barredFromGimmicks(mon) then return false end
     if gimmickId == "mega" then
       if not (deps and deps.megas) then return false end
       return M.megaFormFor(deps.megas, mon.species, pokemon, trainerId) ~= nil

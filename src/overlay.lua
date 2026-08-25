@@ -64,6 +64,15 @@ function M.offered(state, uiBattle)
   -- mechanic exempted from this one would still be held to, and it is what
   -- keeps a spent mega spent.
   if state:usedAny() then return out end
+  -- A species barred from every transformation never reaches the per-entry
+  -- questions at all: src/eligibility.lua's own NO_GIMMICKS, asked here, in
+  -- the outward-facing API and in the enemy trainer's choice, so a bar cannot
+  -- hold in one place and leak through another.
+  local barred = deps.eligibility and deps.eligibility.barredFromGimmicks
+  if barred and deps.battlerof
+    and barred(deps.battlerof.mon(battle and battle.player)) then
+    return out
+  end
   for _, entry in ipairs(deps.registry:all()) do
     if not state:used(entry.id) and entry.available(battle) then
       out[#out + 1] = entry

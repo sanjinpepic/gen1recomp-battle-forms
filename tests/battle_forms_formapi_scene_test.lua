@@ -140,4 +140,38 @@ Api.install({ exports = colon })
 T.eq(#colon:gimmicks(BATTLE), 2, "gimmicks survives a colon call")
 T.eq(colon:arm("mega"), true, "and so does arm")
 
+-- --- a species barred from every transformation ----------------------------
+-- Eternatus's Eternamax shape exists for one scripted fight and is not a
+-- Dynamax anybody performs. A caught Eternatus that could then Dynamax,
+-- Terastallize or hold a Z-Crystal would hand the player an ordinary route to
+-- a Pokemon whose whole characterisation is that the transformation is not
+-- theirs. The bar is asked in THREE places -- the player's own menu cell, this
+-- API, and the enemy trainer's choice -- so it cannot hold in one and leak
+-- through another.
+local Eligibility = dofile(MOD .. "/src/eligibility.lua")
+
+T.eq(Eligibility.barredFromGimmicks({ species = "ETERNATUS" }), true,
+  "the caught Pokemon is barred")
+T.eq(Eligibility.barredFromGimmicks(
+  { species = "ETERNATUS", form = "ETERNATUS_ETERNAMAX" }), true,
+  "and so is the battle-only shape")
+T.eq(Eligibility.barredFromGimmicks({ species = "CHARIZARD" }), false,
+  "an ordinary species is not")
+T.eq(Eligibility.barredFromGimmicks(nil), false, "and nothing is not a species")
+
+-- Through the API: a barred Pokemon answers an EMPTY list rather than rows a
+-- peer would offer and this mod would then refuse.
+local barredRegistry = Transforms.new()
+barredRegistry:register({ id = "mega", label = "MEGA",
+  available = function() return true end, activate = function() return true end })
+local barredExports = {}
+Api.bind({ transforms = barredRegistry, armState = armStateStub(),
+           eligibility = Eligibility,
+           battlerof = { mon = function(b) return b and b.mon end } })
+Api.install({ exports = barredExports })
+T.same(barredExports.gimmicks({ player = { mon = { species = "ETERNATUS" } } }), {},
+  "a barred Pokemon is offered nothing at all")
+T.eq(#barredExports.gimmicks({ player = { mon = { species = "PIKACHU" } } }), 1,
+  "where an ordinary one still gets its row")
+
 T.finish("battle_forms_formapi_scene")

@@ -21,6 +21,34 @@ local M = {}
 -- orbs stamp through it too.
 M.STAMP = "battleFormsStone"
 
+-- Species that may never use ANY of the trainer's transformations, whatever
+-- they are carrying.
+--
+-- Eternatus is the whole list and is a deliberate exception rather than a
+-- balance decision: its Eternamax shape exists for one scripted fight
+-- (wild_forms' own two-phase encounter) and is not a Dynamax anybody performs.
+-- A caught Eternatus that could then Dynamax, Terastallize or hold a Z-Crystal
+-- would be offering the player a second, ordinary route to a Pokemon whose
+-- entire characterisation is that its transformation is not available to them.
+--
+-- Keyed by species AND by form id, because both are asked: the caught
+-- Pokemon is ETERNATUS, and the battle-only shape is ETERNATUS_ETERNAMAX.
+M.NO_GIMMICKS = {
+  ETERNATUS = true,
+  ETERNATUS_ETERNAMAX = true,
+}
+
+--- Whether this Pokemon is barred from every manual transformation.
+---
+--- Asked at the three places that decide whether a gimmick is on offer -- the
+--- player's own menu cell, the outward-facing API, and the enemy trainer's
+--- choice -- so a bar cannot hold in one and leak through another.
+function M.barredFromGimmicks(mon)
+  if type(mon) ~= "table" then return false end
+  if mon.species and M.NO_GIMMICKS[mon.species] then return true end
+  return mon.form ~= nil and M.NO_GIMMICKS[mon.form] == true
+end
+
 function M.stoneOf(mon)
   return mon and mon[M.STAMP] or nil
 end

@@ -946,7 +946,8 @@ return function(mod)
   -- indicator until 0.2.1; both are gone because the menu cell says the same
   -- thing in the place the player is already looking.
   local overlay = m["src/overlay.lua"]
-  overlay.bind({ registry = registry })
+  overlay.bind({ registry = registry, eligibility = eligibility,
+                 battlerof = battlerof })
 
   -- The submenu the cell opens: shaped like the FIGHT menu's own move list,
   -- one row per transformation overlay.offered names right now.  Reads the
@@ -1093,6 +1094,7 @@ return function(mod)
                  dynamaxlevel = m["src/dynamaxlevel.lua"],
                  stellar = m["src/stellar.lua"],
                  transforms = registry, armState = state,
+                 eligibility = eligibility, battlerof = battlerof,
                  -- BOTH sides: describe() takes a mon rather than a side,
                  -- so a peer asking about the enemy's Terastallization
                  -- must get an answer as readily as about the player's.
@@ -1208,7 +1210,7 @@ return function(mod)
   -- the reason src/trainerai.lua's header gives -- an entry's activate() is
   -- paired with arm.lua's consume(), which holds ONE flag for the battle.
   local trainerai = m["src/trainerai.lua"]
-  trainerai.bind({ megas = megas, eligibility = m["src/eligibility.lua"],
+  trainerai.bind({ megas = megas, eligibility = eligibility,
                    forms = m["src/forms.lua"], gen2forms = gen2forms,
                    battlerof = battlerof, keyitems = keyitems,
                    announce = announce, teratype = m["src/teratype.lua"],

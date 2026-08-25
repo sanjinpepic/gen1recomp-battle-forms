@@ -3,6 +3,13 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.74.0
+
+### Added
+
+- **Eternatus can never use a transformation, and neither can its Eternamax shape.** That shape exists for one scripted fight -- wild_forms' own two-phase encounter -- and is not a Dynamax anybody performs. A caught Eternatus that could then Dynamax, Terastallize or hold a Z-Crystal would hand the player an ordinary route to a Pokemon whose whole characterisation is that the transformation is not theirs. `src/eligibility.lua` names the bar, keyed by species AND by form id because both get asked: the caught Pokemon is `ETERNATUS`, the battle-only shape is `ETERNATUS_ETERNAMAX`.
+- **The bar is asked in all three places that decide whether a gimmick is on offer** -- the player's own menu cell, the outward-facing API, and the enemy trainer's choice -- rather than inside the five mechanics. A rule enforced in one of those and not the others is a rule that holds until somebody uses the other door: the menu would refuse while a peer mod's Gimmicks button still offered it, or an enemy trainer used one on a Pokemon the player never could.
+
 ## 0.73.1
 
 ### Fixed
