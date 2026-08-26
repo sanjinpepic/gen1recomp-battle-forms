@@ -3,6 +3,20 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.75.0
+
+### Changed
+
+- **Items are called what they are called.** Every item this mod registers was named by machine -- `NORMALIUM_Z` rendered as "NORMALIUM Z", `TERA_SHARD_FIRE` as "TERA SHARD FIRE" -- across five registration sites and roughly two hundred items. The National Dex's item catalogue (0.31.0) now supplies the real ones: "Normalium Z", "Fire Tera Shard", "Charizardite X", "DNA Splicers".
+- **Twenty-nine mega stones deliberately keep the old name**, and that is the point of the exercise rather than a gap in it. Baxcaliburite, Glimmoraite, Barbaraclite and the rest are for megas that do not exist in the real games, so no catalogue has them and none ever will. A resolver that answered something anyway would be worse than the name it replaced: a wrong name that looks official is harder to spot than a shouty one. The same holds for the byteless TMs and the Stellar Tera Shard.
+- **Nothing is required.** No National Dex, a dex older than the catalogue, or an item it has never heard of, and the machine-derived name stands exactly as it always did.
+
+### Notes
+
+- **Translated on the way out, never renamed.** An item id here is not a label: `mon[eligibility.STAMP] = itemId` writes that exact string onto a Pokemon and persists it, so renaming `NORMALIUM_Z` to match PokeAPI would leave every stamped Pokemon in every existing save holding an item that no longer exists. `data/crystals.lua` already said this about the bag BYTES; the id string has the same property and had no comment saying so. It does now.
+- **Three rules rather than a table of two hundred rows.** PokeAPI splits one physical item into several records by function -- `electrium-z--held` and `--bag`, `n-solarizer--merge` and `--split` -- and puts a Tera Shard's words in the other order. Exact match is always tried first, because a suffix rule that fired ahead of it could answer with the bag form of an item whose held form is the real one, and both exist.
+- The dex handle is resolved once at load rather than per item: two hundred registrations happen in a row, and a lookup on each is two hundred lookups for one answer that cannot change in between.
+
 ## 0.74.0
 
 ### Added

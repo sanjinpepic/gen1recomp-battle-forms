@@ -23,6 +23,20 @@
 -- item alone.
 local M = {}
 
+-- How an item's name is written on the shelf and in the bag.
+--
+-- The machine-derived fallback -- NORMALIUM_Z becomes "NORMALIUM Z" -- which is
+-- legible and wrong: the item is called "Normalium Z". main.lua replaces this
+-- with a resolver that asks the National Dex for the real one
+-- (src/itemnames.lua), and leaves it alone when no dex is installed or the one
+-- present predates the item catalogue. A field rather than a bind argument
+-- because five call sites across four modules reach it from four different
+-- depths, and widening all of those to carry one string formatter would touch
+-- far more code than the formatting is worth.
+function M.displayName(itemId)
+  return (tostring(itemId):gsub("_", " "))
+end
+
 M.KEY_STONE = "KEY_STONE"
 M.DYNAMAX_BAND = "DYNAMAX_BAND"
 M.TERA_ORB = "TERA_ORB"
@@ -56,7 +70,7 @@ M.PRICE = 200
 local function record(itemId, index, gen2)
   return {
     id = itemId,
-    name = itemId:gsub("_", " "),
+    name = M.displayName(itemId),
     price = M.PRICE,
     -- No bag byte on Gold, and data/stones.lua holds the whole argument.  The
     -- short version: 196-199 are TM_ROAR, TM_TOXIC, TM_ZAP_CANNON and

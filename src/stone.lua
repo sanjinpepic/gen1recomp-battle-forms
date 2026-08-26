@@ -21,6 +21,20 @@
 -- unrepeatable.
 local M = {}
 
+-- How an item's name is written on the shelf and in the bag.
+--
+-- The machine-derived fallback -- NORMALIUM_Z becomes "NORMALIUM Z" -- which is
+-- legible and wrong: the item is called "Normalium Z". main.lua replaces this
+-- with a resolver that asks the National Dex for the real one
+-- (src/itemnames.lua), and leaves it alone when no dex is installed or the one
+-- present predates the item catalogue. A field rather than a bind argument
+-- because five call sites across four modules reach it from four different
+-- depths, and widening all of those to carry one string formatter would touch
+-- far more code than the formatting is worth.
+function M.displayName(itemId)
+  return (tostring(itemId):gsub("_", " "))
+end
+
 local eligibility = nil
 local persistent = nil
 local gen2 = nil
@@ -100,7 +114,7 @@ function M.items(pairings, indices)
       if index then
         out[itemId] = {
           id = itemId,
-          name = itemId:gsub("_", " "),
+          name = M.displayName(itemId),
           price = M.PRICE,
           -- No bag byte on Gold -- data/stones.lua holds the argument.  These
           -- run from 98 up, which is free on Red and entirely spoken for on
@@ -189,7 +203,7 @@ function M.installUnpaired(mod, itemIds, indices)
     else
       mod.content.items:register(itemId, {
         id = itemId,
-        name = itemId:gsub("_", " "),
+        name = M.displayName(itemId),
         price = M.PRICE,
         -- No bag byte on Gold, for the reason M.items above states.
         index = (not gen2) and index or nil,

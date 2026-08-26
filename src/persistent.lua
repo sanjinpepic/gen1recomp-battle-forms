@@ -78,6 +78,20 @@
 -- want the verb needs only its fieldMenu changed.
 local M = {}
 
+-- How an item's name is written on the shelf and in the bag.
+--
+-- The machine-derived fallback -- NORMALIUM_Z becomes "NORMALIUM Z" -- which is
+-- legible and wrong: the item is called "Normalium Z". main.lua replaces this
+-- with a resolver that asks the National Dex for the real one
+-- (src/itemnames.lua), and leaves it alone when no dex is installed or the one
+-- present predates the item catalogue. A field rather than a bind argument
+-- because five call sites across four modules reach it from four different
+-- depths, and widening all of those to carry one string formatter would touch
+-- far more code than the formatting is worth.
+function M.displayName(itemId)
+  return (tostring(itemId):gsub("_", " "))
+end
+
 local deps = nil
 
 function M.bind(modules) deps = modules end
@@ -415,7 +429,7 @@ function M.install(mod, rows, indices)
     else
       mod.content.items:register(itemId, {
         id = itemId,
-        name = itemId:gsub("_", " "),
+        name = M.displayName(itemId),
         price = deps.price,
         -- `false` is data/plates.lua's deliberate bytelessness; deps.gen2
         -- extends the same treatment to every one of these on Gold, where

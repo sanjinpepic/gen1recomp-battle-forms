@@ -114,7 +114,7 @@ return function(mod)
   })
 
   local names = { "src/battlerof.lua", "src/eligibility.lua", "src/forms.lua", "src/megaset.lua",
-                  "src/stone.lua", "src/keyitems.lua", "src/shop.lua",
+                  "src/stone.lua", "src/keyitems.lua", "src/shop.lua", "src/itemnames.lua",
                   "src/arm.lua",
                   "src/transforms.lua", "src/mega.lua", "src/dragonascent.lua",
                   "src/terablasttm.lua", "src/speciesbasemoves.lua",
@@ -598,6 +598,21 @@ return function(mod)
   -- transformation this pass wires for Gold -- src/mega.lua's own header on
   -- what the flag changes and what it deliberately still does not (Mega
   -- Rayquaza's own trigger, the announce/animation pair).
+  -- Every item this mod registers is named by machine -- NORMALIUM_Z becomes
+  -- "NORMALIUM Z" -- and the National Dex now carries the real name for every
+  -- one that exists in the games. Pointed at the dex here, before anything
+  -- registers, so the shelf and the bag show "Normalium Z" instead.
+  --
+  -- Nothing is required: with no dex, an older dex, or an item the catalogue
+  -- has never heard of -- the twenty-nine invented mega stones, the byteless
+  -- TMs, the Stellar shard -- the machine-derived name stands exactly as it
+  -- always did.
+  do
+    local pointed = m["src/itemnames.lua"].install(mod, m)
+    mod.log:info("battle_forms: item names resolved through the National Dex "
+      .. "for %d module(s)", pointed)
+  end
+
   local registered, why = registry:register(m["src/mega.lua"].entry({
     forms = m["src/forms.lua"], eligibility = eligibility, megas = megas,
     keyitems = keyitems, animId = anim.ID, announce = announce,
