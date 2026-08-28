@@ -3,6 +3,13 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.75.1
+
+### Fixed
+
+- **Gold's Max Move menu drew two names to a row and hid the cursor.** The redraw wiped at tile 2 -- the forget-move screen's column, not the FIGHT menu's tile 6 -- so the real name stayed put, the short name landed beside it, and the rectangle's left edge covered the cursor gutter at tile 5.
+- **Long names left a tail the wipe could not reach**: `RE` from G-MAX WILDFIRE, `M` from MAX AIRSTREAM. No width fixes that -- the name field ends at tile 18 and the box border is tile 19, which a fourteen-character name overruns. The short name is now swapped in before the vanilla draw and restored after, so the engine prints it itself and the module hard-codes no geometry.
+
 ## 0.75.0
 
 ### Changed

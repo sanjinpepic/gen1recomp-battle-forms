@@ -1,4 +1,4 @@
--- Gold's own equivalent of src/zmovemenu.lua: the FIGHT-menu redraw for a
+-- Gold's own equivalent of src/zmovemenu.lua: the FIGHT-menu names for a
 -- Dynamaxed Pokemon's substituted move ids, on the one class Gold draws its
 -- move list through.
 --
@@ -16,11 +16,15 @@
 -- wrap of the SAME two Gen 1 functions -- each guards itself, so neither
 -- wrap costs the other anything.
 --
--- WHAT CAN BE PROVEN WITHOUT LOVE2D is the wrap and the geometry constants,
--- never the pixel output -- the identical split src/zmovemenu.lua's own
--- suite states for the identical reason: the redraw only calls love.graphics
--- and Font. The engine class is stubbed into package.loaded, matching both
--- that file's and battle_forms_gen2menu_test.lua's own technique.
+-- WHAT CAN BE PROVEN WITHOUT LOVE2D.  The module no longer paints anything
+-- itself: it swaps `data.moves[id].name` for the short menu spelling, lets
+-- the vanilla draw print it, and puts the real name back.  That is testable
+-- to the letter without a graphics stack -- the stub records what the name
+-- READ AS from inside the vanilla call, which is exactly the thing the pixels
+-- used to only imply.  What is still out of reach is the engine's own
+-- geometry, and that is the point of the redesign: the old suite pinned four
+-- column constants, three of which turned out to be pinning a bug (see the
+-- module header's own account of tile 2 vs tile 6).
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
 local T = require("tests.modkit")
@@ -35,6 +39,7 @@ local NAMES = MaxMoves.menuNames(MAXROWS)
 for id, short in pairs(GMax.menuNames(GMAXROWS, MAXROWS)) do NAMES[id] = short end
 
 local OVERGROWTH_150 = MaxMoves.idFor("MAXOVERGROWTH", 150) -- menu name "OVERGROWTH"
+local GUARD = MaxMoves.PREFIX .. "MAXGUARD"                 -- menu name "MAX GUARD"
 
 local function fakeMod()
   local logged = {}
@@ -57,91 +62,151 @@ for _, name in ipairs({ "src.ui.gen2.BattleState", "src.render.Font" }) do
   savedLoaded[name] = package.loaded[name]
 end
 
-local function stubEngine()
-  local calls = { vanilla = 0, drawFont = {} }
+-- The vanilla draw, standing in for Chrome.printThrough: it reads each slot's
+-- name out of the move records the way BattleState.lua:3806-3808 does, so
+-- `calls.seen` is the list of strings the engine WOULD have printed.
+local function stubEngine(throws)
+  local calls = { vanilla = 0, seen = {} }
   local BattleState = {
-    drawPanel = function() calls.vanilla = calls.vanilla + 1 end,
-  }
-  local Font = {
-    draw = function(text, x, y)
-      calls.drawFont[#calls.drawFont + 1] = { text = text, x = x, y = y }
+    drawPanel = function(self)
+      calls.vanilla = calls.vanilla + 1
+      local seen = {}
+      local defs = self and self.game and self.game.data and self.game.data.moves
+      local moves = self and self.battle and self.battle.player
+        and self.battle.player.moves
+      if type(defs) == "table" and type(moves) == "table" then
+        for i, slot in ipairs(moves) do
+          local def = type(slot) == "table" and slot.id and defs[slot.id]
+          seen[i] = type(def) == "table" and def.name or nil
+        end
+      end
+      calls.seen[#calls.seen + 1] = seen
+      if throws then error("the draw threw") end
     end,
   }
   package.loaded["src.ui.gen2.BattleState"] = BattleState
-  package.loaded["src.render.Font"] = Font
-  return BattleState, Font, calls
+  return BattleState, calls
+end
+
+-- The two real names this mod registers that the old wipe could not cover:
+-- fourteen characters and thirteen, against a name field of thirteen tiles.
+local function fakeGame()
+  return { data = { moves = {
+    [OVERGROWTH_150] = { name = "MAX OVERGROWTH" },
+    [GUARD] = { name = "MAX GUARD" },
+    TACKLE = { name = "TACKLE" },
+    GROWL = { name = "GROWL" },
+  } } }
+end
+
+local function battleWith(game, ids)
+  local moves = {}
+  for i, id in ipairs(ids) do moves[i] = { id = id } end
+  return { phase = "moves", game = game,
+           battle = { player = { moves = moves } } }
 end
 
 love = love or _G.love
 
 -- ---------------------------------------------------------------------
--- Only a "moves" phase, and only a mapped slot, gets redrawn.
+-- Only a "moves" phase, and only a mapped slot, is renamed -- and the real
+-- name is back before the call returns.
 -- ---------------------------------------------------------------------
 do
-  local BattleState, _, calls = stubEngine()
+  local BattleState, calls = stubEngine()
   T.eq(Gen2MoveMenu.install(fakeMod(), NAMES), true, "precondition: install succeeds")
 
-  local battle = { phase = "moves",
-                   battle = { player = { moves = {
-                     { id = OVERGROWTH_150 }, { id = "TACKLE" },
-                   } } } }
+  local game = fakeGame()
+  local battle = battleWith(game, { OVERGROWTH_150, "TACKLE" })
   BattleState.drawPanel(battle)
-  T.eq(calls.vanilla, 1, "the vanilla drawPanel still ran first")
-  T.eq(#calls.drawFont, 1, "exactly the one substituted slot was redrawn")
-  T.eq(calls.drawFont[1].text, "OVERGROWTH", "with its own short name")
-  T.eq(calls.drawFont[1].x, 16, "at the name column's own pixel x (tile 2)")
-  T.eq(calls.drawFont[1].y, 104, "on slot 1's own row (tile 13)")
+  T.eq(calls.vanilla, 1, "the vanilla drawPanel ran")
+  T.eq(calls.seen[1][1], "OVERGROWTH", "the substituted slot read as its short name")
+  T.eq(calls.seen[1][2], "TACKLE", "and an unsubstituted slot was left alone")
+  T.eq(game.data.moves[OVERGROWTH_150].name, "MAX OVERGROWTH",
+    "the real name is restored the moment the draw returns -- battle text and "
+    .. "the save read this same field")
 
-  calls.drawFont = {}
   battle.phase = "menu"
   BattleState.drawPanel(battle)
-  T.eq(#calls.drawFont, 0, "outside the moves phase nothing is redrawn")
+  T.eq(calls.seen[2][1], "MAX OVERGROWTH", "outside the moves phase nothing is renamed")
 
-  calls.drawFont = {}
   battle.phase = "choose-forget"
   BattleState.drawPanel(battle)
-  T.eq(#calls.drawFont, 0,
+  T.eq(calls.seen[3][1], "MAX OVERGROWTH",
     "choose-forget is a different list (a level-up's own moves) and is left alone")
 end
 
 -- ---------------------------------------------------------------------
--- Four slots: one per row, at the identical geometry.
+-- Four slots, two of them substituted, each renamed independently.
 -- ---------------------------------------------------------------------
 do
-  local BattleState, _, calls = stubEngine()
+  local BattleState, calls = stubEngine()
   Gen2MoveMenu.install(fakeMod(), NAMES)
 
-  local battle = { phase = "moves",
-                   battle = { player = { moves = {
-                     { id = "TACKLE" }, { id = OVERGROWTH_150 },
-                     { id = "GROWL" },
-                     { id = MaxMoves.PREFIX .. "MAXGUARD" },
-                   } } } }
-  BattleState.drawPanel(battle)
-  T.eq(#calls.drawFont, 2, "two mapped slots, GUARD and OVERGROWTH")
-  T.eq(calls.drawFont[1].y, 104 + 1 * 8, "slot 2's own row")
-  T.eq(calls.drawFont[2].text, "MAX GUARD", "slot 4's own short name")
-  T.eq(calls.drawFont[2].y, 104 + 3 * 8, "slot 4's own row")
-  T.eq(calls.drawFont[2].x, 16, "the same x every row shares")
+  local game = fakeGame()
+  BattleState.drawPanel(
+    battleWith(game, { "TACKLE", OVERGROWTH_150, "GROWL", GUARD }))
+  local seen = calls.seen[1]
+  T.eq(seen[1], "TACKLE", "slot 1 untouched")
+  T.eq(seen[2], "OVERGROWTH", "slot 2 renamed")
+  T.eq(seen[3], "GROWL", "slot 3 untouched")
+  T.eq(seen[4], "MAX GUARD", "slot 4 renamed")
+  T.eq(game.data.moves[OVERGROWTH_150].name, "MAX OVERGROWTH", "slot 2 restored")
+  T.eq(game.data.moves[GUARD].name, "MAX GUARD", "slot 4 restored")
+end
+
+-- ---------------------------------------------------------------------
+-- Two slots sharing ONE record: Charizard's Fire moves all substitute to the
+-- same G-MAX WILDFIRE id, so the same table is visited twice.  The undo list
+-- must not restore the menu spelling over the real name.
+-- ---------------------------------------------------------------------
+do
+  local BattleState, calls = stubEngine()
+  Gen2MoveMenu.install(fakeMod(), NAMES)
+
+  local game = fakeGame()
+  BattleState.drawPanel(battleWith(game, { OVERGROWTH_150, OVERGROWTH_150 }))
+  T.eq(calls.seen[1][1], "OVERGROWTH", "both slots read as the short name")
+  T.eq(calls.seen[1][2], "OVERGROWTH", "including the second visit to that record")
+  T.eq(game.data.moves[OVERGROWTH_150].name, "MAX OVERGROWTH",
+    "and the shared record is restored ONCE, to the real name")
+end
+
+-- ---------------------------------------------------------------------
+-- A throwing draw still restores.  A name left swapped would follow the move
+-- into battle text and onto the save.
+-- ---------------------------------------------------------------------
+do
+  local BattleState = stubEngine(true)
+  Gen2MoveMenu.install(fakeMod(), NAMES)
+
+  local game = fakeGame()
+  local ok = pcall(BattleState.drawPanel, battleWith(game, { OVERGROWTH_150 }))
+  T.check(not ok, "the draw's own error is not swallowed")
+  T.eq(game.data.moves[OVERGROWTH_150].name, "MAX OVERGROWTH",
+    "and the name was put back on the way out")
 end
 
 -- ---------------------------------------------------------------------
 -- Malformed input never crashes the wrapped draw.
 -- ---------------------------------------------------------------------
 do
-  local BattleState, _, calls = stubEngine()
+  local BattleState = stubEngine()
   Gen2MoveMenu.install(fakeMod(), NAMES)
 
-  local ok1 = pcall(BattleState.drawPanel, { phase = "moves" })
-  T.check(ok1, "no battle at all does not throw")
-
-  local ok2 = pcall(BattleState.drawPanel, { phase = "moves", battle = {} })
-  T.check(ok2, "a battle with no player does not throw")
-
-  local ok3 = pcall(BattleState.drawPanel,
-    { phase = "moves", battle = { player = { moves = { "not a table" } } } })
-  T.check(ok3, "a slot that is not a table does not throw")
-  T.eq(#calls.drawFont, 0, "and nothing was drawn for any of it")
+  T.check(pcall(BattleState.drawPanel, { phase = "moves" }),
+    "no battle and no game at all does not throw")
+  T.check(pcall(BattleState.drawPanel, { phase = "moves", battle = {} }),
+    "a battle with no player does not throw")
+  T.check(pcall(BattleState.drawPanel, { phase = "moves", game = fakeGame(),
+    battle = { player = { moves = { "not a table" } } } }),
+    "a slot that is not a table does not throw")
+  T.check(pcall(BattleState.drawPanel, { phase = "moves", game = { data = {} },
+    battle = { player = { moves = { { id = OVERGROWTH_150 } } } } }),
+    "a game carrying no move records does not throw")
+  T.check(pcall(BattleState.drawPanel, { phase = "moves", game = fakeGame(),
+    battle = { player = { moves = { { id = "NOSUCHMOVE" } } } } }),
+    "a slot naming a move with no record does not throw")
 end
 
 -- ---------------------------------------------------------------------
@@ -165,7 +230,7 @@ end
 -- both reach the class, each guarded by its own flag.
 -- ---------------------------------------------------------------------
 do
-  local BattleState, _, calls = stubEngine()
+  local BattleState, calls = stubEngine()
   local Gen2Menu = dofile(MOD .. "/src/gen2menu.lua")
   local Overlay = dofile(MOD .. "/src/overlay.lua")
   local Formmenu = dofile(MOD .. "/src/formmenu.lua")
@@ -185,11 +250,11 @@ do
   T.check(BattleState._battleFormsGen2MoveMenuPatched == true,
     "and this module's own, DIFFERENT flag is set too")
 
-  local battle = { phase = "moves",
-                   battle = { player = { moves = { { id = OVERGROWTH_150 } } } } }
-  BattleState.drawPanel(battle)
+  local game = fakeGame()
+  BattleState.drawPanel(battleWith(game, { OVERGROWTH_150 }))
   T.eq(calls.vanilla, 1, "the real vanilla still ran exactly once through both wraps")
-  T.eq(#calls.drawFont, 1, "and this module's own redraw still ran through the stack")
+  T.eq(calls.seen[1][1], "OVERGROWTH",
+    "and this module's own swap still reached it through the stack")
 end
 
 -- ---------------------------------------------------------------------
@@ -215,49 +280,43 @@ do
 end
 
 -- ---------------------------------------------------------------------
--- Font missing costs the redraw its text without costing the wrap.
--- ---------------------------------------------------------------------
-do
-  local BattleState, _, calls = stubEngine()
-  package.loaded["src.render.Font"] = nil
-  package.preload["src.render.Font"] = function() error("no font module") end
-  local mod = fakeMod()
-  T.eq(Gen2MoveMenu.install(mod, NAMES), true,
-    "install still succeeds without a Font to draw through")
-  local ok = pcall(BattleState.drawPanel,
-    { phase = "moves", battle = { player = { moves = { { id = OVERGROWTH_150 } } } } })
-  T.check(ok, "and the wrapped draw does not throw reaching for one")
-  package.preload["src.render.Font"] = nil
-end
-
--- ---------------------------------------------------------------------
 -- An empty or missing name map is survivable.
 -- ---------------------------------------------------------------------
 do
-  local BattleState, _, calls = stubEngine()
+  local BattleState, calls = stubEngine()
   T.eq(Gen2MoveMenu.install(fakeMod(), nil), true, "a nil map still installs")
-  BattleState.drawPanel(
-    { phase = "moves", battle = { player = { moves = { { id = OVERGROWTH_150 } } } } })
-  T.eq(#calls.drawFont, 0, "and redraws nothing without a map")
+  local game = fakeGame()
+  BattleState.drawPanel(battleWith(game, { OVERGROWTH_150 }))
+  T.eq(calls.seen[1][1], "MAX OVERGROWTH", "and renames nothing without a map")
 end
 
 -- ---------------------------------------------------------------------
--- Geometry: derived and pinned, not assumed. The name column starts at
--- pixel 16 (Chrome's own tile 2, matching the vanilla name draw at
--- game/src/ui/gen2/BattleState.lua:3414's `Chrome.print(..., 2, ty)`), and
--- the wipe stops at pixel 112 -- short of pixel 152 (tile 19), where
--- Chrome.printRight right-aligns the PP text (BattleState.lua:3415) even
--- at its own worst case ("40/40", 5 monospace characters, 40px) -- so the
--- wipe can never eat into a PP reading the vanilla draw already painted
--- correctly moments before.
+-- The names this mod ships are what made a wipe unworkable, and the reason
+-- is worth keeping in front of whoever edits data/gmaxmoves.lua next: the
+-- FIGHT menu's name field is tiles 6-18 (Chrome.box(4, 12, 16, 6) counts its
+-- own border, so tile 19 IS the border), thirteen columns.  The `menu`
+-- spellings fit that; several real `name` values do not, and the engine
+-- prints them straight over the border.  Swapping the name means only the
+-- short one is ever drawn, so the overrun stops being reachable.
 -- ---------------------------------------------------------------------
 do
-  T.eq(Gen2MoveMenu.NAME_X, 16, "the name column's own pixel x")
-  T.eq(Gen2MoveMenu.NAME_WIPE_W, 96, "96px = 12 monospace columns, Gold's own budget")
-  T.eq(Gen2MoveMenu.NAME_X + Gen2MoveMenu.NAME_WIPE_W, 112,
-    "which stops 40px short of pixel 152, the worst-case PP field's own left edge")
-  T.eq(Gen2MoveMenu.ROW_Y0, 104, "the first row's own pixel y (tile 13)")
-  T.eq(Gen2MoveMenu.ROW_STEP, 8, "one tile per row")
+  local NAME_FIELD_TILES = 13
+  local overrunning = {}
+  for _, row in ipairs(GMAXROWS) do
+    if type(row) == "table" and type(row.name) == "string"
+        and #row.name > NAME_FIELD_TILES then
+      overrunning[#overrunning + 1] = row.name
+    end
+  end
+  T.check(#overrunning > 0,
+    "at least one shipped name overruns the field -- G-MAX WILDFIRE is 14 "
+    .. "characters, which is what left 'RE' standing past the old wipe")
+
+  local menus = GMax.menuNames(GMAXROWS, MAXROWS)
+  local longest = 0
+  for _, short in pairs(menus) do longest = math.max(longest, #short) end
+  T.check(longest <= NAME_FIELD_TILES,
+    "and every menu spelling fits the field it is drawn into")
 end
 
 for name, value in pairs(savedLoaded) do package.loaded[name] = value end

@@ -1186,11 +1186,11 @@ return function(mod)
   -- 1's own zMenuNames merge above) plus zMenuNames itself, which by this
   -- point already carries the G-Max names, the eighteen type Z-Move names
   -- and the fourteen species Z-Move names merged together above -- reused
-  -- rather than rebuilt a second time, since Gold's own 96px/12-column
-  -- budget (src/gen2movemenu.lua's own header) is the identical budget
-  -- those two rosters' `menu` fields were already built and boundary-tested
-  -- against for Gen 1's widescreen layout, so no second, Gold-specific
-  -- roster is needed. Gen 1 only -- there is no src.ui.gen2.BattleState on
+  -- rather than rebuilt a second time, since Gold's own name field (tiles
+  -- 6-18 of a Chrome.box that counts its border, thirteen columns) is no
+  -- narrower than the widescreen budget those two rosters' `menu` fields
+  -- were already built and boundary-tested against, so no second,
+  -- Gold-specific roster is needed. Gen 1 only -- there is no src.ui.gen2.BattleState on
   -- that boot to patch.
   if gen2 then
     local gen2MenuNames = maxmoves.menuNames(m["data/maxmoves.lua"])
