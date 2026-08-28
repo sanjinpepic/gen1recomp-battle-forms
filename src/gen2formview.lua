@@ -35,7 +35,16 @@
 -- exist to answer the same question about the same two mechanics
 -- (src/persistent.lua, src/fusion.lua) for a screen the other generation
 -- happens to draw differently.
-local Mon = require("src.battle.gen2.Mon")
+-- Required on first use, for the reason src/gen2forms.lua's own copy of this
+-- states at length: a Gen 2 engine require is denied under a Gen 1 game
+-- (game/src/mods/Loader.lua:124-133), and at file scope that denial takes the
+-- whole module down and logs an error on every Red boot, for a screen Red
+-- draws through src/formview.lua instead.
+local Mon
+local function monStats(...)
+  Mon = Mon or require("src.battle.gen2.Mon")
+  return Mon.stats(...)
+end
 
 local M = {}
 
@@ -97,7 +106,7 @@ function M.resolve(data, mon)
   end
   return {
     types = formDef.types,
-    stats = Mon.stats(formDef.baseStats, mon.dvs, mon.level, mon.statExp),
+    stats = monStats(formDef.baseStats, mon.dvs, mon.level, mon.statExp),
   }
 end
 

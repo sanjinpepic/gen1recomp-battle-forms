@@ -52,7 +52,19 @@
 -- `mon.formTypes` only when that field is set, so every OTHER field a future
 -- call site might read (name, baseStats, growthRate, ...) still answers with
 -- the real species' own truth.
-local Mon = require("src.battle.gen2.Mon")
+-- Required on first use rather than at file scope.  The mod loader denies a
+-- Gen 2 engine require under a Gen 1 game (game/src/mods/Loader.lua:124-133),
+-- and at file scope that denial takes the WHOLE module down: main.lua loads
+-- this file from one flat list for both generations, so every Red boot logged
+-- an error for a module Red was never going to call into -- noise on top of
+-- every other diagnosis, in the mod's own suites as much as in a real game.
+-- Deferred, the require happens on the first Gen 2 stat calculation and never
+-- happens on Red at all.
+local Mon
+local function monStats(...)
+  Mon = Mon or require("src.battle.gen2.Mon")
+  return Mon.stats(...)
+end
 
 local M = {}
 
@@ -97,7 +109,7 @@ function M.becomeForm(data, mon, formId)
   end
   if type(formDef.baseStats) ~= "table" then return nil, "no_base_stats" end
 
-  local computed = Mon.stats(formDef.baseStats, mon.dvs, mon.level, mon.statExp)
+  local computed = monStats(formDef.baseStats, mon.dvs, mon.level, mon.statExp)
   applyStats(mon, computed)
   mon.form = formDef.form
   -- Read by M.install's speciesDef wrap; nil on every mon this module has
@@ -125,7 +137,7 @@ function M.revertMon(mon, data)
   local was = mon.form
   local baseDef = data and data.pokemon and data.pokemon[mon.species]
   if baseDef and baseDef.baseStats then
-    applyStats(mon, Mon.stats(baseDef.baseStats, mon.dvs, mon.level, mon.statExp))
+    applyStats(mon, monStats(baseDef.baseStats, mon.dvs, mon.level, mon.statExp))
   end
   mon.form = nil
   mon.formTypes = nil
