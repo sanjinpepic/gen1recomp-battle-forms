@@ -135,6 +135,7 @@ return function(mod)
                   "src/overlay.lua", "src/formmenu.lua", "src/menu.lua", "src/boxmark.lua",
                   "src/formview.lua", "src/gen2forms.lua", "src/gen2formview.lua",
                   "src/formicons.lua", "src/formresolve.lua", "src/formapi.lua",
+                  "src/announcename.lua",
                   "src/gen2shop.lua", "src/gen2menu.lua",
                   "src/zmovemenu.lua", "src/gen2movemenu.lua", "src/hpscale.lua",
                   "src/gen2dynamaxgrow.lua",
@@ -559,8 +560,12 @@ return function(mod)
   -- (src/maxmoves.lua's own header on M.fieldsFor).
   local maxmoves = m["src/maxmoves.lua"]
   local guardState = maxmoves.newGuard()
+  -- announcename: the battle text row is eighteen characters and does not
+  -- wrap, so a Max Move whose name is over the twelve it leaves announces
+  -- under its short form instead of being cut off mid-word. See that file.
   maxmoves.bind({ anim = anim, announce = announce, log = mod.log,
                   guard = guardState, substitute = m["src/substitute.lua"],
+                  announcename = m["src/announcename.lua"],
                   gen2 = gen2 })
   local maxCatalog = maxmoves.install(mod, m["data/maxmoves.lua"])
 
@@ -577,6 +582,7 @@ return function(mod)
   local gmaxmoves = m["src/gmaxmoves.lua"]
   gmaxmoves.bind({ anim = anim, log = mod.log,
                    substitute = m["src/substitute.lua"], maxmoves = maxmoves,
+                   announcename = m["src/announcename.lua"],
                    gen2 = gen2 })
   local gmaxCatalog = gmaxmoves.install(mod, m["data/gmaxmoves.lua"],
                                         m["data/maxmoves.lua"])

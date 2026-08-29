@@ -120,7 +120,8 @@ function M.install(mod, rows, maxRows)
         rungs[power] = id
         registerMove(mod, id, {
           id = id,
-          name = row.name,
+          name = deps.announcename and deps.announcename.of(row)
+            or row.name,
           type = row.type,
           power = power,
           -- Never miss in the real games and no field to say so -- the same

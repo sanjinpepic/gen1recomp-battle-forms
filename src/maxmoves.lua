@@ -124,7 +124,8 @@ function M.install(mod, rows)
 
   registerMove(mod, guardId, {
     id = guardId,
-    name = guardRow.name,
+    name = deps and deps.announcename and deps.announcename.of(guardRow)
+      or guardRow.name,
     type = guardRow.type,
     power = 0,
     accuracy = 100,
@@ -147,7 +148,8 @@ function M.install(mod, rows)
           rungs[power] = M.idFor(row.stem, power)
           registerMove(mod, rungs[power], {
             id = rungs[power],
-            name = row.name,
+            name = deps and deps.announcename and deps.announcename.of(row)
+              or row.name,
             type = row.type,
             power = power,
             -- Max Moves never miss in the real games and there is no

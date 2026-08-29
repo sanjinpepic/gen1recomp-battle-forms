@@ -20,6 +20,7 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local T = require("tests.modkit")
 local MOD = arg[0]:gsub("[/\\]tests[/\\][^/\\]+$", "")
 local GMax = dofile(MOD .. "/src/gmaxmoves.lua")
+local AnnounceName = dofile(MOD .. "/src/announcename.lua")
 local MaxMoves = dofile(MOD .. "/src/maxmoves.lua")
 local Substitute = dofile(MOD .. "/src/substitute.lua")
 local Anim = dofile(MOD .. "/src/anim.lua")
@@ -75,7 +76,7 @@ local function stubMod(chart)
 end
 
 local function bindGmax(mod)
-  GMax.bind({ anim = Anim, log = mod and mod.log, substitute = Substitute,
+  GMax.bind({ announcename = AnnounceName, anim = Anim, log = mod and mod.log, substitute = Substitute,
               maxmoves = MaxMoves })
 end
 
@@ -242,7 +243,20 @@ do
   T.check(wildfire90 ~= nil, "G-MAX WILDFIRE registered at the bottom rung")
   T.eq(wildfire90.id, GMax.idFor("GMAXWILDFIRE", 90),
     "the record's id equals the key it was registered under")
-  T.eq(wildfire90.name, "G-MAX WILDFIRE", "with the real, unshortened name")
+  -- CHANGED 2026-08-29, and this assertion used to read "with the real,
+  -- unshortened name". It was pinning a name nothing could ever display. The
+  -- battle text row is eighteen characters and the engine does not wrap it, so
+  -- `used ` plus `!` leaves twelve -- and "G-MAX WILDFIRE" is fourteen, so the
+  -- row printed `used G-MAX WILDFIR` and lost the half that says WHICH G-Max
+  -- Move it was. Reported from a real game as "dynamax moves only show first
+  -- part of the name when used".
+  --
+  -- So an over-budget row now registers under its short form. The id is
+  -- untouched, so nothing functional changes; what changes is that the name is
+  -- one that fits everywhere it is shown -- the FIGHT menu already drew
+  -- `menu` and never saw the long one. See src/announcename.lua.
+  T.eq(wildfire90.name, "WILDFIRE",
+    "under a name the battle text row can actually hold")
   T.eq(wildfire90.type, "FIRE", "the row's own type")
   T.eq(wildfire90.power, 90, "the rung's power")
   T.eq(wildfire90.accuracy, 100, "an accuracy a move record can express")
@@ -416,7 +430,7 @@ end
 -- ---------------------------------------------------------------------
 do
   local mod = stubMod(chartOf(ALL_TYPES))
-  GMax.bind({ anim = Anim, log = mod.log, substitute = Substitute,
+  GMax.bind({ announcename = AnnounceName, anim = Anim, log = mod.log, substitute = Substitute,
               maxmoves = MaxMoves, gen2 = true })
   local catalog = GMax.install(mod, ROWS, MAXROWS)
   local data = { moves = MOVES }
@@ -455,7 +469,7 @@ do
   }
 
   local maxMod = stubMod(chartOf(ALL_TYPES))
-  MaxMoves.bind({ anim = Anim, announce = Announce, log = maxMod.log,
+  MaxMoves.bind({ announcename = AnnounceName, anim = Anim, announce = Announce, log = maxMod.log,
                   guard = MaxMoves.newGuard(), substitute = Substitute })
   local MAX_CATALOG = MaxMoves.install(maxMod, MAXROWS)
   for id, record in pairs(maxMod.registered.moves) do MOVES[id] = record end
@@ -569,14 +583,14 @@ do
   }
 
   local maxMod = stubMod(chartOf(ALL_TYPES))
-  MaxMoves.bind({ anim = Anim, announce = Announce, log = maxMod.log,
+  MaxMoves.bind({ announcename = AnnounceName, anim = Anim, announce = Announce, log = maxMod.log,
                   guard = MaxMoves.newGuard(), substitute = Substitute,
                   gen2 = true })
   local MAX_CATALOG = MaxMoves.install(maxMod, MAXROWS)
   for id, record in pairs(maxMod.registered.moves) do MOVES[id] = record end
 
   local gmaxMod = stubMod(chartOf(ALL_TYPES))
-  GMax.bind({ anim = Anim, log = gmaxMod.log, substitute = Substitute,
+  GMax.bind({ announcename = AnnounceName, anim = Anim, log = gmaxMod.log, substitute = Substitute,
               maxmoves = MaxMoves, gen2 = true })
   local GMAX_CATALOG = GMax.install(gmaxMod, ROWS, MAXROWS)
   for id, record in pairs(gmaxMod.registered.moves) do MOVES[id] = record end
@@ -691,7 +705,11 @@ do
   T.check(wildfire ~= nil,
     "G-MAX WILDFIRE survived the merge -- Fire is one of Red's fifteen types")
   T.eq(wildfire.type, "FIRE", "with its type resolved against the chart")
-  T.eq(wildfire.name, "G-MAX WILDFIRE", "and its real, unshortened name")
+  -- The real-loader half of the same change (see the note at the bottom-rung
+  -- assertion above): an over-budget name registers under its short form, so
+  -- the battle text row can hold it.
+  T.eq(wildfire.name, "WILDFIRE",
+    "and a name the battle text row can hold, through the real loader")
 
   T.eq(run.data.moves[GMax.idFor("GMAXFINALE", 90)], nil,
     "and no G-MAX FINALE -- this fixture chart is Red's fifteen types and "

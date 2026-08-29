@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.75.3
+
+### Fixed
+
+- **A Max or G-Max Move announced itself under a name the row could not hold.** The battle text line is eighteen characters and the engine does not wrap it, so `used ` plus `!` leaves twelve -- and "G-MAX WILDFIRE" is fourteen. The row printed `used G-MAX WILDFIR` and the half that says WHICH move it was is the half that fell off. All 26 G-Max names and 7 of the 18 Max Move names were over. An over-budget move now announces under its short form (`WILDFIRE`), which is the same string the FIGHT menu already drew; the id is untouched, so nothing functional changes. A name that fits ("G-MAX FINALE", twelve exactly) is left alone, and a row with no usable short form keeps the name it had rather than having one invented.
+
 ## 0.75.2
 
 ### Fixed
