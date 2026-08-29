@@ -3,6 +3,12 @@
 Format: [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 Version headings match `manifest.json`'s `version`.
 
+## 0.75.2
+
+### Fixed
+
+- **The transformation cell never appeared on Gold or Crystal.** `src/gen2menu.lua` never adopted the battle it was drawing over, so the arm state answered about whichever battle it had cached instead. `src/overlay.lua`'s `offered` asks `entry.available(battle)` about `state:current()`, so mega read a different fight's `battle.player` and a different `battle.save` for the Key Stone -- and reported nothing available for a Charizard holding the stone in the fight on screen. The diagnostic had been saying so all along (`armState=another battle ... offered=0`). The Gen 2 menu now adopts the live battle the way Gen 1's has since adoption existed.
+
 ## 0.75.1
 
 ### Fixed

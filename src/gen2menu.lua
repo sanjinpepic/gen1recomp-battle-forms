@@ -222,6 +222,37 @@ function M.install(mod, state)
 
   local vanillaUpdate = BattleState.update
   BattleState.update = function(self, dt)
+    -- FIRST, ahead of the diagnostic and the input decision both, for exactly
+    -- the reason src/menu.lua opens its own Gen 1 wrapper this way: each of
+    -- them reads the arm state, and an arm state that never learned which
+    -- battle it is in answers about the wrong one.
+    --
+    -- This module used to skip adoption entirely, and said so: "a mod enabled
+    -- mid-battle on Gold loses the cell for that battle only, the same
+    -- degraded-not-broken behaviour Gen 1 had before adoption existed".  A
+    -- real trace disproved the "mid-battle only" half.  On a fresh boot with
+    -- this mod enabled from the start, the cell never appeared at all and the
+    -- diagnostic said why on every frame:
+    --
+    --   menu: gen2 armState=another battle phase=menu queueEmpty=true
+    --   species=CHARIZARD item=CHARIZARDITE_X keys[KEY_STONE=true ...]
+    --   used[mega=false ...] offered=0
+    --
+    -- Every input correct, and nothing offered -- because src/overlay.lua's
+    -- own `offered` asks `entry.available(battle)` about `state:current()`,
+    -- and `armState=another battle` is that value failing to be the battle on
+    -- screen.  Mega's predicate then reads a different fight's battle.player
+    -- and a different battle.save for the Key Stone, and answers false about a
+    -- Charizard that is holding the stone in the fight the player is actually
+    -- standing in.
+    --
+    -- Only the generation-neutral half of adoption is taken. Gen 1's
+    -- adopt.consider also re-runs primal/conditional/fusion, which assume Gen
+    -- 1's battler shape -- the reason this was left out originally, and still
+    -- a good one. State:adopt is just "point the arm state at this battle",
+    -- and it is idempotent by its own first line (`self.battle == battle`
+    -- returns false), so this costs one comparison a frame and fires once.
+    if state and self.battle then pcall(state.adopt, state, self.battle) end
     if diag then pcall(diag.record, "gen2menu: BattleState.update ran") end
     -- src/menu.lua's own `diag.menu` line, Gold's equivalent: what is
     -- offered, what is armed, which keys are held -- on every draw, once per
