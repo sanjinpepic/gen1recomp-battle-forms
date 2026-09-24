@@ -1,7 +1,7 @@
 {
   "id": "battle_forms",
   "name": "Battle Forms",
-  "version": "0.75.3",
+  "version": "0.75.4",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -11,17 +11,18 @@
   ],
   "category": "GAMEPLAY",
   "game_version": ">=0.0.0-0 <2.0.0",
-  "priority": 80,
+  "priority": 92,
   "dependencies": [
     "national_dex"
   ],
   "optional_dependencies": [
     "universal_sprites",
-    "g9-battle-engine-beta"
+    "g9-battle-engine"
   ],
   "conflicts": [],
   "permissions": [
     "engine_internals"
   ],
-  "description": "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, persistent held-item forms for Rotom, Giratina, Palkia, Dialga, Zacian, Zamazenta, Shaymin, Arceus (its seventeen Plates), Silvally (its seventeen Memories) and Genesect (its four Drives, purely cosmetic), fusion for Kyurem, Necrozma and Calyrex, which joins two Pokemon into one and keeps the partner in the PC until they are separated again, and Ultra Burst for a Necrozma already fused into Dusk Mane or Dawn Wings, which becomes Ultra Necrozma for the rest of the battle."
+  "description": "Form changes: mega evolution, Dynamax and Gigantamax, Terastallization, Z-Moves, primal reversion for Groudon and Kyogre, condition-driven forms for eight more species, persistent held-item forms for Rotom, Giratina, Palkia, Dialga, Zacian, Zamazenta, Shaymin, Arceus (its seventeen Plates), Silvally (its seventeen Memories) and Genesect (its four Drives, purely cosmetic), fusion for Kyurem, Necrozma and Calyrex, which joins two Pokemon into one and keeps the partner in the PC until they are separated again, and Ultra Burst for a Necrozma already fused into Dusk Mane or Dawn Wings, which becomes Ultra Necrozma for the rest of the battle.",
+  "github": "https://github.com/sanjinpepic/gen1recomp-battle-forms"
 }
